@@ -20,6 +20,12 @@ exsh = "exist_shell.main:app"
 [tool.hatch.build.targets.wheel]
 packages = ["src/exist_shell"]
 
+[tool.ruff.lint]
+select = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [dependency-groups]
 dev = [
     "pytest>=8",

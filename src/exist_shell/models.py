@@ -1,7 +1,11 @@
+"""Pydantic models for eXist-db REST API responses."""
+
 from pydantic import BaseModel
 
 
 class CollectionEntry(BaseModel):
+    """A subcollection entry returned by the eXist-db REST API."""
+
     name: str
     created: str | None = None
     owner: str | None = None
@@ -10,6 +14,8 @@ class CollectionEntry(BaseModel):
 
 
 class ResourceEntry(BaseModel):
+    """A document resource entry returned by the eXist-db REST API."""
+
     name: str
     created: str | None = None
     last_modified: str | None = None

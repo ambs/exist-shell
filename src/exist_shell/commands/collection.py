@@ -1,3 +1,5 @@
+"""Collection management commands (add, ls)."""
+
 import typer
 
 from exist_shell.client import ExistClient
@@ -37,6 +39,7 @@ def collection_add(
     server: str | None = typer.Option(None, "--server", help="Server nick."),
     nick: str | None = typer.Option(None, help="Nickname (default: collection name)."),
 ) -> None:
+    """Add a collection and verify it exists on the server before saving."""
     name = target
     if "@" in target:
         name, server_from_target = target.split("@", 1)

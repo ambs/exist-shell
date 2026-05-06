@@ -1,3 +1,5 @@
+"""ls command — list contents of an eXist collection path."""
+
 import typer
 
 from exist_shell.client import ExistClient
@@ -50,6 +52,7 @@ def ls(
         autocompletion=_complete_ls_target,
     ),
 ) -> None:
+    """List subcollections and resources at a collection path."""
     nick, _, path = target.partition(":")
     if not path:
         path = "/"

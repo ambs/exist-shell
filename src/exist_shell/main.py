@@ -1,3 +1,5 @@
+"""Entry point and top-level CLI app for exsh."""
+
 import typer
 
 from exist_shell import __version__
@@ -25,7 +27,7 @@ def _version_callback(value: bool) -> None:
 def main(
     version: bool = typer.Option(False, "--version", callback=_version_callback, is_eager=True, help="Show version and exit."),
 ) -> None:
-    pass
+    """eXist-db shell — interact with eXist-db via REST."""
 
 
 if __name__ == "__main__":

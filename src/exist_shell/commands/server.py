@@ -1,3 +1,5 @@
+"""Server management commands (add, ls)."""
+
 import typer
 
 from pydantic import SecretStr
@@ -38,6 +40,7 @@ def server_add(
     ),
     nick: str | None = typer.Option(None, help="Nickname (default: hostname without domain)."),
 ) -> None:
+    """Add a server and verify connectivity before saving."""
     resolved_nick = nick or _default_nick(host)
     config = Config.load()
     if resolved_nick in config.servers:

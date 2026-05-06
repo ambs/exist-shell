@@ -1,3 +1,5 @@
+"""HTTP client for the eXist-db REST API."""
+
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -10,7 +12,15 @@ _EXIST_NS = "http://exist.sourceforge.net/NS/exist"
 
 
 class ExistClient:
+    """HTTP client scoped to a single eXist-db server.
+
+    Args:
+        server: The server configuration to connect to.
+        timeout: Request timeout in seconds.
+    """
+
     def __init__(self, server: Server, timeout: float = 30.0) -> None:
+        """Initialize the client and open an HTTP connection."""
         self._base = f"http://{server.host}:{server.port}/exist"
         self._http = httpx.Client(
             auth=(server.user, server.password.get_secret_value()),
@@ -18,6 +28,12 @@ class ExistClient:
         )
 
     def check_connection(self) -> None:
+        """Verify connectivity and credentials against the server.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+        """
         url = f"{self._base}/rest/db"
         try:
             r = self._http.get(url)
@@ -28,6 +44,18 @@ class ExistClient:
         r.raise_for_status()
 
     def collection_exists(self, name: str) -> bool:
+        """Check whether a top-level collection exists under /db/.
+
+        Args:
+            name: Collection name (without the /db/ prefix).
+
+        Returns:
+            True if the collection exists, False if 404.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+        """
         url = f"{self._base}/rest/db/{name}"
         try:
             r = self._http.get(url)
@@ -38,6 +66,19 @@ class ExistClient:
         return r.status_code in (200, 207)
 
     def list_collection(self, path: str) -> list[CollectionItem]:
+        """List subcollections and resources at the given eXist path.
+
+        Args:
+            path: Full eXist path starting with /db/ (e.g. /db/myapp/sub).
+
+        Returns:
+            Ordered list of CollectionEntry and ResourceEntry objects.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistNotFoundError: If the path does not exist.
+        """
         url = f"{self._base}/rest{path}"
         try:
             r = self._http.get(url)
@@ -74,10 +115,13 @@ class ExistClient:
         return items
 
     def close(self) -> None:
+        """Close the underlying HTTP connection."""
         self._http.close()
 
     def __enter__(self) -> "ExistClient":
+        """Enter the context manager."""
         return self
 
     def __exit__(self, *_) -> None:
+        """Exit the context manager and close the connection."""
         self.close()

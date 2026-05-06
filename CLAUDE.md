@@ -33,6 +33,31 @@ Never stage or commit files that were not explicitly created as part of the curr
 
 Never run `ruff --fix` across the whole project. Only apply it to a specific file, and only when a manual edit has already failed to resolve the issue.
 
+## Docstrings
+
+Every public module, class, and method must have a docstring. Use Google style:
+
+```python
+def my_method(self, path: str) -> list[str]:
+    """Short one-line summary.
+
+    Args:
+        path: The collection path under /db/.
+
+    Returns:
+        List of item names found at the path.
+
+    Raises:
+        ExistNotFoundError: If the path does not exist.
+        ExistAuthError: If authentication fails.
+    """
+```
+
+- `Args` section required whenever the method has parameters beyond `self`.
+- `Returns` section required whenever the return type is not `None`.
+- `Raises` section required whenever the method raises documented exceptions.
+- Ruff enforces this via `select = ["D"]` with `convention = "google"`.
+
 ## Code conventions
 
 - Python 3.11+. Never import from `typing` when a builtin works (`list`, `dict`, `str | None`, etc.).

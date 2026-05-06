@@ -1,3 +1,5 @@
+"""Shell completion helpers for eXist collection and document paths."""
+
 from typing import Any
 
 
