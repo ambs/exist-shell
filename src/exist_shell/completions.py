@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+from exist_shell.cache import get_cached, set_cached
 from exist_shell.client import ExistClient
 from exist_shell.config import Config
 from exist_shell.models import CollectionEntry
@@ -50,8 +51,11 @@ def collection_target_completer(kind: Kind = "any", *, allow_local: bool = False
         full_dir = f"/db/{collection.name}{dir_path}"
 
         try:
-            with ExistClient(server) as client:
-                items = client.list_collection(full_dir)
+            items = get_cached(nick, dir_path)
+            if items is None:
+                with ExistClient(server) as client:
+                    items = client.list_collection(full_dir)
+                set_cached(nick, dir_path, items)
         except Exception:
             return []
 

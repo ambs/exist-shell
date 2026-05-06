@@ -6,6 +6,7 @@ from pathlib import Path
 
 import typer
 
+from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
 from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
@@ -56,3 +57,4 @@ def put(
     with handle_exist_errors(path, nick, collection.server_nick):
         with ExistClient(server) as client:
             client.put_document(full_path, content, resolved_mime)
+    invalidate(nick)

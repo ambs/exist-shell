@@ -5,6 +5,7 @@ from pathlib import Path, PurePosixPath
 
 import typer
 
+from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
 from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
@@ -77,6 +78,7 @@ def _local_to_remote(source: str, target: str) -> None:
     with handle_exist_errors(dest_path, nick, collection.server_nick):
         with ExistClient(server) as client:
             client.put_document(full_dest, content, mime_type)
+    invalidate(nick)
 
 
 def _remote_to_local(source: str, target: str) -> None:
@@ -122,6 +124,7 @@ def _remote_to_remote(source: str, target: str) -> None:
     with handle_exist_errors(dest_path, tgt_nick, tgt_collection.server_nick):
         with ExistClient(tgt_server) as client:
             client.put_document(tgt_full, result.content, result.mime_type)
+    invalidate(tgt_nick)
 
 
 def cp(

@@ -3,15 +3,17 @@
 from pathlib import Path
 
 import tomlkit
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
-CONFIG_PATH = Path.home() / ".config" / "exist-shell" / "config.toml"
+NICK_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
+
+CONFIG_PATH = Path.home() / ".config" / "exsh" / "config.toml"
 
 
 class Server(BaseModel):
     """An eXist-db server configuration."""
 
-    nick: str
+    nick: str = Field(pattern=NICK_PATTERN)
     host: str
     port: int = 8080
     user: str = "admin"
@@ -21,7 +23,7 @@ class Server(BaseModel):
 class Collection(BaseModel):
     """A named collection on an eXist-db server."""
 
-    nick: str
+    nick: str = Field(pattern=NICK_PATTERN)
     server_nick: str
     name: str
 

@@ -1,5 +1,5 @@
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from exist_shell.config import Collection, Config, Server
 
@@ -58,3 +58,27 @@ def test_password_round_trips_through_file(config_path):
 
     reloaded = Config.load()
     assert reloaded.servers["s"].password.get_secret_value() == "mypass"
+
+
+@pytest.mark.parametrize("nick", ["foo", "my-db", "db_1", "A", "a1", "abc-def_123"])
+def test_valid_server_nick(nick):
+    s = Server(nick=nick, host="localhost")
+    assert s.nick == nick
+
+
+@pytest.mark.parametrize("nick", ["fo o", "f:oo", "/foo", "-foo", "", "foo!", "foo.bar", "_foo"])
+def test_invalid_server_nick_raises(nick):
+    with pytest.raises(ValidationError):
+        Server(nick=nick, host="localhost")
+
+
+@pytest.mark.parametrize("nick", ["foo", "my-db", "db_1"])
+def test_valid_collection_nick(nick):
+    c = Collection(nick=nick, server_nick="local", name="mydb")
+    assert c.nick == nick
+
+
+@pytest.mark.parametrize("nick", ["fo o", "f:oo", "-foo", "", "foo!", "_foo"])
+def test_invalid_collection_nick_raises(nick):
+    with pytest.raises(ValidationError):
+        Collection(nick=nick, server_nick="local", name="mydb")
