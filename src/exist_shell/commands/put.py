@@ -8,9 +8,7 @@ import typer
 
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
-from exist_shell.config import Config
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
-from exist_shell.utils import validate_path
+from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
 
 
 def _resolve_mime(file: Path | None, mime: str | None) -> str:
@@ -40,28 +38,8 @@ def put(
     mime: str | None = typer.Option(None, "--mime", help="MIME type (default: application/xml, or guessed from file extension)."),
 ) -> None:
     """Upload a document to a collection path from a file or stdin."""
-    nick, _, path = target.partition(":")
-    if not path:
-        typer.echo("Error: path is required (use <nick>:<path>).", err=True)
-        raise typer.Exit(1)
-    if not path.startswith("/"):
-        path = "/" + path
-
-    try:
-        validate_path(path)
-    except ValueError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
-
-    config = Config.load()
-    if nick not in config.collections:
-        typer.echo(f"Error: collection '{nick}' not found.", err=True)
-        raise typer.Exit(1)
-
-    collection = config.collections[nick]
-    server = config.servers[collection.server_nick]
-    full_path = f"/db/{collection.name}{path}"
-
+    nick, path = parse_target(target)
+    collection, server, full_path = resolve_collection(nick, path)
     resolved_mime = _resolve_mime(file, mime)
 
     if file is not None:
@@ -73,15 +51,6 @@ def put(
     else:
         content = sys.stdin.buffer.read()
 
-    try:
+    with handle_exist_errors(path, nick, collection.server_nick):
         with ExistClient(server) as client:
             client.put_document(full_path, content, resolved_mime)
-    except ExistNotFoundError:
-        typer.echo(f"Error: parent collection for '{path}' not found in '{nick}'.", err=True)
-        raise typer.Exit(1)
-    except ExistAuthError:
-        typer.echo(f"Error: authentication failed for server '{collection.server_nick}'.", err=True)
-        raise typer.Exit(1)
-    except ExistConnectionError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)

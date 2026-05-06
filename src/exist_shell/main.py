@@ -5,6 +5,7 @@ import typer
 from exist_shell import __version__
 from exist_shell.commands import collection, server
 from exist_shell.commands.cat import cat
+from exist_shell.commands.edit import edit
 from exist_shell.commands.ls import ls
 from exist_shell.commands.put import put
 
@@ -19,6 +20,7 @@ app.add_typer(collection.app, name="collection", help="Manage collections.")
 app.command("ls", help="List contents of a collection path.")(ls)
 app.command("cat", help="Print document content to stdout.")(cat)
 app.command("put", help="Upload a document to a collection path.")(put)
+app.command("edit", help="Edit a document in $VISUAL/$EDITOR and re-upload if changed.")(edit)
 
 
 def _version_callback(value: bool) -> None:

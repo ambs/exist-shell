@@ -6,11 +6,9 @@ import typer
 
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
-from exist_shell.config import Config
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
-from exist_shell.utils import validate_path
+from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
 
-_TEXT_TYPES = {"text/", "application/xml", "application/json", "application/javascript"}
+_TEXT_TYPES = {"application/xml", "application/json", "application/javascript"}
 
 
 def _is_text(mime_type: str) -> bool:
@@ -33,40 +31,12 @@ def cat(
     raw: bool = typer.Option(False, "--raw", help="Write raw bytes to stdout even for binary content."),
 ) -> None:
     """Print the content of a document to stdout."""
-    nick, _, path = target.partition(":")
-    if not path:
-        typer.echo("Error: path is required (use <nick>:<path>).", err=True)
-        raise typer.Exit(1)
-    if not path.startswith("/"):
-        path = "/" + path
+    nick, path = parse_target(target)
+    collection, server, full_path = resolve_collection(nick, path)
 
-    try:
-        validate_path(path)
-    except ValueError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
-
-    config = Config.load()
-    if nick not in config.collections:
-        typer.echo(f"Error: collection '{nick}' not found.", err=True)
-        raise typer.Exit(1)
-
-    collection = config.collections[nick]
-    server = config.servers[collection.server_nick]
-    full_path = f"/db/{collection.name}{path}"
-
-    try:
+    with handle_exist_errors(path, nick, collection.server_nick):
         with ExistClient(server) as client:
             result = client.get_document(full_path)
-    except ExistNotFoundError:
-        typer.echo(f"Error: path '{path}' not found in collection '{nick}'.", err=True)
-        raise typer.Exit(1)
-    except ExistAuthError:
-        typer.echo(f"Error: authentication failed for server '{collection.server_nick}'.", err=True)
-        raise typer.Exit(1)
-    except ExistConnectionError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
 
     if not raw and not _is_text(result.mime_type):
         typer.echo(
