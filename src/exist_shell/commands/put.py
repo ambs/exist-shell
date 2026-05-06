@@ -10,6 +10,7 @@ from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
 from exist_shell.config import Config
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
+from exist_shell.utils import validate_path
 
 
 def _resolve_mime(file: Path | None, mime: str | None) -> str:
@@ -45,6 +46,12 @@ def put(
         raise typer.Exit(1)
     if not path.startswith("/"):
         path = "/" + path
+
+    try:
+        validate_path(path)
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
 
     config = Config.load()
     if nick not in config.collections:

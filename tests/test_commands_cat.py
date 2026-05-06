@@ -73,3 +73,9 @@ def test_cat_connection_error_fails(config_with_collection, client_mock, runner)
     client_mock.get_document.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["cat", "myapp:/doc.xml"])
     assert result.exit_code == 1
+
+
+def test_cat_rejects_path_traversal(config_with_collection, client_mock, runner):
+    result = runner.invoke(app, ["cat", "myapp:/../other/secret.xml"])
+    assert result.exit_code == 1
+    assert "traversal" in result.output

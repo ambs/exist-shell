@@ -7,6 +7,7 @@ from exist_shell.completions import collection_target_completer
 from exist_shell.config import Config
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
 from exist_shell.models import CollectionEntry, ResourceEntry
+from exist_shell.utils import validate_path
 
 
 def ls(
@@ -21,6 +22,12 @@ def ls(
         path = "/"
     if not path.startswith("/"):
         path = "/" + path
+
+    try:
+        validate_path(path)
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
 
     config = Config.load()
     if nick not in config.collections:

@@ -1,6 +1,7 @@
 """HTTP client for the eXist-db REST API."""
 
 import xml.etree.ElementTree as ET
+from urllib.parse import quote
 
 import httpx
 
@@ -26,6 +27,17 @@ class ExistClient:
             auth=(server.user, server.password.get_secret_value()),
             timeout=timeout,
         )
+
+    def _url(self, path: str) -> str:
+        """Build a percent-encoded REST URL for the given eXist path.
+
+        Args:
+            path: Full eXist path starting with /db/ (e.g. /db/myapp/doc.xml).
+
+        Returns:
+            Absolute URL safe to pass to httpx.
+        """
+        return f"{self._base}/rest{quote(path, safe='/')}"
 
     def check_connection(self) -> None:
         """Verify connectivity and credentials against the server.
@@ -56,7 +68,7 @@ class ExistClient:
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
         """
-        url = f"{self._base}/rest/db/{name}"
+        url = self._url(f"/db/{name}")
         try:
             r = self._http.get(url)
         except httpx.RequestError as e:
@@ -79,7 +91,7 @@ class ExistClient:
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the path does not exist.
         """
-        url = f"{self._base}/rest{path}"
+        url = self._url(path)
         try:
             r = self._http.get(url)
         except httpx.RequestError as e:
@@ -128,7 +140,7 @@ class ExistClient:
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the path does not exist.
         """
-        url = f"{self._base}/rest{path}"
+        url = self._url(path)
         try:
             r = self._http.get(url)
         except httpx.RequestError as e:
@@ -154,7 +166,7 @@ class ExistClient:
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the parent collection does not exist.
         """
-        url = f"{self._base}/rest{path}"
+        url = self._url(path)
         try:
             r = self._http.put(url, content=content, headers={"Content-Type": mime_type})
         except httpx.RequestError as e:

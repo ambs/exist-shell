@@ -108,3 +108,9 @@ def test_put_unreadable_file_fails(config_with_collection, client_mock, runner):
     result = runner.invoke(app, ["put", "myapp:/doc.xml", "-f", "/nonexistent/path/doc.xml"])
     assert result.exit_code == 1
     assert "cannot read" in result.output
+
+
+def test_put_rejects_path_traversal(config_with_collection, client_mock, runner):
+    result = runner.invoke(app, ["put", "myapp:/../other/doc.xml"])
+    assert result.exit_code == 1
+    assert "traversal" in result.output

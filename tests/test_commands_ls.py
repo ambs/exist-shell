@@ -65,3 +65,9 @@ def test_ls_connection_error_fails(config_with_collection, client_mock, runner):
     client_mock.list_collection.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["ls", "myapp:/"])
     assert result.exit_code == 1
+
+
+def test_ls_rejects_path_traversal(config_with_collection, client_mock, runner):
+    result = runner.invoke(app, ["ls", "myapp:/../other"])
+    assert result.exit_code == 1
+    assert "traversal" in result.output
