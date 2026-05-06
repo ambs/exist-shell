@@ -2,6 +2,7 @@ import typer
 
 from exist_shell import __version__
 from exist_shell.commands import collection, server
+from exist_shell.commands.ls import ls
 
 app = typer.Typer(
     name="exsh",
@@ -11,6 +12,7 @@ app = typer.Typer(
 
 app.add_typer(server.app, name="server", help="Manage servers.")
 app.add_typer(collection.app, name="collection", help="Manage collections.")
+app.command("ls", help="List contents of a collection path.")(ls)
 
 
 def _version_callback(value: bool) -> None:

@@ -15,3 +15,9 @@ class ExistAuthError(ExistError):
     def __init__(self, url: str) -> None:
         super().__init__(f"Authentication failed for {url}", status_code=401)
         self.url = url
+
+
+class ExistNotFoundError(ExistError):
+    def __init__(self, path: str) -> None:
+        super().__init__(f"Not found: {path}", status_code=404)
+        self.path = path
