@@ -1,5 +1,7 @@
 """Pydantic models for eXist-db REST API responses."""
 
+from typing import NamedTuple
+
 from pydantic import BaseModel
 
 
@@ -27,3 +29,10 @@ class ResourceEntry(BaseModel):
 
 
 CollectionItem = CollectionEntry | ResourceEntry
+
+
+class DocumentResult(NamedTuple):
+    """A retrieved document's raw content and declared MIME type."""
+
+    content: bytes
+    mime_type: str

@@ -6,7 +6,7 @@ import httpx
 
 from exist_shell.config import Server
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
-from exist_shell.models import CollectionEntry, CollectionItem, ResourceEntry
+from exist_shell.models import CollectionEntry, CollectionItem, DocumentResult, ResourceEntry
 
 _EXIST_NS = "http://exist.sourceforge.net/NS/exist"
 
@@ -113,6 +113,33 @@ class ExistClient:
                     mime_type=el.get("mime-type"),
                 ))
         return items
+
+    def get_document(self, path: str) -> DocumentResult:
+        """Retrieve a document's raw bytes and declared MIME type.
+
+        Args:
+            path: Full eXist path starting with /db/ (e.g. /db/myapp/doc.xml).
+
+        Returns:
+            DocumentResult with the raw content bytes and MIME type string.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistNotFoundError: If the path does not exist.
+        """
+        url = f"{self._base}/rest{path}"
+        try:
+            r = self._http.get(url)
+        except httpx.RequestError as e:
+            raise ExistConnectionError(url, e) from e
+        if r.status_code == 401:
+            raise ExistAuthError(url)
+        if r.status_code == 404:
+            raise ExistNotFoundError(path)
+        r.raise_for_status()
+        mime_type = r.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+        return DocumentResult(content=r.content, mime_type=mime_type)
 
     def close(self) -> None:
         """Close the underlying HTTP connection."""
