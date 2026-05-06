@@ -25,6 +25,10 @@ make ruff                      # lint with ruff
 make ty                        # type-check with ty
 ```
 
+## File discipline
+
+Never stage or commit files that were not explicitly created as part of the current task or explicitly requested by the user. This includes cache directories, build artifacts, lock files, and any other files that appear as a side effect of running tools.
+
 ## Linting
 
 Never run `ruff --fix` across the whole project. Only apply it to a specific file, and only when a manual edit has already failed to resolve the issue.
