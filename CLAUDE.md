@@ -8,8 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Dev setup
 
+Dependencies are managed with [uv](https://docs.astral.sh/uv/).
+
 ```bash
-pip install -e ".[dev]"        # or: uv pip install -e ".[dev]"
+uv sync                        # install all deps including dev group
 exsh --help
 exsh --version
 ```
@@ -17,9 +19,15 @@ exsh --version
 ## Commands
 
 ```bash
-pytest                         # run all tests
-hatch run test                 # run tests via hatch
+make checks                    # run ruff, ty and tests
+make test                      # run tests
+make ruff                      # lint with ruff
+make ty                        # type-check with ty
 ```
+
+## Linting
+
+Never run `ruff --fix` across the whole project. Only apply it to a specific file, and only when a manual edit has already failed to resolve the issue.
 
 ## Code conventions
 
