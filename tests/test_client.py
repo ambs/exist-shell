@@ -88,3 +88,30 @@ def test_list_collection_raises_connection_error_on_network_failure(httpx_mock, 
     with ExistClient(a_server) as client:
         with pytest.raises(ExistConnectionError):
             client.list_collection("/db/myapp")
+
+
+def test_put_document_succeeds_on_201(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="PUT", status_code=201)
+    with ExistClient(a_server) as client:
+        client.put_document("/db/myapp/doc.xml", b"<root/>", "application/xml")
+
+
+def test_put_document_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="PUT", status_code=401)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.put_document("/db/myapp/doc.xml", b"<root/>", "application/xml")
+
+
+def test_put_document_raises_not_found_on_404(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="PUT", status_code=404)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistNotFoundError):
+            client.put_document("/db/myapp/doc.xml", b"<root/>", "application/xml")
+
+
+def test_put_document_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.put_document("/db/myapp/doc.xml", b"<root/>", "application/xml")

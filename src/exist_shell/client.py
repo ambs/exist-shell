@@ -141,6 +141,30 @@ class ExistClient:
         mime_type = r.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
         return DocumentResult(content=r.content, mime_type=mime_type)
 
+    def put_document(self, path: str, content: bytes, mime_type: str) -> None:
+        """Store a document at the given eXist path.
+
+        Args:
+            path: Full eXist path starting with /db/ (e.g. /db/myapp/doc.xml).
+            content: Raw document bytes.
+            mime_type: MIME type sent as the Content-Type header.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistNotFoundError: If the parent collection does not exist.
+        """
+        url = f"{self._base}/rest{path}"
+        try:
+            r = self._http.put(url, content=content, headers={"Content-Type": mime_type})
+        except httpx.RequestError as e:
+            raise ExistConnectionError(url, e) from e
+        if r.status_code == 401:
+            raise ExistAuthError(url)
+        if r.status_code == 404:
+            raise ExistNotFoundError(path)
+        r.raise_for_status()
+
     def close(self) -> None:
         """Close the underlying HTTP connection."""
         self._http.close()
