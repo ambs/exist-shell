@@ -51,6 +51,8 @@ def put(
     else:
         content = sys.stdin.buffer.read()
 
+    # PUT silently overwrites existing documents. A --no-clobber flag could
+    # check existence first (HEAD request) and abort if the resource is found.
     with handle_exist_errors(path, nick, collection.server_nick):
         with ExistClient(server) as client:
             client.put_document(full_path, content, resolved_mime)
