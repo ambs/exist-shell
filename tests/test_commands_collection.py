@@ -93,3 +93,22 @@ def test_collection_add_auth_error_fails(config_with_server, client_mock, runner
     client_mock.collection_exists.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["collection", "add", "myapp", "--server", "local"])
     assert result.exit_code == 1
+
+
+def test_collection_add_at_syntax(config_with_server, client_mock, runner):
+    client_mock.collection_exists.return_value = True
+    result = runner.invoke(app, ["collection", "add", "myapp@local"])
+    assert result.exit_code == 0
+    assert "myapp" in Config.load().collections
+
+
+def test_collection_add_at_syntax_conflict_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["collection", "add", "myapp@local", "--server", "other"])
+    assert result.exit_code == 1
+    assert "conflicting" in result.output
+
+
+def test_collection_add_at_syntax_matching_server_option_ok(config_with_server, client_mock, runner):
+    client_mock.collection_exists.return_value = True
+    result = runner.invoke(app, ["collection", "add", "myapp@local", "--server", "local"])
+    assert result.exit_code == 0

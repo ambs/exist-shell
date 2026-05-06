@@ -7,6 +7,17 @@ from exist_shell.exceptions import ExistAuthError, ExistConnectionError
 app = typer.Typer(help="Manage collections.", no_args_is_help=True)
 
 
+def _complete_collection_target(incomplete: str) -> list[str]:
+    if "@" not in incomplete:
+        return []
+    prefix, partial = incomplete.split("@", 1)
+    try:
+        servers = Config.load().servers
+    except Exception:
+        return []
+    return [f"{prefix}@{nick}" for nick in servers if nick.startswith(partial)]
+
+
 def _list() -> None:
     config = Config.load()
     for nick, c in config.collections.items():
@@ -19,10 +30,21 @@ app.command("list", help="List configured collections.", hidden=True)(_list)
 
 @app.command("add")
 def collection_add(
-    name: str = typer.Argument(help="Collection name under /db/."),
+    target: str = typer.Argument(
+        help="Collection name, optionally with server: <name>[@<server>].",
+        autocompletion=_complete_collection_target,
+    ),
     server: str | None = typer.Option(None, "--server", help="Server nick."),
     nick: str | None = typer.Option(None, help="Nickname (default: collection name)."),
 ) -> None:
+    name = target
+    if "@" in target:
+        name, server_from_target = target.split("@", 1)
+        if server is not None and server != server_from_target:
+            typer.echo("Error: conflicting --server and @server in argument.", err=True)
+            raise typer.Exit(1)
+        server = server_from_target
+
     config = Config.load()
 
     if server is None:
