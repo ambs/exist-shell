@@ -19,7 +19,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T04 | [x]    | ls (empty collection, error cases) |
 | T05 | [x]    | put (file, stdin, MIME, binary, overwrite, errors) |
 | T06 | [x]    | ls (after uploads, including auto-created subcollections from T05.10) |
-| T07 | [ ]    | cat (text, binary, --raw, errors) |
+| T07 | [x]    | cat (text, binary, --raw, errors) |
 | T08 | [ ]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
 | T09 | [ ]    | rm (single, multi, not-found, errors) |
 | T10 | [ ]    | mkdir (create, idempotent, nested, errors) |
@@ -161,13 +161,13 @@ Error messages:
 
 | ID    | Command | Expected |
 |-------|---------|----------|
-| T07.1 | `exsh cat testcol:/hello.xml` | exit 0, output contains `<hello>world</hello>` |
-| T07.2 | `exsh cat testcol:/stdin.xml` | exit 0, output contains `<from>stdin</from>` |
-| T07.3 | `exsh cat testcol:/data.bin` | exit 1, output contains `is binary` |
-| T07.4 | `exsh cat testcol:/data.bin --raw > $TMPDIR_E2E/data_dl.bin` | exit 0, `data_dl.bin` matches original `data.bin` |
-| T07.5 | `exsh cat testcol:/nonexistent.xml` | exit 1, output contains `not found in collection` |
-| T07.6 | `exsh cat ghost:/hello.xml` | exit 1, output contains `collection 'ghost' not found` |
-| T07.7 | `exsh cat testcol` (no colon/path) | exit 1, output contains `path is required` |
+| T07.1 | ~~`exsh cat testcol:/hello.xml`~~ | ✓ exit 0, output contains `<hello>world</hello>` |
+| T07.2 | ~~`exsh cat testcol:/stdin.xml`~~ | ✓ exit 0, output contains `<from>stdin</from>` |
+| T07.3 | ~~`exsh cat testcol:/data.bin`~~ | ✓ exit 1, output contains `is binary` |
+| T07.4 | ~~`exsh cat testcol:/data.bin --raw > $TMPDIR_E2E/data_dl.bin`~~ | ✓ exit 0, `data_dl.bin` matches original `data.bin` |
+| T07.5 | ~~`exsh cat testcol:/nonexistent.xml`~~ | ✓ exit 1, output contains `not found in collection` |
+| T07.6 | ~~`exsh cat ghost:/hello.xml`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
+| T07.7 | ~~`exsh cat testcol` (no colon/path)~~ | ✓ exit 1, output contains `path is required` |
 
 T07.4 note: `--raw` writes bytes to `sys.stdout.buffer`, so redirect to a file and use `assert_file_eq` or `cmp` to verify the content.
 
