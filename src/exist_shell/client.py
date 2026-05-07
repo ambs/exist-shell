@@ -177,6 +177,28 @@ class ExistClient:
             raise ExistNotFoundError(path)
         r.raise_for_status()
 
+    def create_collection(self, path: str) -> None:
+        """Create a collection at the given eXist path.
+
+        Args:
+            path: Full eXist path starting with /db/ (e.g. /db/myapp/newcoll).
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistNotFoundError: If the parent collection does not exist.
+        """
+        url = self._url(path.rstrip("/") + "/")
+        try:
+            r = self._http.put(url, content=b"")
+        except httpx.RequestError as e:
+            raise ExistConnectionError(url, e) from e
+        if r.status_code == 401:
+            raise ExistAuthError(url)
+        if r.status_code == 404:
+            raise ExistNotFoundError(path)
+        r.raise_for_status()
+
     def delete_document(self, path: str) -> None:
         """Delete a document at the given eXist path.
 

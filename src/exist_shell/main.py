@@ -6,6 +6,7 @@ from exist_shell import __version__
 from exist_shell.commands import collection, server
 from exist_shell.commands.cat import cat
 from exist_shell.commands.cp import cp
+from exist_shell.commands.mkdir import mkdir
 from exist_shell.commands.edit import edit
 from exist_shell.commands.ls import ls
 from exist_shell.commands.put import put
@@ -25,6 +26,7 @@ app.command("put", help="Upload a document to a collection path.")(put)
 app.command("edit", help="Edit a document in $VISUAL/$EDITOR and re-upload if changed.")(edit)
 app.command("cp", help="Copy a document between local paths and remote collections.")(cp)
 app.command("rm", help="Delete one or more documents from a collection path.")(rm)
+app.command("mkdir", help="Create a collection at a path inside a registered collection.")(mkdir)
 
 
 def _version_callback(value: bool) -> None:
