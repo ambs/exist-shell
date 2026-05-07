@@ -65,6 +65,8 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh edit <nick>:<path>` | Open a document in `$EDITOR`, re-upload if changed |
 | `exsh rm <nick>:<path>...` | Delete one or more documents |
 | `exsh mkdir <nick>:<path>` | Create a collection |
+| `exsh sync <local> <nick>[:<path>]` | Push a local folder to a remote collection |
+| `exsh sync <nick>[:<path>] <local>` | Pull a remote collection to a local folder |
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
 | `exsh collection add <name>[@<server>]` | Register a collection |
@@ -99,7 +101,37 @@ exsh rm mydata:reports/2025/a.xml mydata:reports/2025/b.xml
 
 # Create a subcollection
 exsh mkdir mydata:reports/2026
+
+# Push a local folder to the server (only transfers changed files)
+exsh sync ./reports mydata:reports
+
+# Pull a remote collection to a local folder
+exsh sync mydata:reports ./reports
+
+# Preview what would be transferred without doing it
+exsh sync --dry-run ./reports mydata:reports
+
+# Push and remove files on the server that no longer exist locally
+exsh sync --delete ./reports mydata:reports
 ```
+
+## Sync
+
+`exsh sync` transfers only files that have changed, using a local manifest stored at `~/.cache/exsh/sync/`. Direction is inferred from the argument order: local-first means push, remote-first means pull.
+
+**Change detection:**
+- **Push**: SHA-256 hash of the local file is compared against the manifest. Same-size edits are caught.
+- **Pull**: `last_modified` timestamp from the eXist listing is compared against the manifest.
+
+**Conflicts** (both sides changed since last sync) are reported and skipped — use `--force` to override.
+
+**Options:**
+
+| Flag | Effect |
+|------|--------|
+| `--force` / `-f` | Transfer all files, bypassing change detection |
+| `--dry-run` / `-n` | Show what would happen without transferring |
+| `--delete` | Remove files and empty folders on the destination that no longer exist on the source |
 
 ## Shell completion
 
