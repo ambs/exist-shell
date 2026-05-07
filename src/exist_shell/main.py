@@ -9,6 +9,7 @@ from exist_shell.commands.cp import cp
 from exist_shell.commands.edit import edit
 from exist_shell.commands.ls import ls
 from exist_shell.commands.put import put
+from exist_shell.commands.rm import rm
 
 app = typer.Typer(
     name="exsh",
@@ -23,6 +24,7 @@ app.command("cat", help="Print document content to stdout.")(cat)
 app.command("put", help="Upload a document to a collection path.")(put)
 app.command("edit", help="Edit a document in $VISUAL/$EDITOR and re-upload if changed.")(edit)
 app.command("cp", help="Copy a document between local paths and remote collections.")(cp)
+app.command("rm", help="Delete one or more documents from a collection path.")(rm)
 
 
 def _version_callback(value: bool) -> None:
