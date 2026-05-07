@@ -46,7 +46,7 @@ trap teardown EXIT
 source "${SCRIPT_DIR}/e2e/sections/T02_server.sh"
 source "${SCRIPT_DIR}/e2e/sections/T03_collection.sh"
 source "${SCRIPT_DIR}/e2e/sections/T04_ls.sh"
-# source "${SCRIPT_DIR}/e2e/sections/T05_put.sh"
+source "${SCRIPT_DIR}/e2e/sections/T05_put.sh"
 # source "${SCRIPT_DIR}/e2e/sections/T06_ls_after.sh"
 # source "${SCRIPT_DIR}/e2e/sections/T07_cat.sh"
 # source "${SCRIPT_DIR}/e2e/sections/T08_cp.sh"
@@ -67,7 +67,7 @@ main() {
     section_T02_server
     section_T03_collection
     section_T04_ls
-    # section_T05_put
+    section_T05_put
     # section_T06_ls_after
     # section_T07_cat
     # section_T08_cp

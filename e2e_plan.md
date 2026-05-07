@@ -17,14 +17,14 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T02 | [x]    | server add / server ls |
 | T03 | [x]    | collection add / collection ls |
 | T04 | [x]    | ls (empty collection, error cases) |
-| T05 | [ ]    | put (file, stdin, MIME, binary, overwrite, errors) |
-| T06 | [ ]    | ls (after uploads) |
-| T07 | [ ]    | cat (text, binary, errors) |
-| T08 | [ ]    | cp (local→remote, remote→local, remote→remote) |
-| T09 | [ ]    | rm (single, multi, not-found) |
-| T10 | [ ]    | mkdir (create, duplicate, errors) |
-| T11 | [ ]    | edit (modified, no-change) |
-| T12 | [ ]    | sync (push, pull, --delete, --dry-run, conflict) |
+| T05 | [x]    | put (file, stdin, MIME, binary, overwrite, errors) |
+| T06 | [ ]    | ls (after uploads, including auto-created subcollections from T05.10) |
+| T07 | [ ]    | cat (text, binary, --raw, errors) |
+| T08 | [ ]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
+| T09 | [ ]    | rm (single, multi, not-found, errors) |
+| T10 | [ ]    | mkdir (create, idempotent, nested, errors) |
+| T11 | [ ]    | edit (modified, no-change, editor error, not-found) |
+| T12 | [ ]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors) |
 | T13 | [ ]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
 
 Mark tasks `[x]` as they are completed.
@@ -113,20 +113,218 @@ Error messages:
 
 | ID    | Command | Expected |
 |-------|---------|----------|
-| T05.1 | `exsh put testcol:/hello.xml -f $TMPDIR_E2E/hello.xml` (XML file) | exit 0 |
-| T05.2 | repeat T05.1 (silent overwrite) | exit 0 (no error, no prompt) |
-| T05.3 | `exsh put testcol:/hello.xml -f $TMPDIR_E2E/hello.xml --mime application/xml` | exit 0 (explicit MIME override) |
-| T05.4 | `echo '<from>stdin</from>' \| exsh put testcol:/stdin.xml` | exit 0 (read from stdin) |
-| T05.5 | `exsh put testcol:/data.bin -f $TMPDIR_E2E/data.bin` (binary file, MIME guessed as `application/octet-stream`) | exit 0 |
-| T05.6 | `exsh put testcol:/../escape.xml -f $TMPDIR_E2E/hello.xml` | exit 1, output contains `path traversal not allowed` |
-| T05.7 | `exsh put testcol -f $TMPDIR_E2E/hello.xml` (no colon/path) | exit 1, output contains `path is required` |
-| T05.8 | `exsh put testcol:/x.xml -f /nonexistent/file.xml` | exit 1, output contains `cannot read` |
-| T05.9 | `exsh put ghost:/x.xml -f $TMPDIR_E2E/hello.xml` | exit 1, output contains `collection 'ghost' not found` |
-| T05.10 | `exsh put testcol:/missing/sub/doc.xml -f $TMPDIR_E2E/hello.xml` | exit 1, output contains `not found in collection` |
+| T05.1  | ~~`exsh put testcol:/hello.xml -f $TMPDIR_E2E/hello.xml`~~ | ✓ exit 0 |
+| T05.2  | ~~repeat T05.1 (silent overwrite)~~ | ✓ exit 0 |
+| T05.3  | ~~`exsh put testcol:/hello.xml -f ... --mime application/xml`~~ | ✓ exit 0 |
+| T05.4  | ~~`echo '<from>stdin</from>' \| exsh put testcol:/stdin.xml`~~ | ✓ exit 0 |
+| T05.5  | ~~`exsh put testcol:/data.bin -f $TMPDIR_E2E/data.bin`~~ | ✓ exit 0 |
+| T05.6  | ~~`exsh put testcol:/../escape.xml ...`~~ | ✓ exit 1, `path traversal not allowed` |
+| T05.7  | ~~`exsh put testcol -f ...` (no colon/path)~~ | ✓ exit 1, `path is required` |
+| T05.8  | ~~`exsh put testcol:/x.xml -f /nonexistent/file.xml`~~ | ✓ exit 1, `cannot read` |
+| T05.9  | ~~`exsh put ghost:/x.xml ...`~~ | ✓ exit 1, `collection 'ghost' not found` |
+| T05.10 | ~~`exsh put testcol:/missing/sub/doc.xml -f $TMPDIR_E2E/hello.xml`~~ | ✓ exit 0 — eXist auto-creates intermediate collections; T06 verifies `/missing/sub/` and `doc.xml` appear in listings |
 
 Files created in this section (persist for T06+):
 - `$TMPDIR_E2E/hello.xml` → `<hello>world</hello>`
 - `$TMPDIR_E2E/data.bin` → small binary (`\x00\x01\x02\x03`)
+
+---
+
+## T06 subtasks — ls (after uploads)
+
+Preconditions: T05 has run. Remote state in `testcol` (`/db/testcol`):
+- `hello.xml`, `stdin.xml`, `data.bin` in root
+- `missing/` subcollection (auto-created by T05.10)
+- `missing/sub/` nested subcollection
+- `missing/sub/doc.xml` document
+
+| ID    | Command | Expected |
+|-------|---------|----------|
+| T06.1 | `exsh ls testcol` | exit 0, output contains `hello.xml` |
+| T06.2 | `exsh ls testcol` | exit 0, output contains `stdin.xml` |
+| T06.3 | `exsh ls testcol` | exit 0, output contains `data.bin` |
+| T06.4 | `exsh ls testcol` | exit 0, output contains `missing` (auto-created subcollection from T05.10) |
+| T06.5 | `exsh ls testcol:/missing` | exit 0, output contains `sub` |
+| T06.6 | `exsh ls testcol:/missing/sub` | exit 0, output contains `doc.xml` |
+
+---
+
+## T07 subtasks — cat (text, binary, errors)
+
+Preconditions: T05 files are present. `hello.xml` contains `<hello>world</hello>`, `stdin.xml` contains `<from>stdin</from>`, `data.bin` is binary.
+
+Error messages:
+- binary without `--raw` → `"Error: '…' is binary (…). Use --raw to write bytes to stdout."` (from `cat.py`)
+- path not found → `"Error: path '…' not found in collection '…'."` (from `handle_exist_errors`)
+- unknown nick → `"Error: collection '…' not found."` (from `resolve_collection`)
+- path required → `"Error: path is required (use <nick>:<path>)."` (from `parse_target`)
+
+| ID    | Command | Expected |
+|-------|---------|----------|
+| T07.1 | `exsh cat testcol:/hello.xml` | exit 0, output contains `<hello>world</hello>` |
+| T07.2 | `exsh cat testcol:/stdin.xml` | exit 0, output contains `<from>stdin</from>` |
+| T07.3 | `exsh cat testcol:/data.bin` | exit 1, output contains `is binary` |
+| T07.4 | `exsh cat testcol:/data.bin --raw > $TMPDIR_E2E/data_dl.bin` | exit 0, `data_dl.bin` matches original `data.bin` |
+| T07.5 | `exsh cat testcol:/nonexistent.xml` | exit 1, output contains `not found in collection` |
+| T07.6 | `exsh cat ghost:/hello.xml` | exit 1, output contains `collection 'ghost' not found` |
+| T07.7 | `exsh cat testcol` (no colon/path) | exit 1, output contains `path is required` |
+
+T07.4 note: `--raw` writes bytes to `sys.stdout.buffer`, so redirect to a file and use `assert_file_eq` or `cmp` to verify the content.
+
+---
+
+## T08 subtasks — cp (local→remote, remote→local, remote→remote, errors)
+
+Preconditions: T05 files are present. `testcol` and `testcol2` both point to `/db/testcol` on `localhost`.
+
+Error messages:
+- both local → `"Error: at least one of source or target must be a remote path (nick:path)."` (from `cp.py`)
+- unreadable source → `"Error: cannot read '…': …"` (from `cp.py` OSError handler)
+- unknown nick → `"Error: collection '…' not found."` (from `resolve_collection`)
+- path not found → `"Error: path '…' not found in collection '…'."` (from `handle_exist_errors`)
+
+| ID     | Command | Expected |
+|--------|---------|----------|
+| T08.1  | `exsh cp $TMPDIR_E2E/hello.xml testcol:/hello_copy.xml` | exit 0 (local→remote) |
+| T08.2  | `exsh ls testcol` | exit 0, output contains `hello_copy.xml` |
+| T08.3  | `exsh cp testcol:/hello.xml $TMPDIR_E2E/hello_dl.xml` | exit 0 (remote→local) |
+| T08.4  | `cat $TMPDIR_E2E/hello_dl.xml` | output contains `<hello>world</hello>` |
+| T08.5  | `exsh cp testcol:/hello.xml testcol2:/hello_r2r.xml` | exit 0 (remote→remote, different nicks same server) |
+| T08.6  | `exsh ls testcol` | exit 0, output contains `hello_r2r.xml` |
+| T08.7  | `exsh cp testcol:/hello.xml testcol:/` (trailing slash) | exit 0, uploads as `/hello.xml` (overwrites) |
+| T08.8  | `exsh cp $TMPDIR_E2E/hello.xml $TMPDIR_E2E/copy.xml` (both local) | exit 1, `at least one of source or target` |
+| T08.9  | `exsh cp /nonexistent.xml testcol:/nope.xml` | exit 1, `cannot read` |
+| T08.10 | `exsh cp ghost:/hello.xml $TMPDIR_E2E/x.xml` | exit 1, `collection 'ghost' not found` |
+
+Files created in this section (persist for T09):
+- `testcol:/hello_copy.xml`
+- `testcol:/hello_r2r.xml`
+
+---
+
+## T09 subtasks — rm (single, multi, not-found, errors)
+
+Preconditions: T08 has created `hello_copy.xml` and `hello_r2r.xml` in `testcol`.
+
+Error messages:
+- path not found → `"Error: path '…' not found in collection '…'."` (from `handle_exist_errors`)
+- unknown nick → `"Error: collection '…' not found."` (from `resolve_collection`)
+- path required → `"Error: path is required (use <nick>:<path>)."` (from `parse_target`)
+
+| ID    | Command | Expected |
+|-------|---------|----------|
+| T09.1 | `exsh rm testcol:/hello_copy.xml` | exit 0 |
+| T09.2 | `exsh ls testcol` | exit 0, output does not contain `hello_copy.xml` |
+| T09.3 | `exsh rm testcol:/stdin.xml testcol:/hello_r2r.xml` | exit 0 (multi-target in one call) |
+| T09.4 | repeat T09.1 (already deleted) | exit 1, output contains `not found in collection` |
+| T09.5 | `exsh rm ghost:/x.xml` | exit 1, output contains `collection 'ghost' not found` |
+| T09.6 | `exsh rm testcol` (no colon/path) | exit 1, output contains `path is required` |
+
+T09.2 note: use `assert_output_absent` or run `exsh ls testcol` and grep for the absence of `hello_copy.xml`.
+
+---
+
+## T10 subtasks — mkdir (create, idempotent, nested, errors)
+
+Preconditions: `testcol` is registered. `create_collection` uses the `.keep`/delete pattern so it is idempotent.
+
+Error messages:
+- unknown nick → `"Error: collection '…' not found."` (from `resolve_collection`)
+- path required → `"Error: path is required (use <nick>:<path>)."` (from `parse_target`)
+
+| ID     | Command | Expected |
+|--------|---------|----------|
+| T10.1  | `exsh mkdir testcol:/newdir` | exit 0 |
+| T10.2  | `exsh ls testcol` | exit 0, output contains `newdir` |
+| T10.3  | repeat T10.1 (collection already exists) | exit 0 (idempotent — eXist treats duplicate PUT as a no-op) |
+| T10.4  | `exsh mkdir testcol:/nested/deep` | exit 0 (eXist auto-creates `nested` when PUT to `nested/deep/.keep`) |
+| T10.5  | `exsh ls testcol` | exit 0, output contains `nested` |
+| T10.6  | `exsh ls testcol:/nested` | exit 0, output contains `deep` |
+| T10.7  | `exsh mkdir ghost:/newdir` | exit 1, output contains `collection 'ghost' not found` |
+| T10.8  | `exsh mkdir testcol` (no colon/path) | exit 1, output contains `path is required` |
+
+---
+
+## T11 subtasks — edit (modified, no-change, editor error, not-found)
+
+Preconditions: `testcol:/hello.xml` contains `<hello>world</hello>`.
+
+Editor resolution order: `$VISUAL` → `$EDITOR` → `vi`. Tests use `EDITOR=…` overrides.
+
+Fake editor script: write `${TMPDIR_E2E}/fake_editor.sh` using `perl -i -pe 's/world/eXist/'` (cross-platform; avoids `sed -i` BSD/GNU incompatibility).
+
+Error messages:
+- editor non-zero exit → `"Error: editor exited with code N."` (from `edit.py`)
+- no changes → `"No changes."` (stdout, exit 0)
+- path not found → `"Error: path '…' not found in collection '…'."` (from `handle_exist_errors`)
+- unknown nick → `"Error: collection '…' not found."` (from `resolve_collection`)
+
+| ID     | Command | Expected |
+|--------|---------|----------|
+| T11.1  | create `${TMPDIR_E2E}/fake_editor.sh` (perl replace world→eXist); `chmod +x` | setup |
+| T11.2  | `EDITOR="${TMPDIR_E2E}/fake_editor.sh" exsh edit testcol:/hello.xml` | exit 0 (content changed → re-uploaded) |
+| T11.3  | `exsh cat testcol:/hello.xml` | exit 0, output contains `eXist` (and no longer `world`) |
+| T11.4  | `EDITOR=true exsh edit testcol:/hello.xml` | exit 0, output contains `No changes.` (`true` exits 0 without touching the file) |
+| T11.5  | `EDITOR=false exsh edit testcol:/hello.xml` | exit 1, output contains `editor exited with code` (`false` exits 1) |
+| T11.6  | `EDITOR=true exsh edit testcol:/nonexistent.xml` | exit 1, output contains `not found in collection` |
+| T11.7  | `EDITOR=true exsh edit ghost:/hello.xml` | exit 1, output contains `collection 'ghost' not found` |
+
+---
+
+## T12 subtasks — sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors)
+
+Preconditions: `testcol` registered on `localhost`. Uses `testcol:/syncroot` as the remote path.
+
+Output markers (from `sync.py`):
+- new upload → `"↑ {rel}  (new)"`
+- modified upload → `"↑ {rel}  (modified)"`
+- new download → `"↓ {rel}  (new)"`
+- unchanged → `"= {rel}  (unchanged)"`
+- conflict → `"! {rel}  (conflict: modified on both sides, skipping)"`
+- deleted → `"✗ {rel}  (deleted)"`
+- summary → `"---"` on its own line
+
+Error messages:
+- both remote → `"Error: both source and destination are remote. Use cp for remote-to-remote copies."`
+- both local → `"Error: one of source or destination must be a remote collection (nick:path)."`
+- source not a directory → `"Error: '…' is not a directory."`
+- unknown nick → `"Error: collection '…' not found."`
+
+| ID     | Command | Expected |
+|--------|---------|----------|
+| T12.1  | create `${TMPDIR_E2E}/syncdir/` with `a.xml` (`<a/>`) and `b.xml` (`<b/>`) | setup |
+| T12.2  | `exsh sync ${TMPDIR_E2E}/syncdir testcol:/syncroot` | exit 0, output contains `↑ a.xml  (new)` and `↑ b.xml  (new)` |
+| T12.3  | `exsh ls testcol:/syncroot` | exit 0, output contains `a.xml` and `b.xml` |
+| T12.4  | push again unchanged | exit 0, output contains `= a.xml  (unchanged)` and `= b.xml  (unchanged)` |
+| T12.5  | overwrite `${TMPDIR_E2E}/syncdir/a.xml` with `<a2/>`; push | exit 0, output contains `↑ a.xml  (modified)` |
+| T12.6  | overwrite `${TMPDIR_E2E}/syncdir/b.xml` with `<b2/>`; push with `--dry-run` | exit 0, output contains `↑ b.xml  (modified)` but no actual upload (repeat push again shows same message) |
+| T12.7  | `exsh sync testcol:/syncroot ${TMPDIR_E2E}/pulldir` | exit 0, output contains `↓ a.xml  (new)` and `↓ b.xml  (new)` |
+| T12.8  | `diff ${TMPDIR_E2E}/pulldir/a.xml ${TMPDIR_E2E}/syncdir/a.xml` | exit 0 (pulled file matches local after T12.5) |
+| T12.9  | real push for T12.6 (without --dry-run) | exit 0, output contains `↑ b.xml  (modified)` |
+| T12.10 | remove `${TMPDIR_E2E}/syncdir/b.xml`; `exsh sync … --delete` | exit 0, output contains `✗ b.xml  (deleted)` |
+| T12.11 | `exsh ls testcol:/syncroot` | exit 0, output does not contain `b.xml` |
+| T12.12 | conflict: `curl -X PUT` to modify `a.xml` on remote; modify local `a.xml` differently; push without `--force` | exit 0, output contains `conflict` |
+| T12.13 | `exsh sync … --force` (same files) | exit 0, output contains `↑ a.xml  (new)` — force bypasses conflict detection |
+| T12.14 | both remote: `exsh sync testcol:/syncroot testcol2:/other` | exit 1, `both source and destination are remote` |
+| T12.15 | both local: `exsh sync ${TMPDIR_E2E}/syncdir ${TMPDIR_E2E}/pulldir` | exit 1, `one of source or destination must be a remote collection` |
+| T12.16 | source not a dir: `exsh sync ${TMPDIR_E2E}/hello.xml testcol:/x` | exit 1, `is not a directory` |
+| T12.17 | unknown nick: `exsh sync ${TMPDIR_E2E}/syncdir ghost:/x` | exit 1, `collection 'ghost' not found` |
+
+T12.6 note: after --dry-run push, run the push again for real (T12.9) — if dry-run had actually uploaded, T12.9 would show `unchanged` instead of `modified`.
+
+---
+
+## T13 subtasks — GitHub Actions workflow
+
+Create `.github/workflows/e2e.yml`. The Linux runner has Docker pre-installed; Colima is not needed (the `_ensure_colima` guard in `docker.sh` is macOS-only).
+
+| ID     | Step | Notes |
+|--------|------|-------|
+| T13.1  | `on: push` and `on: pull_request` triggers | Run on every push and PR |
+| T13.2  | `jobs.e2e` runs on `ubuntu-latest` | Docker available, no Colima |
+| T13.3  | Steps: `actions/checkout`, install `uv` via `astral-sh/setup-uv`, `uv sync` | Set up Python env |
+| T13.4  | Run `bash scripts/e2e.sh` | Explicit `docker pull` in script is fine on GHA (network access) |
+| T13.5  | Upload test output as artifact on failure (`if: failure()`) | Easier debugging in CI |
 
 ---
 
