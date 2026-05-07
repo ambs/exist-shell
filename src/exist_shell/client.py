@@ -105,7 +105,7 @@ class ExistClient:
         root = ET.fromstring(r.text)
         col = root.find(f"{{{_EXIST_NS}}}collection")
         if col is not None:
-            for el in col.findall(f"{{{_EXIST_NS}}}subcollection"):
+            for el in col.findall(f"{{{_EXIST_NS}}}collection"):
                 items.append(CollectionEntry(
                     name=el.get("name", ""),
                     created=el.get("created"),

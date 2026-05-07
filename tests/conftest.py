@@ -31,7 +31,7 @@ def subcollection_xml() -> str:
     return (
         f'<exist:result xmlns:exist="{_EXIST_NS}">'
         '<exist:collection name="/db/myapp">'
-        '<exist:subcollection name="subdir" created="2024-01-01T00:00:00.000"'
+        '<exist:collection name="subdir" created="2024-01-01T00:00:00.000"'
         ' owner="admin" group="dba" permissions="rwxr-xr-x"/>'
         "</exist:collection>"
         "</exist:result>"

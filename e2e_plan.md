@@ -18,7 +18,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T03 | [x]    | collection add / collection ls |
 | T04 | [x]    | ls (empty collection, error cases) |
 | T05 | [x]    | put (file, stdin, MIME, binary, overwrite, errors) |
-| T06 | [ ]    | ls (after uploads, including auto-created subcollections from T05.10) |
+| T06 | [x]    | ls (after uploads, including auto-created subcollections from T05.10) |
 | T07 | [ ]    | cat (text, binary, --raw, errors) |
 | T08 | [ ]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
 | T09 | [ ]    | rm (single, multi, not-found, errors) |
@@ -140,12 +140,12 @@ Preconditions: T05 has run. Remote state in `testcol` (`/db/testcol`):
 
 | ID    | Command | Expected |
 |-------|---------|----------|
-| T06.1 | `exsh ls testcol` | exit 0, output contains `hello.xml` |
-| T06.2 | `exsh ls testcol` | exit 0, output contains `stdin.xml` |
-| T06.3 | `exsh ls testcol` | exit 0, output contains `data.bin` |
-| T06.4 | `exsh ls testcol` | exit 0, output contains `missing` (auto-created subcollection from T05.10) |
-| T06.5 | `exsh ls testcol:/missing` | exit 0, output contains `sub` |
-| T06.6 | `exsh ls testcol:/missing/sub` | exit 0, output contains `doc.xml` |
+| T06.1 | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `hello.xml` |
+| T06.2 | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `stdin.xml` |
+| T06.3 | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `data.bin` |
+| T06.4 | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `missing/` (subcollections printed with trailing slash) |
+| T06.5 | ~~`exsh ls testcol:/missing`~~ | ✓ exit 0, output contains `sub/` |
+| T06.6 | ~~`exsh ls testcol:/missing/sub`~~ | ✓ exit 0, output contains `doc.xml` |
 
 ---
 
