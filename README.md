@@ -63,6 +63,8 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh put <file> <nick>:<path>` | Upload a local file to a collection |
 | `exsh cp <src> <dst>` | Copy a document (local ↔ remote or remote ↔ remote) |
 | `exsh edit <nick>:<path>` | Open a document in `$EDITOR`, re-upload if changed |
+| `exsh rm <nick>:<path>...` | Delete one or more documents |
+| `exsh mkdir <nick>:<path>` | Create a collection |
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
 | `exsh collection add <name>[@<server>]` | Register a collection |
@@ -88,6 +90,15 @@ exsh cp mydata:reports/2025/report.xml ./report.xml
 
 # Edit in place
 exsh edit mydata:reports/2025/report.xml
+
+# Delete a document
+exsh rm mydata:reports/2025/old.xml
+
+# Delete multiple documents
+exsh rm mydata:reports/2025/a.xml mydata:reports/2025/b.xml
+
+# Create a subcollection
+exsh mkdir mydata:reports/2026
 ```
 
 ## Shell completion
