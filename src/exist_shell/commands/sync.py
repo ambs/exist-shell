@@ -11,6 +11,7 @@ import typer
 from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
+from exist_shell.config import Config
 from exist_shell.models import CollectionEntry, ResourceEntry
 from exist_shell.utils import (
     guess_mime,
@@ -20,7 +21,14 @@ from exist_shell.utils import (
     resolve_collection,
 )
 
-_CACHE_DIR = Path.home() / ".cache" / "exsh" / "sync"
+
+def _get_sync_cache_dir() -> Path:
+    """Return the sync manifest cache directory, resolved from the active config.
+
+    Returns:
+        Path to the sync cache directory.
+    """
+    return Config.load().resolved_cache_dir() / "sync"
 
 
 class SyncAction(Enum):
@@ -81,7 +89,7 @@ def _manifest_path(nick: str, remote_path: str) -> Path:
         Absolute path to the JSON manifest file.
     """
     key = hashlib.sha256(remote_path.encode()).hexdigest()[:16]
-    return _CACHE_DIR / f"{nick}@{key}.json"
+    return _get_sync_cache_dir() / f"{nick}@{key}.json"
 
 
 def _load_manifest(nick: str, remote_path: str) -> dict[str, dict]:

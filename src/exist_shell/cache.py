@@ -5,10 +5,19 @@ import json
 import time
 from pathlib import Path
 
+from exist_shell.config import Config
 from exist_shell.models import CollectionEntry, CollectionItem, ResourceEntry
 
-CACHE_DIR = Path.home() / ".cache" / "exsh" / "completions"
 CACHE_TTL = 5.0
+
+
+def _get_cache_dir() -> Path:
+    """Return the completions cache directory, resolved from the active config.
+
+    Returns:
+        Path to the completions cache directory.
+    """
+    return Config.load().resolved_cache_dir() / "completions"
 
 
 def _cache_path(nick: str, dir_path: str) -> Path:
@@ -22,7 +31,7 @@ def _cache_path(nick: str, dir_path: str) -> Path:
         Path to the cache file.
     """
     digest = hashlib.sha256(dir_path.encode()).hexdigest()[:16]
-    return CACHE_DIR / f"{nick}@{digest}.json"
+    return _get_cache_dir() / f"{nick}@{digest}.json"
 
 
 def get_cached(nick: str, dir_path: str) -> list[CollectionItem] | None:
@@ -61,7 +70,7 @@ def set_cached(nick: str, dir_path: str, items: list[CollectionItem]) -> None:
         items: List of ``CollectionItem`` objects to cache.
     """
     try:
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _get_cache_dir().mkdir(parents=True, exist_ok=True)
         serialized = []
         for item in items:
             d = item.model_dump()
@@ -83,7 +92,7 @@ def invalidate(nick: str) -> None:
         nick: Collection nick name whose cache entries should be removed.
     """
     try:
-        for f in CACHE_DIR.glob(f"{nick}@*.json"):
+        for f in _get_cache_dir().glob(f"{nick}@*.json"):
             f.unlink(missing_ok=True)
     except Exception:
         pass

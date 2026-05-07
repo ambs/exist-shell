@@ -9,7 +9,8 @@ from exist_shell.models import CollectionEntry, ResourceEntry
 
 @pytest.fixture(autouse=True)
 def isolated_cache_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(cache_module, "CACHE_DIR", tmp_path / "completions")
+    cache_dir = tmp_path / "completions"
+    monkeypatch.setattr(cache_module, "_get_cache_dir", lambda: cache_dir)
 
 
 def test_get_cached_miss_no_file():

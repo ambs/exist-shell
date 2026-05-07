@@ -39,8 +39,9 @@ def client_mock(monkeypatch):
 @pytest.fixture
 def manifest_dir(tmp_path, monkeypatch):
     """Redirect the sync manifest cache to a temp directory."""
-    monkeypatch.setattr("exist_shell.commands.sync._CACHE_DIR", tmp_path / "sync")
-    return tmp_path / "sync"
+    sync_dir = tmp_path / "sync"
+    monkeypatch.setattr("exist_shell.commands.sync._get_sync_cache_dir", lambda: sync_dir)
+    return sync_dir
 
 
 @pytest.fixture

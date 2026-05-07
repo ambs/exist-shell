@@ -101,9 +101,9 @@ class ExistClient:
         if r.status_code == 404:
             raise ExistNotFoundError(path)
         r.raise_for_status()
+        items: list[CollectionItem] = []
         root = ET.fromstring(r.text)
         col = root.find(f"{{{_EXIST_NS}}}collection")
-        items: list[CollectionItem] = []
         if col is not None:
             for el in col.findall(f"{{{_EXIST_NS}}}subcollection"):
                 items.append(CollectionEntry(
@@ -188,9 +188,15 @@ class ExistClient:
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the parent collection does not exist.
         """
-        url = self._url(path.rstrip("/") + "/")
+        # PUT /path/ with empty body creates a stray same-named resource in the
+        # parent, making GET /path return that resource instead of the collection
+        # listing. The correct approach is to PUT a placeholder document (which
+        # auto-creates the collection) and then delete it.
+        placeholder = path.rstrip("/") + "/.keep"
+        url_placeholder = self._url(placeholder)
+        url = self._url(path.rstrip("/"))
         try:
-            r = self._http.put(url, content=b"")
+            r = self._http.put(url_placeholder, content=b"", headers={"Content-Type": "application/octet-stream"})
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
         if r.status_code == 401:
@@ -198,6 +204,11 @@ class ExistClient:
         if r.status_code == 404:
             raise ExistNotFoundError(path)
         r.raise_for_status()
+        # Best-effort cleanup; a leftover .keep is harmless if this fails.
+        try:
+            self._http.delete(url_placeholder)
+        except Exception:
+            pass
 
     def delete_document(self, path: str) -> None:
         """Delete a document at the given eXist path.

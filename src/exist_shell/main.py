@@ -1,9 +1,12 @@
 """Entry point and top-level CLI app for exsh."""
 
+from pathlib import Path
+
 import typer
 
 from exist_shell import __version__
 from exist_shell.commands import collection, server
+from exist_shell.config import app_state
 from exist_shell.commands.cat import cat
 from exist_shell.commands.cp import cp
 from exist_shell.commands.mkdir import mkdir
@@ -40,8 +43,11 @@ def _version_callback(value: bool) -> None:
 @app.callback()
 def main(
     version: bool = typer.Option(False, "--version", callback=_version_callback, is_eager=True, help="Show version and exit."),
+    config: Path | None = typer.Option(None, "--config", help="Path to config file (overrides EXSH_CONFIG env var and default)."),
 ) -> None:
     """eXist-db shell — interact with eXist-db via REST."""
+    if config is not None:
+        app_state.set_config_path(config)
 
 
 if __name__ == "__main__":

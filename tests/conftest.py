@@ -2,7 +2,7 @@ import pytest
 from pydantic import SecretStr
 from typer.testing import CliRunner
 
-from exist_shell.config import Collection, Config, Server
+from exist_shell.config import Collection, Config, Server, app_state
 
 _EXIST_NS = "http://exist.sourceforge.net/NS/exist"
 
@@ -10,7 +10,7 @@ _EXIST_NS = "http://exist.sourceforge.net/NS/exist"
 @pytest.fixture
 def config_path(tmp_path, monkeypatch):
     path = tmp_path / "config.toml"
-    monkeypatch.setattr("exist_shell.config.CONFIG_PATH", path)
+    monkeypatch.setattr(app_state, "_config_path", path)
     return path
 
 

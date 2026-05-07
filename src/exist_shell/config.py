@@ -1,5 +1,6 @@
 """Configuration models and persistence for servers and collections."""
 
+import os
 from pathlib import Path
 
 import tomlkit
@@ -7,7 +8,44 @@ from pydantic import BaseModel, Field, SecretStr
 
 NICK_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
 
-CONFIG_PATH = Path.home() / ".config" / "exsh" / "config.toml"
+_DEFAULT_CONFIG_PATH = Path.home() / ".config" / "exsh" / "config.toml"
+_DEFAULT_CACHE_DIR = Path.home() / ".cache" / "exsh"
+
+
+class _AppState:
+    """Process-level singleton that holds the active config file path.
+
+    The path is resolved in this order:
+    1. Explicitly set via ``set_config_path()`` (called by the ``--config`` flag).
+    2. ``EXSH_CONFIG`` environment variable.
+    3. Default: ``~/.config/exsh/config.toml``.
+    """
+
+    def __init__(self) -> None:
+        """Initialise with no explicit path set."""
+        self._config_path: Path | None = None
+
+    def set_config_path(self, path: Path) -> None:
+        """Override the config file path for this process.
+
+        Args:
+            path: Absolute or relative path to the config file.
+        """
+        self._config_path = path
+
+    def config_path(self) -> Path:
+        """Return the resolved config file path.
+
+        Returns:
+            Path to the configuration file.
+        """
+        if self._config_path is not None:
+            return self._config_path
+        env = os.environ.get("EXSH_CONFIG")
+        return Path(env) if env else _DEFAULT_CONFIG_PATH
+
+
+app_state = _AppState()
 
 
 class Server(BaseModel):
@@ -33,6 +71,15 @@ class Config(BaseModel):
 
     servers: dict[str, Server] = {}
     collections: dict[str, Collection] = {}
+    cache_dir: Path | None = None
+
+    def resolved_cache_dir(self) -> Path:
+        """Return the active cache root directory.
+
+        Returns:
+            ``cache_dir`` from config if set, otherwise ``~/.cache/exsh``.
+        """
+        return self.cache_dir if self.cache_dir is not None else _DEFAULT_CACHE_DIR
 
     @classmethod
     def load(cls) -> "Config":
@@ -41,9 +88,10 @@ class Config(BaseModel):
         Returns:
             The loaded Config instance.
         """
-        if not CONFIG_PATH.exists():
+        path = app_state.config_path()
+        if not path.exists():
             return cls()
-        with open(CONFIG_PATH) as f:
+        with open(path) as f:
             raw = tomlkit.load(f)
         servers = {
             nick: Server(nick=nick, **data)
@@ -53,11 +101,14 @@ class Config(BaseModel):
             nick: Collection(nick=nick, **data)
             for nick, data in raw.get("collections", {}).items()
         }
-        return cls(servers=servers, collections=collections)
+        cache_dir_raw = raw.get("cache_dir")
+        cache_dir = Path(cache_dir_raw) if cache_dir_raw else None
+        return cls(servers=servers, collections=collections, cache_dir=cache_dir)
 
     def save(self) -> None:
         """Persist the current configuration to disk atomically."""
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        path = app_state.config_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
         data: dict = {
             "servers": {
                 nick: {
@@ -76,9 +127,11 @@ class Config(BaseModel):
                 for nick, c in self.collections.items()
             },
         }
-        tmp = CONFIG_PATH.with_suffix(".tmp")
+        if self.cache_dir is not None:
+            data["cache_dir"] = str(self.cache_dir)
+        tmp = path.with_suffix(".tmp")
         tmp.write_text(tomlkit.dumps(data))
-        tmp.rename(CONFIG_PATH)
+        tmp.rename(path)
 
     def add_server(self, server: Server) -> None:
         """Add a server and persist the configuration.
