@@ -20,7 +20,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T05 | [x]    | put (file, stdin, MIME, binary, overwrite, errors) |
 | T06 | [x]    | ls (after uploads, including auto-created subcollections from T05.10) |
 | T07 | [x]    | cat (text, binary, --raw, errors) |
-| T08 | [ ]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
+| T08 | [x]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
 | T09 | [ ]    | rm (single, multi, not-found, errors) |
 | T10 | [ ]    | mkdir (create, idempotent, nested, errors) |
 | T11 | [ ]    | edit (modified, no-change, editor error, not-found) |
@@ -185,16 +185,16 @@ Error messages:
 
 | ID     | Command | Expected |
 |--------|---------|----------|
-| T08.1  | `exsh cp $TMPDIR_E2E/hello.xml testcol:/hello_copy.xml` | exit 0 (local→remote) |
-| T08.2  | `exsh ls testcol` | exit 0, output contains `hello_copy.xml` |
-| T08.3  | `exsh cp testcol:/hello.xml $TMPDIR_E2E/hello_dl.xml` | exit 0 (remote→local) |
-| T08.4  | `cat $TMPDIR_E2E/hello_dl.xml` | output contains `<hello>world</hello>` |
-| T08.5  | `exsh cp testcol:/hello.xml testcol2:/hello_r2r.xml` | exit 0 (remote→remote, different nicks same server) |
-| T08.6  | `exsh ls testcol` | exit 0, output contains `hello_r2r.xml` |
-| T08.7  | `exsh cp testcol:/hello.xml testcol:/` (trailing slash) | exit 0, uploads as `/hello.xml` (overwrites) |
-| T08.8  | `exsh cp $TMPDIR_E2E/hello.xml $TMPDIR_E2E/copy.xml` (both local) | exit 1, `at least one of source or target` |
-| T08.9  | `exsh cp /nonexistent.xml testcol:/nope.xml` | exit 1, `cannot read` |
-| T08.10 | `exsh cp ghost:/hello.xml $TMPDIR_E2E/x.xml` | exit 1, `collection 'ghost' not found` |
+| T08.1  | ~~`exsh cp $TMPDIR_E2E/hello.xml testcol:/hello_copy.xml`~~ | ✓ exit 0 (local→remote) |
+| T08.2  | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `hello_copy.xml` |
+| T08.3  | ~~`exsh cp testcol:/hello.xml $TMPDIR_E2E/hello_dl.xml`~~ | ✓ exit 0 (remote→local) |
+| T08.4  | ~~`cat $TMPDIR_E2E/hello_dl.xml`~~ | ✓ output contains `<hello>world</hello>` |
+| T08.5  | ~~`exsh cp testcol:/hello.xml testcol2:/hello_r2r.xml`~~ | ✓ exit 0 (remote→remote, different nicks same server) |
+| T08.6  | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `hello_r2r.xml` |
+| T08.7  | ~~`exsh cp testcol:/hello.xml testcol:/` (trailing slash)~~ | ✓ exit 0, uploads as `/hello.xml` (overwrites) |
+| T08.8  | ~~`exsh cp $TMPDIR_E2E/hello.xml $TMPDIR_E2E/copy.xml` (both local)~~ | ✓ exit 1, `at least one of source or target` |
+| T08.9  | ~~`exsh cp /nonexistent.xml testcol:/nope.xml`~~ | ✓ exit 1, `cannot read` |
+| T08.10 | ~~`exsh cp ghost:/hello.xml $TMPDIR_E2E/x.xml`~~ | ✓ exit 1, `collection 'ghost' not found` |
 
 Files created in this section (persist for T09):
 - `testcol:/hello_copy.xml`
