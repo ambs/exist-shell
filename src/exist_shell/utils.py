@@ -1,12 +1,40 @@
 """Shared utilities for exist-shell commands."""
 
+import mimetypes
 from contextlib import contextmanager
 from collections.abc import Generator
+from pathlib import Path
 
 import typer
 
 from exist_shell.config import Collection, Config, Server
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
+
+
+def is_remote(target: str) -> bool:
+    """Return True if target uses the ``nick:path`` remote syntax.
+
+    Args:
+        target: Raw argument string from the CLI.
+
+    Returns:
+        True if the string contains ``:``, indicating a remote path.
+    """
+    return ":" in target
+
+
+def guess_mime(path: Path, default: str = "application/octet-stream") -> str:
+    """Guess the MIME type of a file from its extension.
+
+    Args:
+        path: Local file path.
+        default: MIME type to return when the extension is unknown.
+
+    Returns:
+        Guessed MIME type string, or ``default`` if the extension is unrecognised.
+    """
+    guessed, _ = mimetypes.guess_type(str(path))
+    return guessed or default
 
 
 def validate_path(path: str) -> None:

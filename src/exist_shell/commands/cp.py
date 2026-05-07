@@ -1,6 +1,5 @@
 """cp command — copy documents between local paths and remote eXist collections."""
 
-import mimetypes
 from pathlib import Path, PurePosixPath
 
 import typer
@@ -8,19 +7,7 @@ import typer
 from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
-from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
-
-
-def _is_remote(target: str) -> bool:
-    """Return True if target uses the ``nick:path`` remote syntax.
-
-    Args:
-        target: Raw argument string from the CLI.
-
-    Returns:
-        True if the string contains ``:``, indicating a remote path.
-    """
-    return ":" in target
+from exist_shell.utils import guess_mime, handle_exist_errors, is_remote, parse_target, resolve_collection
 
 
 def _remote_dest(path: str, source_name: str) -> str:
@@ -68,8 +55,7 @@ def _local_to_remote(source: str, target: str) -> None:
         typer.echo(f"Error: cannot read '{source}': {e}", err=True)
         raise typer.Exit(1)
 
-    guessed, _ = mimetypes.guess_type(source)
-    mime_type = guessed or "application/octet-stream"
+    mime_type = guess_mime(src_path)
 
     nick, tgt_path = parse_target(target)
     dest_path = _remote_dest(tgt_path, src_path.name)
@@ -138,8 +124,8 @@ def cp(
     ),
 ) -> None:
     """Copy a document between local paths and remote eXist collections."""
-    src_remote = _is_remote(source)
-    tgt_remote = _is_remote(target)
+    src_remote = is_remote(source)
+    tgt_remote = is_remote(target)
 
     if not src_remote and not tgt_remote:
         typer.echo(

@@ -11,6 +11,7 @@ from exist_shell.commands.edit import edit
 from exist_shell.commands.ls import ls
 from exist_shell.commands.put import put
 from exist_shell.commands.rm import rm
+from exist_shell.commands.sync import sync
 
 app = typer.Typer(
     name="exsh",
@@ -27,6 +28,7 @@ app.command("edit", help="Edit a document in $VISUAL/$EDITOR and re-upload if ch
 app.command("cp", help="Copy a document between local paths and remote collections.")(cp)
 app.command("rm", help="Delete one or more documents from a collection path.")(rm)
 app.command("mkdir", help="Create a collection at a path inside a registered collection.")(mkdir)
+app.command("sync", help="Sync a local folder and a remote collection.")(sync)
 
 
 def _version_callback(value: bool) -> None:

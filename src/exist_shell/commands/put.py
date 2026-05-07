@@ -1,6 +1,5 @@
 """put command — upload a document to an eXist collection path."""
 
-import mimetypes
 import sys
 from pathlib import Path
 
@@ -9,7 +8,7 @@ import typer
 from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
-from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
+from exist_shell.utils import guess_mime, handle_exist_errors, parse_target, resolve_collection
 
 
 def _resolve_mime(file: Path | None, mime: str | None) -> str:
@@ -25,8 +24,7 @@ def _resolve_mime(file: Path | None, mime: str | None) -> str:
     if mime is not None:
         return mime
     if file is not None:
-        guessed, _ = mimetypes.guess_type(str(file))
-        return guessed or "application/octet-stream"
+        return guess_mime(file)
     return "application/xml"
 
 
