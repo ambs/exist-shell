@@ -56,16 +56,16 @@ before T03 starts, as T03 depends on two servers being present.
 | T02.7  | ~~`exsh server ls` (repeat of T02.2)~~ | ✓ exit 0, still only `admin@localhost:8080` — failed adds left no trace |
 | T02.8  | ~~`exsh server add localhost --user admin --password "" --nick local2`~~ | ✓ exit 0, output contains `Server 'local2' added.` |
 | T02.9  | ~~`exsh server ls`~~ | ✓ exit 0, output contains both `localhost` and `local2` entries |
-| T02.10 | `exsh server add localhost --user admin --password "" --nick local3` | ✓ exit 0, `Server 'local3' added.` — disposable nick for rm tests |
-| T02.11 | `exsh collection add testcol@local3 --nick col3` | ✓ exit 0, `Collection 'col3' added.` — collection to cascade-remove with local3 |
-| T02.12 | `exsh server rm local3` | ✓ exit 0, output contains `Also removed 1 collection: col3.` and `Server 'local3' removed.` |
-| T02.13 | `exsh server ls` | ✓ exit 0, output does **not** contain `local3` |
-| T02.14 | `exsh collection ls` | ✓ exit 0, output does **not** contain `col3` — cascade verified |
-| T02.15 | `exsh server rm ghost` | ✓ exit 1, output contains `server nick 'ghost' not found` |
-| T02.16 | `exsh server rm local2` | ✓ exit 0, `Server 'local2' removed.` — leaves only one server |
-| T02.17 | `exsh collection add testcol --nick temptest` (no `@server`) | ✓ exit 0 — auto-selects sole remaining server `localhost` |
-| T02.18 | `exsh collection rm temptest` | ✓ exit 0 — cleanup; T03 must start with no collections registered |
-| T02.19 | `exsh server add localhost --user admin --password "" --nick local2` | ✓ exit 0 — restore `local2` so T03 preconditions hold (two servers) |
+| T02.10 | ~~`exsh server add localhost --user admin --password "" --nick local3`~~ | ✓ exit 0, `Server 'local3' added.` — disposable nick for rm tests |
+| T02.11 | ~~`exsh collection add testcol@local3 --nick col3`~~ | ✓ exit 0, `Collection 'col3' added.` — collection to cascade-remove with local3 |
+| T02.12 | ~~`exsh server rm local3`~~ | ✓ exit 0, output contains `Also removed 1 collection: col3.` and `Server 'local3' removed.` |
+| T02.13 | ~~`exsh server ls`~~ | ✓ exit 0, output does **not** contain `local3` |
+| T02.14 | ~~`exsh collection ls`~~ | ✓ exit 0, output does **not** contain `col3` — cascade verified |
+| T02.15 | ~~`exsh server rm ghost`~~ | ✓ exit 1, output contains `server nick 'ghost' not found` |
+| T02.16 | ~~`exsh server rm local2`~~ | ✓ exit 0, `Server 'local2' removed.` — leaves only one server |
+| T02.17 | ~~`exsh collection add testcol --nick temptest` (no `@server`)~~ | ✓ exit 0 — auto-selects sole remaining server `localhost` |
+| T02.18 | ~~`exsh collection rm temptest`~~ | ✓ exit 0 — cleanup; T03 must start with no collections registered |
+| T02.19 | ~~`exsh server add localhost --user admin --password "" --nick local2`~~ | ✓ exit 0 — restore `local2` so T03 preconditions hold (two servers) |
 
 ---
 
