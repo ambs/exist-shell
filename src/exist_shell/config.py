@@ -160,3 +160,34 @@ class Config(BaseModel):
             raise ValueError(f"Collection nick '{collection.nick}' already exists.")
         self.collections[collection.nick] = collection
         self.save()
+
+    def remove_collection(self, nick: str) -> None:
+        """Remove a collection and persist the configuration.
+
+        Args:
+            nick: Nickname of the collection to remove.
+
+        Raises:
+            KeyError: If no collection with that nick exists.
+        """
+        del self.collections[nick]
+        self.save()
+
+    def remove_server(self, nick: str) -> list[str]:
+        """Remove a server and all collections registered on it, then persist.
+
+        Args:
+            nick: Nickname of the server to remove.
+
+        Returns:
+            List of collection nicks that were removed as a side-effect.
+
+        Raises:
+            KeyError: If no server with that nick exists.
+        """
+        del self.servers[nick]
+        cascaded = [c for c, col in self.collections.items() if col.server_nick == nick]
+        for c in cascaded:
+            del self.collections[c]
+        self.save()
+        return cascaded

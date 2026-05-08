@@ -1,10 +1,10 @@
-"""Collection management commands (add, ls)."""
+"""Collection management commands (add, ls, rm)."""
 
 import typer
 
 from exist_shell.client import ExistClient
 from exist_shell.config import Collection, Config
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
 
 app = typer.Typer(help="Manage collections.", no_args_is_help=True)
 
@@ -83,3 +83,39 @@ def collection_add(
 
     config.add_collection(Collection(nick=resolved_nick, server_nick=server, name=name))
     typer.echo(f"Collection '{resolved_nick}' added.")
+
+
+@app.command("rm")
+def collection_rm(
+    nick: str = typer.Argument(help="Nickname of the collection to remove."),
+    delete: bool = typer.Option(False, "--delete", help="Also delete the collection from the server."),
+) -> None:
+    """Remove a collection from the config, optionally deleting it from the server."""
+    config = Config.load()
+    if nick not in config.collections:
+        typer.echo(f"Error: collection '{nick}' not found.", err=True)
+        raise typer.Exit(1)
+
+    if delete:
+        collection = config.collections[nick]
+        if collection.server_nick not in config.servers:
+            typer.echo(f"Error: server '{collection.server_nick}' not found.", err=True)
+            raise typer.Exit(1)
+        try:
+            with ExistClient(config.servers[collection.server_nick]) as client:
+                client.delete_collection(f"/db/{collection.name}")
+        except ExistAuthError:
+            typer.echo(f"Error: authentication failed for server '{collection.server_nick}'.", err=True)
+            raise typer.Exit(1)
+        except ExistConnectionError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
+        except ExistNotFoundError:
+            typer.echo(
+                f"Error: '/db/{collection.name}' not found on server '{collection.server_nick}'.",
+                err=True,
+            )
+            raise typer.Exit(1)
+
+    config.remove_collection(nick)
+    typer.echo(f"Collection '{nick}' removed.")

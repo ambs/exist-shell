@@ -14,30 +14,36 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | ID  | Status | Section |
 |-----|--------|---------|
 | T01 | [x]    | Scaffold: helpers, Docker lifecycle, config setup/teardown, summary |
-| T02 | [x]    | server add / server ls |
-| T03 | [x]    | collection add / collection ls |
+| T02 | [x]    | server add / server ls / server rm |
+| T03 | [x]    | collection add / collection ls / collection rm |
 | T04 | [x]    | ls (empty collection, error cases) |
 | T05 | [x]    | put (file, stdin, MIME, binary, overwrite, errors) |
 | T06 | [x]    | ls (after uploads, including auto-created subcollections from T05.10) |
 | T07 | [x]    | cat (text, binary, --raw, errors) |
-| T08 | [x]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
+| T08 | [x]    | cp (local→remote, remote→local, remote→remote, trailing slash, directory target, errors) |
 | T09 | [x]    | rm (single, multi, not-found, errors) |
 | T10 | [x]    | mkdir (create, idempotent, nested, errors) |
 | T11 | [x]    | edit (modified, no-change, editor error, not-found) |
-| T12 | [x]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors) |
+| T12 | [x]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, subdirectory tree, pull --dry-run, pull --delete, pull --force, errors) |
 | T13 | [ ]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
 
 Mark tasks `[x]` as they are completed.
 
 ---
 
-## T02 subtasks — server add / server ls
+## T02 subtasks — server add / server ls / server rm
 
 `server add` calls `check_connection()` before saving, so the Docker container must
 be running. Error messages come from `server.py` catch blocks:
 - connection failure → `"Error: Cannot connect to …"`
 - auth failure → `"Error: authentication failed for …"`
 - duplicate nick → `"Error: server nick '…' already exists."`
+
+`server rm` error messages:
+- unknown nick → `"Error: server nick '…' not found."`
+
+`local3` and `temptest` are disposable; `localhost` and `local2` must be re-registered
+before T03 starts, as T03 depends on two servers being present.
 
 | ID     | Command | Expected |
 |--------|---------|----------|
@@ -50,11 +56,20 @@ be running. Error messages come from `server.py` catch blocks:
 | T02.7  | ~~`exsh server ls` (repeat of T02.2)~~ | ✓ exit 0, still only `admin@localhost:8080` — failed adds left no trace |
 | T02.8  | ~~`exsh server add localhost --user admin --password "" --nick local2`~~ | ✓ exit 0, output contains `Server 'local2' added.` |
 | T02.9  | ~~`exsh server ls`~~ | ✓ exit 0, output contains both `localhost` and `local2` entries |
-| T02.10 | **FIXME** `exsh server rm local2` then verify single-server default-selection works (e.g. `exsh collection add` without `--server` succeeds) — requires implementing `server rm`, which is not yet a feature. Re-register `local2` afterwards so T03 preconditions still hold. |
+| T02.10 | `exsh server add localhost --user admin --password "" --nick local3` | ✓ exit 0, `Server 'local3' added.` — disposable nick for rm tests |
+| T02.11 | `exsh collection add testcol@local3 --nick col3` | ✓ exit 0, `Collection 'col3' added.` — collection to cascade-remove with local3 |
+| T02.12 | `exsh server rm local3` | ✓ exit 0, output contains `Also removed 1 collection: col3.` and `Server 'local3' removed.` |
+| T02.13 | `exsh server ls` | ✓ exit 0, output does **not** contain `local3` |
+| T02.14 | `exsh collection ls` | ✓ exit 0, output does **not** contain `col3` — cascade verified |
+| T02.15 | `exsh server rm ghost` | ✓ exit 1, output contains `server nick 'ghost' not found` |
+| T02.16 | `exsh server rm local2` | ✓ exit 0, `Server 'local2' removed.` — leaves only one server |
+| T02.17 | `exsh collection add testcol --nick temptest` (no `@server`) | ✓ exit 0 — auto-selects sole remaining server `localhost` |
+| T02.18 | `exsh collection rm temptest` | ✓ exit 0 — cleanup; T03 must start with no collections registered |
+| T02.19 | `exsh server add localhost --user admin --password "" --nick local2` | ✓ exit 0 — restore `local2` so T03 preconditions hold (two servers) |
 
 ---
 
-## T03 subtasks — collection add / collection ls
+## T03 subtasks — collection add / collection ls / collection rm
 
 Preconditions: T02 has registered `localhost` and `local2` servers. Bootstrap has
 created `/db/testcol` on the server. `collection add` verifies the collection exists
@@ -64,6 +79,14 @@ before saving. Error messages from `collection.py`:
 - collection missing on server → `"Error: '/db/…' not found on server '…'."`
 - multiple servers, no `--server` → `"Error: --server is required when multiple servers are configured."`
 - conflicting `@server` and `--server` → `"Error: conflicting --server and @server in argument."`
+
+`collection rm` error messages:
+- unknown nick → `"Error: collection '…' not found."`
+- `--delete` + server 404 → `"Error: '/db/…' not found on server '….'"` (config unchanged)
+- `--delete` + auth error → `"Error: authentication failed for server '….'"` (config unchanged)
+
+`rmtest` and `rmcol`/`rmcol2` are disposable nicks used only in T03.11–T03.19.
+`testcol` and `testcol2` are never removed — later sections depend on them.
 
 | ID    | Command | Expected |
 |-------|---------|----------|
@@ -77,6 +100,15 @@ before saving. Error messages from `collection.py`:
 | T03.8 | ~~`exsh collection add testcol` (no server, two servers configured)~~ | ✓ exit 1, output contains `--server is required` |
 | T03.9 | ~~`exsh collection add testcol@localhost --server local2` (conflicting)~~ | ✓ exit 1, output contains `conflicting` |
 | T03.10 | **FIXME** Depends on T02.10 (`server rm`). Remove `local2`, then re-run a variant of T03.1 using `exsh collection add testcol3` (no `@server`) — should succeed by picking the sole registered server automatically. Re-add `local2` and clean up `testcol3` afterwards so later sections are unaffected. |
+| T03.11 | ~~`exsh collection add testcol@localhost --nick rmtest`~~ | ✓ exit 0, `Collection 'rmtest' added.` — disposable alias for removal tests |
+| T03.12 | ~~`exsh collection rm rmtest`~~ | ✓ exit 0, output contains `Collection 'rmtest' removed.` — config-only removal |
+| T03.13 | ~~`exsh collection ls`~~ | ✓ exit 0, output does **not** contain `rmtest` — entry gone from config |
+| T03.14 | `exsh collection rm ghost` | ✓ exit 1, output contains `collection 'ghost' not found` |
+| T03.15 | curl-create `/db/rmcol` via REST; `exsh collection add rmcol@localhost` | ✓ exit 0 — setup for `--delete` test |
+| T03.16 | `exsh collection rm rmcol --delete` | ✓ exit 0, output contains `Collection 'rmcol' removed.` — config removed + server collection deleted |
+| T03.17 | `curl -o /dev/null -w "%{http_code}" GET /db/rmcol` | ✓ HTTP 404 — server collection actually gone |
+| T03.18 | curl-create `/db/rmcol2`; `collection add rmcol2@localhost`; curl-delete `/db/rmcol2` behind exsh's back; `collection rm rmcol2 --delete` | ✓ exit 1, output contains `not found on server` — server 404 leaves config unchanged |
+| T03.19 | `exsh collection rm rmcol2` | ✓ exit 0 — config-only cleanup of dangling entry from T03.18; also validates rm works when server collection is already gone |
 
 ---
 
@@ -173,7 +205,7 @@ T07.4 note: `--raw` writes bytes to `sys.stdout.buffer`, so redirect to a file a
 
 ---
 
-## T08 subtasks — cp (local→remote, remote→local, remote→remote, errors)
+## T08 subtasks — cp (local→remote, remote→local, remote→remote, directory target, errors)
 
 Preconditions: T05 files are present. `testcol` and `testcol2` both point to `/db/testcol` on `localhost`.
 
@@ -195,6 +227,7 @@ Error messages:
 | T08.8  | ~~`exsh cp $TMPDIR_E2E/hello.xml $TMPDIR_E2E/copy.xml` (both local)~~ | ✓ exit 1, `at least one of source or target` |
 | T08.9  | ~~`exsh cp /nonexistent.xml testcol:/nope.xml`~~ | ✓ exit 1, `cannot read` |
 | T08.10 | ~~`exsh cp ghost:/hello.xml $TMPDIR_E2E/x.xml`~~ | ✓ exit 1, `collection 'ghost' not found` |
+| T08.11 | ~~`exsh cp testcol:/hello.xml $TMPDIR_E2E/cpdir/`~~ | ✓ exit 0, file lands as `cpdir/hello.xml` (directory target → append source filename) |
 
 Files created in this section (persist for T09):
 - `testcol:/hello_copy.xml`
@@ -271,7 +304,7 @@ Error messages:
 
 ---
 
-## T12 subtasks — sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors)
+## T12 subtasks — sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, subdirectory tree, pull --dry-run, pull --delete, pull --force, errors)
 
 Preconditions: `testcol` registered on `localhost`. Uses `testcol:/syncroot` as the remote path.
 
@@ -309,6 +342,15 @@ Error messages:
 | T12.15 | ~~both local: `exsh sync ${TMPDIR_E2E}/syncdir ${TMPDIR_E2E}/pulldir`~~ | ✓ exit 1, `one of source or destination must be a remote collection` |
 | T12.16 | ~~source not a dir: `exsh sync ${TMPDIR_E2E}/hello.xml testcol:/x`~~ | ✓ exit 1, `is not a directory` |
 | T12.17 | ~~unknown nick: `exsh sync ${TMPDIR_E2E}/syncdir ghost:/x`~~ | ✓ exit 1, `collection 'ghost' not found` |
+| T12.18 | ~~create `syncdir/subdir/c.xml`; push~~ | ✓ exit 0, output contains `+ subdir/  (new collection)` and `↑ subdir/c.xml  (new)` |
+| T12.19 | ~~`exsh ls testcol:/syncroot`~~ | ✓ exit 0, output contains `subdir/` |
+| T12.20 | ~~`exsh sync testcol2:/syncroot pulldir2/`~~ | ✓ exit 0, output contains `+ subdir/  (new directory)` and `↓ subdir/c.xml  (new)` |
+| T12.21 | ~~`diff pulldir2/subdir/c.xml syncdir/subdir/c.xml`~~ | ✓ exit 0 (content identical) |
+| T12.22 | ~~`exsh sync testcol2:/syncroot pulldir3/ --dry-run`~~ | ✓ output contains `↓ subdir/c.xml`; `pulldir3/subdir/c.xml` does not exist |
+| T12.23 | ~~`exsh sync testcol2:/syncroot pulldir2/ --force`~~ | ✓ output contains `↓ subdir/c.xml  (modified)` (re-downloaded despite manifest) |
+| T12.24 | ~~`rm -rf syncdir/subdir`; push `--delete`~~ | ✓ output contains `✗ subdir/c.xml  (deleted)` and `✗ subdir/  (empty collection deleted)` |
+| T12.25 | ~~`exsh ls testcol:/syncroot`~~ | ✓ output does not contain `subdir/` |
+| T12.26 | ~~add `local_only.xml` to pulldir2; `exsh sync testcol2:/syncroot pulldir2/ --delete`~~ | ✓ output contains `✗ local_only.xml  (deleted)`, `✗ subdir/c.xml  (deleted)`, `✗ subdir/  (empty directory deleted)`; file removed from disk |
 
 T12.6 note: after --dry-run push, run the push again for real (T12.9) — if dry-run had actually uploaded, T12.9 would show `unchanged` instead of `modified`.
 

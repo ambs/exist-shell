@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# T08 — cp (local→remote, remote→local, remote→remote, trailing slash, errors)
+# T08 — cp (local→remote, remote→local, remote→remote, trailing slash, directory target, errors)
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 section_T08_cp() {
@@ -55,4 +55,14 @@ section_T08_cp() {
     assert_output "collection 'ghost' not found" \
         "T08.10 cp unknown nick fails" \
         "${EXSH[@]}" cp ghost:/hello.xml "${TMPDIR_E2E}/x.xml"
+
+    # T08.11 — remote→local with directory as target: filename taken from remote path
+    mkdir -p "${TMPDIR_E2E}/cpdir"
+    assert_exit0 "T08.11 cp remote file into local directory" \
+        "${EXSH[@]}" cp testcol:/hello.xml "${TMPDIR_E2E}/cpdir"
+    if [[ -f "${TMPDIR_E2E}/cpdir/hello.xml" ]]; then
+        ok "T08.11 file landed as cpdir/hello.xml"
+    else
+        fail "T08.11 file landed as cpdir/hello.xml (not found)"
+    fi
 }
