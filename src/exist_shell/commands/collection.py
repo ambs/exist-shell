@@ -1,4 +1,4 @@
-"""Collection management commands (add, ls, rm)."""
+"""Collection management commands (add, new, ls, rm)."""
 
 import typer
 
@@ -20,6 +20,14 @@ def _complete_collection_target(incomplete: str) -> list[str]:
     return [f"{prefix}@{nick}" for nick in servers if nick.startswith(partial)]
 
 
+def _complete_server(incomplete: str) -> list[str]:
+    try:
+        servers = Config.load().servers
+    except Exception:
+        return []
+    return [nick for nick in servers if nick.startswith(incomplete)]
+
+
 def _list() -> None:
     config = Config.load()
     for nick, c in config.collections.items():
@@ -36,7 +44,9 @@ def collection_add(
         help="Collection name, optionally with server: <name>[@<server>].",
         autocompletion=_complete_collection_target,
     ),
-    server: str | None = typer.Option(None, "--server", help="Server nick."),
+    server: str | None = typer.Option(
+        None, "--server", help="Server nick.", autocompletion=_complete_server
+    ),
     nick: str | None = typer.Option(None, help="Nickname (default: collection name)."),
 ) -> None:
     """Add a collection and verify it exists on the server before saving."""
@@ -83,6 +93,64 @@ def collection_add(
 
     config.add_collection(Collection(nick=resolved_nick, server_nick=server, name=name))
     typer.echo(f"Collection '{resolved_nick}' added.")
+
+
+@app.command("new")
+def collection_new(
+    target: str = typer.Argument(
+        help="Collection name, optionally with server: <name>[@<server>].",
+        autocompletion=_complete_collection_target,
+    ),
+    server: str | None = typer.Option(
+        None, "--server", help="Server nick.", autocompletion=_complete_server
+    ),
+    nick: str | None = typer.Option(None, "--nick", help="Nickname (default: collection name)."),
+) -> None:
+    """Create /db/<name> on the server and register it in the config."""
+    name = target
+    if "@" in target:
+        name, server_from_target = target.split("@", 1)
+        if server is not None and server != server_from_target:
+            typer.echo("Error: conflicting --server and @server in argument.", err=True)
+            raise typer.Exit(1)
+        server = server_from_target
+
+    config = Config.load()
+
+    if server is None:
+        if len(config.servers) == 1:
+            server = next(iter(config.servers))
+        else:
+            typer.echo("Error: --server is required when multiple servers are configured.", err=True)
+            raise typer.Exit(1)
+
+    if server not in config.servers:
+        typer.echo(f"Error: server '{server}' not found.", err=True)
+        raise typer.Exit(1)
+
+    resolved_nick = nick or name
+    if resolved_nick in config.collections:
+        typer.echo(
+            f"Error: nick '{resolved_nick}' already exists. Use --nick to provide a unique nickname.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    try:
+        with ExistClient(config.servers[server]) as client:
+            if client.collection_exists(name):
+                typer.echo(f"'/db/{name}' already exists on server '{server}'.")
+                return
+            client.create_collection(f"/db/{name}")
+    except ExistAuthError:
+        typer.echo(f"Error: authentication failed for server '{server}'.", err=True)
+        raise typer.Exit(1)
+    except ExistConnectionError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    config.add_collection(Collection(nick=resolved_nick, server_nick=server, name=name))
+    typer.echo(f"Collection '{resolved_nick}' created at /db/{name}.")
 
 
 @app.command("rm")
