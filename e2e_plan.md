@@ -22,7 +22,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T07 | [x]    | cat (text, binary, --raw, errors) |
 | T08 | [x]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
 | T09 | [x]    | rm (single, multi, not-found, errors) |
-| T10 | [ ]    | mkdir (create, idempotent, nested, errors) |
+| T10 | [x]    | mkdir (create, idempotent, nested, errors) |
 | T11 | [ ]    | edit (modified, no-change, editor error, not-found) |
 | T12 | [ ]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors) |
 | T13 | [ ]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
@@ -234,14 +234,14 @@ Error messages:
 
 | ID     | Command | Expected |
 |--------|---------|----------|
-| T10.1  | `exsh mkdir testcol:/newdir` | exit 0 |
-| T10.2  | `exsh ls testcol` | exit 0, output contains `newdir` |
-| T10.3  | repeat T10.1 (collection already exists) | exit 0 (idempotent — eXist treats duplicate PUT as a no-op) |
-| T10.4  | `exsh mkdir testcol:/nested/deep` | exit 0 (eXist auto-creates `nested` when PUT to `nested/deep/.keep`) |
-| T10.5  | `exsh ls testcol` | exit 0, output contains `nested` |
-| T10.6  | `exsh ls testcol:/nested` | exit 0, output contains `deep` |
-| T10.7  | `exsh mkdir ghost:/newdir` | exit 1, output contains `collection 'ghost' not found` |
-| T10.8  | `exsh mkdir testcol` (no colon/path) | exit 1, output contains `path is required` |
+| T10.1  | ~~`exsh mkdir testcol:/newdir`~~ | ✓ exit 0 |
+| T10.2  | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `newdir/` |
+| T10.3  | ~~repeat T10.1 (collection already exists)~~ | ✓ exit 0 (idempotent — eXist treats duplicate PUT as a no-op) |
+| T10.4  | ~~`exsh mkdir testcol:/nested/deep`~~ | ✓ exit 0 (eXist auto-creates `nested` when PUT to `nested/deep/.keep`) |
+| T10.5  | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `nested/` |
+| T10.6  | ~~`exsh ls testcol:/nested`~~ | ✓ exit 0, output contains `deep/` |
+| T10.7  | ~~`exsh mkdir ghost:/newdir`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
+| T10.8  | ~~`exsh mkdir testcol` (no colon/path)~~ | ✓ exit 1, output contains `path is required` |
 
 ---
 
