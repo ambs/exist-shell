@@ -65,4 +65,14 @@ section_T08_cp() {
     else
         fail "T08.11 file landed as cpdir/hello.xml (not found)"
     fi
+
+    # T08.12 — remote→local: remote source does not exist (404 → not found in collection)
+    assert_output "not found in collection" \
+        "T08.12 cp non-existent remote source fails" \
+        "${EXSH[@]}" cp testcol:/nonexistent.xml "${TMPDIR_E2E}/out.xml"
+
+    # T08.13 — remote→local: local destination is unwritable (/dev/null/out.xml is never writable)
+    assert_output "cannot write" \
+        "T08.13 cp to unwritable local path fails" \
+        "${EXSH[@]}" cp testcol:/hello.xml /dev/null/out.xml
 }

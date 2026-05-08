@@ -118,4 +118,23 @@ section_T03_collection() {
     assert_output "Collection 'rmcol2' removed." \
         "T03.19 collection rm rmcol2 (config-only cleanup of dangling entry)" \
         "${EXSH[@]}" collection rm rmcol2
+
+    # T03.20 — rm --delete on a non-empty collection: eXist deletes recursively
+    curl -sf -u "${ADMIN_AUTH}" -X PUT \
+        -H "Content-Type: application/xml" \
+        --data-binary '<doc/>' \
+        "${EXIST_URL}/db/rmfull/doc.xml" >/dev/null
+    assert_output "Collection 'rmfull' added." \
+        "T03.20 setup: /db/rmfull with a document created and registered" \
+        "${EXSH[@]}" collection add rmfull@localhost
+    assert_output "Collection 'rmfull' removed." \
+        "T03.20 collection rm --delete removes non-empty collection" \
+        "${EXSH[@]}" collection rm rmfull --delete
+    local _rmfull_status
+    _rmfull_status="$(curl -s -o /dev/null -w "%{http_code}" -u "${ADMIN_AUTH}" "${EXIST_URL}/db/rmfull")"
+    if [[ "${_rmfull_status}" == "404" ]]; then
+        ok "T03.20 /db/rmfull returns 404 after --delete (non-empty collection deleted recursively)"
+    else
+        fail "T03.20 /db/rmfull returns 404 after --delete (non-empty collection deleted recursively) (got HTTP ${_rmfull_status})"
+    fi
 }

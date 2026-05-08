@@ -40,4 +40,8 @@ section_T11_edit() {
     assert_output "collection 'ghost' not found" \
         "T11.7 edit unknown nick fails" \
         env EDITOR=true "${EXSH[@]}" edit ghost:/hello.xml
+
+    # T11.8 — $VISUAL takes precedence over $EDITOR: fake_editor.sh is used, not EDITOR=false
+    assert_exit0 "T11.8 \$VISUAL wins over \$EDITOR (fake_editor used, not EDITOR=false)" \
+        env VISUAL="${TMPDIR_E2E}/fake_editor.sh" EDITOR=false "${EXSH[@]}" edit testcol:/hello.xml
 }

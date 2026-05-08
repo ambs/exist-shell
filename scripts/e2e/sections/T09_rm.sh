@@ -32,4 +32,12 @@ section_T09_rm() {
     assert_output "path is required" \
         "T09.6 rm without path fails" \
         "${EXSH[@]}" rm testcol
+
+    # T09.7 — multi-target: first target missing → exits before second is attempted
+    assert_output "not found in collection" \
+        "T09.7 rm with missing first target fails immediately" \
+        "${EXSH[@]}" rm testcol:/gone.xml testcol:/hello.xml
+    assert_output "hello.xml" \
+        "T09.7 hello.xml preserved (second target never reached)" \
+        "${EXSH[@]}" ls testcol
 }

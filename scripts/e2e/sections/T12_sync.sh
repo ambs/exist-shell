@@ -165,4 +165,35 @@ section_T12_sync() {
     else
         fail "T12.26 local_only.xml removed from disk (file still present)"
     fi
+
+    # ---------------------------------------------------------------------------
+    # Pull conflict and combined --delete --dry-run
+    # ---------------------------------------------------------------------------
+
+    # T12.27 — pull conflict: modify pulldir2/a.xml locally AND modify the remote copy,
+    # then pull without --force → conflict detected on both sides
+    printf '<a_local_pulldir/>' > "${TMPDIR_E2E}/pulldir2/a.xml"
+    curl -sf -u "${ADMIN_AUTH}" -X PUT \
+        -H "Content-Type: application/xml" \
+        --data-binary '<a_remote_conflict/>' \
+        "${EXIST_URL}/db/testcol/syncroot/a.xml" >/dev/null
+    assert_output "conflict" \
+        "T12.27 pull detects conflict when both sides changed since last sync" \
+        "${EXSH[@]}" sync testcol2:/syncroot "${TMPDIR_E2E}/pulldir2"
+
+    # T12.28 — push --delete --dry-run: remote extra file logged as deleted but not removed
+    curl -sf -u "${ADMIN_AUTH}" -X PUT \
+        -H "Content-Type: application/xml" \
+        --data-binary '<extra/>' \
+        "${EXIST_URL}/db/testcol/syncroot/dryextra.xml" >/dev/null
+    assert_output "✗ dryextra.xml  (deleted)" \
+        "T12.28 push --delete --dry-run shows dryextra.xml as deleted" \
+        "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot --delete --dry-run
+    local _dryextra_status
+    _dryextra_status="$(curl -s -o /dev/null -w "%{http_code}" -u "${ADMIN_AUTH}" "${EXIST_URL}/db/testcol/syncroot/dryextra.xml")"
+    if [[ "${_dryextra_status}" == "200" ]]; then
+        ok "T12.28 dryextra.xml still present on server after --delete --dry-run"
+    else
+        fail "T12.28 dryextra.xml still present on server after --delete --dry-run (got HTTP ${_dryextra_status})"
+    fi
 }
