@@ -1,5 +1,10 @@
 # exsh — eXist-db Shell
 
+[![Tests](https://github.com/ambs/exist-shell/actions/workflows/tests.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/tests.yml)
+[![Coverage](https://codecov.io/gh/ambs/exist-shell/graph/badge.svg)](https://codecov.io/gh/ambs/exist-shell)
+[![Ruff](https://github.com/ambs/exist-shell/actions/workflows/ruff.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/ruff.yml)
+[![ty](https://github.com/ambs/exist-shell/actions/workflows/ty.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/ty.yml)
+
 A command-line tool to interact with an [eXist-db](https://exist-db.org) server via its REST API. Designed for shell scripting and pipe-friendly workflows.
 
 ## Requirements
