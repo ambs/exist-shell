@@ -3,15 +3,48 @@
 # See e2e_plan.md for the task list and architecture notes.
 #
 # Usage:
-#   bash scripts/e2e.sh           # run all sections
-#   bash scripts/e2e.sh --no-pull # skip docker pull (faster re-runs)
+#   bash scripts/e2e.sh              # run against existdb/existdb:release (default)
+#   bash scripts/e2e.sh --latest     # run against existdb/existdb:latest
+#   bash scripts/e2e.sh --elemental  # run against evolvedbinary/elemental:latest
+#   bash scripts/e2e.sh --no-pull    # skip docker pull (faster re-runs)
+#   bash scripts/e2e.sh --list-images # list available image options and exit
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ---------------------------------------------------------------------------
+# Argument parsing — must happen before mktemp/trap so --list-images can
+# exit cleanly without triggering teardown.
+# ---------------------------------------------------------------------------
+
+_IMAGE_RELEASE="existdb/existdb:release"
+_IMAGE_LATEST="existdb/existdb:latest"
+_IMAGE_ELEMENTAL="evolvedbinary/elemental:latest"
+
+IMAGE="${_IMAGE_RELEASE}"
+NO_PULL=false
+
+for _arg in "$@"; do
+    case "${_arg}" in
+        --release)     IMAGE="${_IMAGE_RELEASE}" ;;
+        --latest)      IMAGE="${_IMAGE_LATEST}" ;;
+        --elemental)   IMAGE="${_IMAGE_ELEMENTAL}" ;;
+        --no-pull)     NO_PULL=true ;;
+        --list-images)
+            printf "Available images (pass the flag to select):\n"
+            printf "  %-13s  %s  (default)\n" "--release"   "${_IMAGE_RELEASE}"
+            printf "  %-13s  %s\n"             "--latest"    "${_IMAGE_LATEST}"
+            printf "  %-13s  %s\n"             "--elemental" "${_IMAGE_ELEMENTAL}"
+            exit 0
+            ;;
+        *) printf "Unknown flag: %s\n" "${_arg}" >&2; exit 1 ;;
+    esac
+done
+export IMAGE NO_PULL
 
 # ---------------------------------------------------------------------------
-# Source helpers and Docker lifecycle
+# Paths and helpers
 # ---------------------------------------------------------------------------
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=e2e/lib.sh
 source "${SCRIPT_DIR}/e2e/lib.sh"
@@ -40,7 +73,7 @@ printf 'cache_dir = "%s/cache"\n' "${TMPDIR_E2E}" > "${EXSH_CONFIG}"
 trap teardown EXIT
 
 # ---------------------------------------------------------------------------
-# Source section files (add one line per task as sections are implemented)
+# Source section files
 # ---------------------------------------------------------------------------
 
 source "${SCRIPT_DIR}/e2e/sections/T02_server.sh"
@@ -53,17 +86,17 @@ source "${SCRIPT_DIR}/e2e/sections/T08_cp.sh"
 source "${SCRIPT_DIR}/e2e/sections/T09_rm.sh"
 source "${SCRIPT_DIR}/e2e/sections/T10_mkdir.sh"
 source "${SCRIPT_DIR}/e2e/sections/T11_edit.sh"
-# source "${SCRIPT_DIR}/e2e/sections/T12_sync.sh"
+source "${SCRIPT_DIR}/e2e/sections/T12_sync.sh"
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 main() {
-    start_existdb "${1:-}"
+    echo "Using image: ${IMAGE}"
+    start_existdb
     bootstrap
 
-    # Section calls go here (uncomment as sections are implemented):
     section_T02_server
     section_T03_collection
     section_T04_ls
@@ -74,10 +107,7 @@ main() {
     section_T09_rm
     section_T10_mkdir
     section_T11_edit
-    # section_T12_sync
-
-    echo ""
-    echo "Scaffold OK — Docker up, helpers verified, teardown wired."
+    section_T12_sync
 }
 
-main "$@"
+main

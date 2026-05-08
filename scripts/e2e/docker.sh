@@ -3,7 +3,6 @@
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 CONTAINER=exsh-e2e
-IMAGE=existdb/existdb:latest
 PORT=8080
 EXIST_URL="http://localhost:${PORT}/exist/rest"
 ADMIN_AUTH="admin:"
@@ -28,13 +27,11 @@ _ensure_colima() {
 # ---------------------------------------------------------------------------
 
 start_existdb() {
-    local no_pull="${1:-}"
-
     if [[ "$(uname)" == "Darwin" ]]; then
         _ensure_colima
     fi
 
-    [[ "$no_pull" != "--no-pull" ]] && docker pull "$IMAGE"
+    [[ "${NO_PULL}" != "true" ]] && docker pull "$IMAGE"
 
     # Remove any leftover container from a previous run.
     docker rm -f "$CONTAINER" &>/dev/null || true

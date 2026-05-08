@@ -64,7 +64,7 @@ def test_push_uploads_new_file(config_with_collection, client_mock, manifest_dir
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.put_document.assert_called_once()
-    assert "↑ doc.xml" in result.output
+    assert "↑ doc.xml  (new)" in result.output
 
 
 def test_push_skips_unchanged_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -86,7 +86,7 @@ def test_push_skips_unchanged_file(config_with_collection, client_mock, manifest
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.put_document.assert_not_called()
-    assert "= doc.xml" in result.output
+    assert "= doc.xml  (unchanged)" in result.output
 
 
 def test_push_uploads_modified_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -108,7 +108,7 @@ def test_push_uploads_modified_file(config_with_collection, client_mock, manifes
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.put_document.assert_called_once()
-    assert "↑ doc.xml" in result.output
+    assert "↑ doc.xml  (modified)" in result.output
 
 
 def test_push_detects_conflict(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -128,7 +128,7 @@ def test_push_detects_conflict(config_with_collection, client_mock, manifest_dir
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.put_document.assert_not_called()
-    assert "conflict" in result.output
+    assert "! doc.xml  (conflict: modified on both sides, skipping)" in result.output
 
 
 def test_push_force_uploads_all(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -149,7 +149,7 @@ def test_push_dry_run_does_not_upload(config_with_collection, client_mock, manif
     result = runner.invoke(app, ["sync", "--dry-run", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.put_document.assert_not_called()
-    assert "↑ doc.xml" in result.output
+    assert "↑ doc.xml  (new)" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +165,7 @@ def test_push_creates_missing_remote_collection(config_with_collection, client_m
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.create_collection.assert_called_once()
+    assert "+ reports/  (new collection)" in result.output
 
 
 def test_push_delete_removes_remote_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -174,7 +175,7 @@ def test_push_delete_removes_remote_extra(config_with_collection, client_mock, m
     result = runner.invoke(app, ["sync", "--delete", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.delete_document.assert_called_once()
-    assert "✗ old.xml" in result.output
+    assert "✗ old.xml  (deleted)" in result.output
 
 
 def test_push_delete_removes_empty_remote_collection(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -198,6 +199,7 @@ def test_push_delete_removes_empty_remote_collection(config_with_collection, cli
     result = runner.invoke(app, ["sync", "--delete", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.delete_collection.assert_called_once()
+    assert "✗ archive/  (empty collection deleted)" in result.output
 
 
 def test_push_no_delete_leaves_remote_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -219,7 +221,7 @@ def test_pull_downloads_new_file(config_with_collection, client_mock, manifest_d
     result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     assert (local_dir / "doc.xml").exists()
-    assert "↓ doc.xml" in result.output
+    assert "↓ doc.xml  (new)" in result.output
 
 
 def test_pull_skips_unchanged_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -240,7 +242,27 @@ def test_pull_skips_unchanged_file(config_with_collection, client_mock, manifest
     result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     client_mock.get_document.assert_not_called()
-    assert "= doc.xml" in result.output
+    assert "= doc.xml  (unchanged)" in result.output
+
+
+def test_pull_downloads_missing_local_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    # Manifest says file is synced but local file was deleted — must re-download.
+    mtime = "2025-01-01T00:00:00.000"
+    manifest_dir.mkdir(parents=True)
+    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
+    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path.write_text(json.dumps({
+        "doc.xml": {"local_sha256": _sha256(b"<root/>"), "remote_last_modified": mtime}
+    }))
+
+    client_mock.list_collection.return_value = [_resource("doc.xml", mtime)]
+    client_mock.get_document.return_value = DocumentResult(b"<root/>", "application/xml")
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
+    assert result.exit_code == 0
+    client_mock.get_document.assert_called_once()
+    assert (local_dir / "doc.xml").exists()
+    assert "↓ doc.xml  (modified)" in result.output
 
 
 def test_pull_downloads_modified_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -261,7 +283,7 @@ def test_pull_downloads_modified_file(config_with_collection, client_mock, manif
     result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     client_mock.get_document.assert_called_once()
-    assert "↓ doc.xml" in result.output
+    assert "↓ doc.xml  (modified)" in result.output
 
 
 def test_pull_detects_conflict(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -281,7 +303,7 @@ def test_pull_detects_conflict(config_with_collection, client_mock, manifest_dir
     result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     client_mock.get_document.assert_not_called()
-    assert "conflict" in result.output
+    assert "! doc.xml  (conflict: modified on both sides, skipping)" in result.output
 
 
 def test_pull_force_downloads_all(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -299,7 +321,7 @@ def test_pull_dry_run_does_not_download(config_with_collection, client_mock, man
     result = runner.invoke(app, ["sync", "--dry-run", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     client_mock.get_document.assert_not_called()
-    assert "↓ doc.xml" in result.output
+    assert "↓ doc.xml  (new)" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +339,7 @@ def test_pull_creates_missing_local_dir(config_with_collection, client_mock, man
     result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     assert (local_dir / "reports").is_dir()
+    assert "+ reports/  (new directory)" in result.output
 
 
 def test_pull_delete_removes_local_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -326,7 +349,7 @@ def test_pull_delete_removes_local_extra(config_with_collection, client_mock, ma
     result = runner.invoke(app, ["sync", "--delete", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     assert not (local_dir / "stale.xml").exists()
-    assert "✗ stale.xml" in result.output
+    assert "✗ stale.xml  (deleted)" in result.output
 
 
 def test_pull_delete_removes_empty_local_dir(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -337,7 +360,7 @@ def test_pull_delete_removes_empty_local_dir(config_with_collection, client_mock
     result = runner.invoke(app, ["sync", "--delete", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     assert not empty_subdir.exists()
-    assert "✗ archive/" in result.output
+    assert "✗ archive/  (empty directory deleted)" in result.output
 
 
 def test_pull_no_delete_leaves_local_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):

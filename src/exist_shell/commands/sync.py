@@ -256,6 +256,9 @@ def _pull_file(
     remote_changed = remote_mtime != entry.get("remote_last_modified", "")
 
     if not remote_changed:
+        if not local_file.exists():
+            _download()
+            return SyncAction.DOWNLOADED
         return SyncAction.SKIPPED
 
     local_hash = _sha256(local_file) if local_file.exists() else ""
@@ -535,11 +538,12 @@ def _pull(nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: 
 
             for resource in tree.resources:
                 remote_mtime = resource.entry.last_modified or ""
+                is_new = resource.rel_path not in manifest
                 action = _pull_file(
                     client, full_path, dest, resource.rel_path, remote_mtime, manifest, force, dry_run
                 )
                 label = {
-                    SyncAction.DOWNLOADED: f"↓ {resource.rel_path}  ({'new' if resource.rel_path not in manifest else 'modified'})",
+                    SyncAction.DOWNLOADED: f"↓ {resource.rel_path}  ({'new' if is_new else 'modified'})",
                     SyncAction.SKIPPED: f"= {resource.rel_path}  (unchanged)",
                     SyncAction.CONFLICT: f"! {resource.rel_path}  (conflict: modified on both sides, skipping)",
                 }.get(action, "")

@@ -6,21 +6,11 @@ section_T06_ls_after() {
     step "T06 — ls (after uploads)"
 
     # T06.1-4 — root listing contains all uploaded files and the auto-created subcollection
-    assert_output "hello.xml" \
-        "T06.1 ls testcol shows hello.xml" \
-        "${EXSH[@]}" ls testcol
-
-    assert_output "stdin.xml" \
-        "T06.2 ls testcol shows stdin.xml" \
-        "${EXSH[@]}" ls testcol
-
-    assert_output "data.bin" \
-        "T06.3 ls testcol shows data.bin" \
-        "${EXSH[@]}" ls testcol
-
-    assert_output "missing/" \
-        "T06.4 ls testcol shows auto-created 'missing' subcollection" \
-        "${EXSH[@]}" ls testcol
+    _run "${EXSH[@]}" ls testcol
+    assert_in_last "hello.xml" "T06.1 ls testcol shows hello.xml"
+    assert_in_last "stdin.xml" "T06.2 ls testcol shows stdin.xml"
+    assert_in_last "data.bin"  "T06.3 ls testcol shows data.bin"
+    assert_in_last "missing/"  "T06.4 ls testcol shows auto-created 'missing' subcollection"
 
     # T06.5 — nested subcollection
     assert_output "sub/" \

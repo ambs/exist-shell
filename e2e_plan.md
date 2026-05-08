@@ -24,7 +24,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T09 | [x]    | rm (single, multi, not-found, errors) |
 | T10 | [x]    | mkdir (create, idempotent, nested, errors) |
 | T11 | [x]    | edit (modified, no-change, editor error, not-found) |
-| T12 | [ ]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors) |
+| T12 | [x]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors) |
 | T13 | [ ]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
 
 Mark tasks `[x]` as they are completed.
@@ -292,23 +292,23 @@ Error messages:
 
 | ID     | Command | Expected |
 |--------|---------|----------|
-| T12.1  | create `${TMPDIR_E2E}/syncdir/` with `a.xml` (`<a/>`) and `b.xml` (`<b/>`) | setup |
-| T12.2  | `exsh sync ${TMPDIR_E2E}/syncdir testcol:/syncroot` | exit 0, output contains `↑ a.xml  (new)` and `↑ b.xml  (new)` |
-| T12.3  | `exsh ls testcol:/syncroot` | exit 0, output contains `a.xml` and `b.xml` |
-| T12.4  | push again unchanged | exit 0, output contains `= a.xml  (unchanged)` and `= b.xml  (unchanged)` |
-| T12.5  | overwrite `${TMPDIR_E2E}/syncdir/a.xml` with `<a2/>`; push | exit 0, output contains `↑ a.xml  (modified)` |
-| T12.6  | overwrite `${TMPDIR_E2E}/syncdir/b.xml` with `<b2/>`; push with `--dry-run` | exit 0, output contains `↑ b.xml  (modified)` but no actual upload (repeat push again shows same message) |
-| T12.7  | `exsh sync testcol:/syncroot ${TMPDIR_E2E}/pulldir` | exit 0, output contains `↓ a.xml  (new)` and `↓ b.xml  (new)` |
-| T12.8  | `diff ${TMPDIR_E2E}/pulldir/a.xml ${TMPDIR_E2E}/syncdir/a.xml` | exit 0 (pulled file matches local after T12.5) |
-| T12.9  | real push for T12.6 (without --dry-run) | exit 0, output contains `↑ b.xml  (modified)` |
-| T12.10 | remove `${TMPDIR_E2E}/syncdir/b.xml`; `exsh sync … --delete` | exit 0, output contains `✗ b.xml  (deleted)` |
-| T12.11 | `exsh ls testcol:/syncroot` | exit 0, output does not contain `b.xml` |
-| T12.12 | conflict: `curl -X PUT` to modify `a.xml` on remote; modify local `a.xml` differently; push without `--force` | exit 0, output contains `conflict` |
-| T12.13 | `exsh sync … --force` (same files) | exit 0, output contains `↑ a.xml  (new)` — force bypasses conflict detection |
-| T12.14 | both remote: `exsh sync testcol:/syncroot testcol2:/other` | exit 1, `both source and destination are remote` |
-| T12.15 | both local: `exsh sync ${TMPDIR_E2E}/syncdir ${TMPDIR_E2E}/pulldir` | exit 1, `one of source or destination must be a remote collection` |
-| T12.16 | source not a dir: `exsh sync ${TMPDIR_E2E}/hello.xml testcol:/x` | exit 1, `is not a directory` |
-| T12.17 | unknown nick: `exsh sync ${TMPDIR_E2E}/syncdir ghost:/x` | exit 1, `collection 'ghost' not found` |
+| T12.1  | ~~create `${TMPDIR_E2E}/syncdir/` with `a.xml` (`<a/>`) and `b.xml` (`<b/>`)~~ | ✓ setup |
+| T12.2  | ~~`exsh sync ${TMPDIR_E2E}/syncdir testcol:/syncroot`~~ | ✓ exit 0, output contains `↑ a.xml  (new)` and `↑ b.xml  (new)` |
+| T12.3  | ~~`exsh ls testcol:/syncroot`~~ | ✓ exit 0, output contains `a.xml` and `b.xml` |
+| T12.4  | ~~push again unchanged~~ | ✓ exit 0, output contains `= a.xml  (unchanged)` and `= b.xml  (unchanged)` |
+| T12.5  | ~~overwrite `${TMPDIR_E2E}/syncdir/a.xml` with `<a2/>`; push~~ | ✓ exit 0, output contains `↑ a.xml  (modified)` and `= b.xml  (unchanged)` |
+| T12.6  | ~~overwrite `${TMPDIR_E2E}/syncdir/b.xml` with `<b2/>`; push with `--dry-run`~~ | ✓ exit 0, output contains `↑ b.xml  (modified)`; repeat dry-run still shows modified (no actual upload) |
+| T12.7  | ~~`exsh sync testcol:/syncroot ${TMPDIR_E2E}/pulldir`~~ | ✓ exit 0, output contains `↓ a.xml  (new)` and `↓ b.xml  (new)` |
+| T12.8  | ~~`diff ${TMPDIR_E2E}/pulldir/a.xml ${TMPDIR_E2E}/syncdir/a.xml`~~ | ✓ exit 0 (both are `<a2/>` after T12.5) |
+| T12.9  | ~~real push for T12.6 (without --dry-run)~~ | ✓ exit 0, output contains `↑ b.xml  (modified)` |
+| T12.10 | ~~remove `${TMPDIR_E2E}/syncdir/b.xml`; `exsh sync … --delete`~~ | ✓ exit 0, output contains `✗ b.xml  (deleted)` |
+| T12.11 | ~~`exsh ls testcol:/syncroot`~~ | ✓ exit 0, output does not contain `b.xml` |
+| T12.12 | ~~conflict: `curl -X PUT` to modify `a.xml` on remote; modify local `a.xml` differently; push without `--force`~~ | ✓ exit 0, output contains `conflict` |
+| T12.13 | ~~`exsh sync … --force` (same files)~~ | ✓ exit 0, output contains `↑ a.xml  (modified)` — force bypasses conflict detection |
+| T12.14 | ~~both remote: `exsh sync testcol:/syncroot testcol2:/other`~~ | ✓ exit 1, `both source and destination are remote` |
+| T12.15 | ~~both local: `exsh sync ${TMPDIR_E2E}/syncdir ${TMPDIR_E2E}/pulldir`~~ | ✓ exit 1, `one of source or destination must be a remote collection` |
+| T12.16 | ~~source not a dir: `exsh sync ${TMPDIR_E2E}/hello.xml testcol:/x`~~ | ✓ exit 1, `is not a directory` |
+| T12.17 | ~~unknown nick: `exsh sync ${TMPDIR_E2E}/syncdir ghost:/x`~~ | ✓ exit 1, `collection 'ghost' not found` |
 
 T12.6 note: after --dry-run push, run the push again for real (T12.9) — if dry-run had actually uploaded, T12.9 would show `unchanged` instead of `modified`.
 
@@ -333,9 +333,31 @@ Create `.github/workflows/e2e.yml`. The Linux runner has Docker pre-installed; C
 **File**: `scripts/e2e.sh`  
 **Language**: Bash — `#!/usr/bin/env bash`, `set -euo pipefail`
 
+### Image selection
+
+Pass a flag to `scripts/e2e.sh` to choose which eXist-db image to test against:
+
+| Flag | Image | Notes |
+|------|-------|-------|
+| *(none)* / `--release` | `existdb/existdb:release` | Default — latest stable release |
+| `--latest` | `existdb/existdb:latest` | Latest nightly build |
+| `--elemental` | `evolvedbinary/elemental:latest` | Evolved Binary's Elemental fork |
+| `--no-pull` | *(current flag)* | Skip `docker pull` — faster re-runs when the image is already local |
+| `--list-images` | *(exits immediately)* | Print all available image options and exit |
+
+Example:
+
+```bash
+bash scripts/e2e.sh                  # default (existdb/existdb:release)
+bash scripts/e2e.sh --latest         # nightly build
+bash scripts/e2e.sh --elemental      # Elemental fork
+bash scripts/e2e.sh --no-pull        # skip pull (faster re-runs)
+bash scripts/e2e.sh --list-images    # show available options
+```
+
 ### Docker lifecycle
 
-- Image: `existdb/existdb:latest`
+- Image: selected via flags above (default `existdb/existdb:release`)
 - Container name: `exsh-e2e`, port `8080:8080`
 - Started at the top of `main`; stopped by `teardown` via `trap teardown EXIT`
 - Wait loop: poll `curl -sf http://localhost:8080/exist/rest/db` every 2 s, up to 60 s

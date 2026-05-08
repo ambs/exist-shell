@@ -97,6 +97,18 @@ assert_output() {
     fi
 }
 
+# assert_in_last <needle> <desc>
+# Check _LAST_OUTPUT from the previous _run without re-running any command.
+assert_in_last() {
+    local needle="$1"
+    local desc="$2"
+    if echo "${_LAST_OUTPUT}" | grep -qF -- "$needle"; then
+        ok "$desc"
+    else
+        fail "$desc (expected '${needle}' in last output)"
+    fi
+}
+
 # assert_output_absent <needle> <desc> <cmd...>
 assert_output_absent() {
     local needle="$1"; shift
