@@ -110,11 +110,11 @@ before saving. Error messages from `collection.py`:
 | T03.18 | ~~curl-create `/db/rmcol2`; `collection add rmcol2@localhost`; curl-delete `/db/rmcol2` behind exsh's back; `collection rm rmcol2 --delete`~~ | ✓ exit 1, output contains `not found on server` — server 404 leaves config unchanged |
 | T03.19 | ~~`exsh collection rm rmcol2`~~ | ✓ exit 0 — config-only cleanup of dangling entry from T03.18; also validates rm works when server collection is already gone |
 | T03.20 | ~~curl PUT a document into `/db/rmfull` (creates collection + doc in one step); `exsh collection add rmfull@localhost`; `exsh collection rm rmfull --delete`~~ | ✓ exit 0, `Collection 'rmfull' removed.`; curl GET `/db/rmfull` returns 404 — `--delete` on a non-empty collection deletes recursively |
-| T03.21 | `exsh collection new newcol@localhost` | exit 0, output contains `Collection 'newcol' created at /db/newcol.`; `newcol` appears in `collection ls` |
-| T03.22 | curl GET `/db/newcol` | HTTP 200 — collection was actually created on the server |
-| T03.23 | `exsh collection new newcol@localhost --nick newalias` | exit 0, output contains `already exists`; `newalias` does **not** appear in `collection ls` (config unchanged) |
-| T03.24 | `exsh collection new newcol2@localhost --nick nc2` | exit 0, output contains `Collection 'nc2' created at /db/newcol2.`; `nc2` appears in `collection ls` with path `/db/newcol2` |
-| T03.25 | `exsh collection rm newcol && exsh collection rm nc2` | exit 0 each — config-only cleanup so T04+ start without extra nicks |
+| T03.21 | ~~`exsh collection new newcol@localhost`~~ | ✓ exit 0, output contains `Collection 'newcol' created at /db/newcol.`; `newcol` appears in `collection ls` |
+| T03.22 | ~~curl GET `/db/newcol`~~ | ✓ HTTP 200 — collection was actually created on the server |
+| T03.23 | ~~`exsh collection new newcol@localhost --nick newalias`~~ | ✓ exit 0, output contains `already exists`; `newalias` does **not** appear in `collection ls` (config unchanged) |
+| T03.24 | ~~`exsh collection new newcol2@localhost --nick nc2`~~ | ✓ exit 0, output contains `Collection 'nc2' created at /db/newcol2.`; `nc2` appears in `collection ls` with path `/db/newcol2` |
+| T03.25 | ~~`exsh collection rm newcol && exsh collection rm nc2`~~ | ✓ exit 0 each — config-only cleanup so T04+ start without extra nicks |
 
 ---
 
