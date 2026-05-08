@@ -29,6 +29,7 @@ convention = "google"
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "pytest-cov>=5",
     "pytest-httpx>=0.30",
     "ruff>=0.9",
     "ty>=0.0.0a1",

@@ -25,6 +25,15 @@ make ruff                      # lint with ruff
 make ty                        # type-check with ty
 ```
 
+## Branching and pull requests
+
+All changes must go through a pull request — never commit directly to `main`.
+
+1. Create a feature branch: `git checkout -b feature/<short-description>`
+2. Make changes, commit with a signed commit (`git commit -S`)
+3. Push the branch and open a PR via `gh pr create`
+4. Do not merge without the PR being reviewed and all CI checks passing
+
 ## File discipline
 
 Never stage or commit files that were not explicitly created as part of the current task or explicitly requested by the user. This includes cache directories, build artifacts, lock files, and any other files that appear as a side effect of running tools.
