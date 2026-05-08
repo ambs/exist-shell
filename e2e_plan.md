@@ -23,7 +23,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T08 | [x]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
 | T09 | [x]    | rm (single, multi, not-found, errors) |
 | T10 | [x]    | mkdir (create, idempotent, nested, errors) |
-| T11 | [ ]    | edit (modified, no-change, editor error, not-found) |
+| T11 | [x]    | edit (modified, no-change, editor error, not-found) |
 | T12 | [ ]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors) |
 | T13 | [ ]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
 
@@ -261,13 +261,13 @@ Error messages:
 
 | ID     | Command | Expected |
 |--------|---------|----------|
-| T11.1  | create `${TMPDIR_E2E}/fake_editor.sh` (perl replace world→eXist); `chmod +x` | setup |
-| T11.2  | `EDITOR="${TMPDIR_E2E}/fake_editor.sh" exsh edit testcol:/hello.xml` | exit 0 (content changed → re-uploaded) |
-| T11.3  | `exsh cat testcol:/hello.xml` | exit 0, output contains `eXist` (and no longer `world`) |
-| T11.4  | `EDITOR=true exsh edit testcol:/hello.xml` | exit 0, output contains `No changes.` (`true` exits 0 without touching the file) |
-| T11.5  | `EDITOR=false exsh edit testcol:/hello.xml` | exit 1, output contains `editor exited with code` (`false` exits 1) |
-| T11.6  | `EDITOR=true exsh edit testcol:/nonexistent.xml` | exit 1, output contains `not found in collection` |
-| T11.7  | `EDITOR=true exsh edit ghost:/hello.xml` | exit 1, output contains `collection 'ghost' not found` |
+| T11.1  | ~~create `${TMPDIR_E2E}/fake_editor.sh` (perl replace world→eXist); `chmod +x`~~ | ✓ setup |
+| T11.2  | ~~`EDITOR="${TMPDIR_E2E}/fake_editor.sh" exsh edit testcol:/hello.xml`~~ | ✓ exit 0 (content changed → re-uploaded) |
+| T11.3  | ~~`exsh cat testcol:/hello.xml`~~ | ✓ exit 0, output contains `eXist` |
+| T11.4  | ~~`EDITOR=true exsh edit testcol:/hello.xml`~~ | ✓ exit 0, output contains `No changes.` |
+| T11.5  | ~~`EDITOR=false exsh edit testcol:/hello.xml`~~ | ✓ exit 1, output contains `editor exited with code` |
+| T11.6  | ~~`EDITOR=true exsh edit testcol:/nonexistent.xml`~~ | ✓ exit 1, output contains `not found in collection` |
+| T11.7  | ~~`EDITOR=true exsh edit ghost:/hello.xml`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
 
 ---
 

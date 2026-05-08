@@ -52,7 +52,7 @@ source "${SCRIPT_DIR}/e2e/sections/T07_cat.sh"
 source "${SCRIPT_DIR}/e2e/sections/T08_cp.sh"
 source "${SCRIPT_DIR}/e2e/sections/T09_rm.sh"
 source "${SCRIPT_DIR}/e2e/sections/T10_mkdir.sh"
-# source "${SCRIPT_DIR}/e2e/sections/T11_edit.sh"
+source "${SCRIPT_DIR}/e2e/sections/T11_edit.sh"
 # source "${SCRIPT_DIR}/e2e/sections/T12_sync.sh"
 
 # ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ main() {
     section_T08_cp
     section_T09_rm
     section_T10_mkdir
-    # section_T11_edit
+    section_T11_edit
     # section_T12_sync
 
     echo ""
