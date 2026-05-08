@@ -99,16 +99,16 @@ before saving. Error messages from `collection.py`:
 | T03.7 | ~~`exsh collection add testcol@ghost`~~ | ✓ exit 1, output contains `not found` (unknown server nick) |
 | T03.8 | ~~`exsh collection add testcol` (no server, two servers configured)~~ | ✓ exit 1, output contains `--server is required` |
 | T03.9 | ~~`exsh collection add testcol@localhost --server local2` (conflicting)~~ | ✓ exit 1, output contains `conflicting` |
-| T03.10 | **FIXME** Depends on T02.10 (`server rm`). Remove `local2`, then re-run a variant of T03.1 using `exsh collection add testcol3` (no `@server`) — should succeed by picking the sole registered server automatically. Re-add `local2` and clean up `testcol3` afterwards so later sections are unaffected. |
+| T03.10 | ~~covered by T02.17~~ | ✓ single-server auto-select already exercised in T02 (`server rm local2` → `collection add testcol --nick temptest` succeeds) |
 | T03.11 | ~~`exsh collection add testcol@localhost --nick rmtest`~~ | ✓ exit 0, `Collection 'rmtest' added.` — disposable alias for removal tests |
 | T03.12 | ~~`exsh collection rm rmtest`~~ | ✓ exit 0, output contains `Collection 'rmtest' removed.` — config-only removal |
 | T03.13 | ~~`exsh collection ls`~~ | ✓ exit 0, output does **not** contain `rmtest` — entry gone from config |
-| T03.14 | `exsh collection rm ghost` | ✓ exit 1, output contains `collection 'ghost' not found` |
-| T03.15 | curl-create `/db/rmcol` via REST; `exsh collection add rmcol@localhost` | ✓ exit 0 — setup for `--delete` test |
-| T03.16 | `exsh collection rm rmcol --delete` | ✓ exit 0, output contains `Collection 'rmcol' removed.` — config removed + server collection deleted |
-| T03.17 | `curl -o /dev/null -w "%{http_code}" GET /db/rmcol` | ✓ HTTP 404 — server collection actually gone |
-| T03.18 | curl-create `/db/rmcol2`; `collection add rmcol2@localhost`; curl-delete `/db/rmcol2` behind exsh's back; `collection rm rmcol2 --delete` | ✓ exit 1, output contains `not found on server` — server 404 leaves config unchanged |
-| T03.19 | `exsh collection rm rmcol2` | ✓ exit 0 — config-only cleanup of dangling entry from T03.18; also validates rm works when server collection is already gone |
+| T03.14 | ~~`exsh collection rm ghost`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
+| T03.15 | ~~curl-create `/db/rmcol` via REST; `exsh collection add rmcol@localhost`~~ | ✓ exit 0 — setup for `--delete` test |
+| T03.16 | ~~`exsh collection rm rmcol --delete`~~ | ✓ exit 0, output contains `Collection 'rmcol' removed.` — config removed + server collection deleted |
+| T03.17 | ~~`curl -o /dev/null -w "%{http_code}" GET /db/rmcol`~~ | ✓ HTTP 404 — server collection actually gone |
+| T03.18 | ~~curl-create `/db/rmcol2`; `collection add rmcol2@localhost`; curl-delete `/db/rmcol2` behind exsh's back; `collection rm rmcol2 --delete`~~ | ✓ exit 1, output contains `not found on server` — server 404 leaves config unchanged |
+| T03.19 | ~~`exsh collection rm rmcol2`~~ | ✓ exit 0 — config-only cleanup of dangling entry from T03.18; also validates rm works when server collection is already gone |
 
 ---
 

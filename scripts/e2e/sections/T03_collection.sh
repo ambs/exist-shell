@@ -70,4 +70,52 @@ section_T03_collection() {
     assert_output_absent "rmtest" \
         "T03.13 collection ls no longer shows rmtest" \
         "${EXSH[@]}" collection ls
+
+    # T03.14 — rm unknown nick fails
+    assert_output "collection 'ghost' not found" \
+        "T03.14 collection rm unknown nick fails" \
+        "${EXSH[@]}" collection rm ghost
+
+    # T03.15 — setup for --delete test: create /db/rmcol on server and register it
+    curl -sf -u "${ADMIN_AUTH}" -X PUT \
+        -H "Content-Type: application/octet-stream" \
+        --data-binary "" \
+        "${EXIST_URL}/db/rmcol/.keep" >/dev/null
+    curl -sf -u "${ADMIN_AUTH}" -X DELETE "${EXIST_URL}/db/rmcol/.keep" >/dev/null
+    assert_output "Collection 'rmcol' added." \
+        "T03.15 setup: /db/rmcol created on server and registered" \
+        "${EXSH[@]}" collection add rmcol@localhost
+
+    # T03.16 — rm --delete removes from config and deletes the server collection
+    assert_output "Collection 'rmcol' removed." \
+        "T03.16 collection rm --delete removes config entry and server collection" \
+        "${EXSH[@]}" collection rm rmcol --delete
+
+    # T03.17 — verify /db/rmcol is actually gone from the server
+    local _status
+    _status="$(curl -s -o /dev/null -w "%{http_code}" -u "${ADMIN_AUTH}" "${EXIST_URL}/db/rmcol")"
+    if [[ "${_status}" == "404" ]]; then
+        ok "T03.17 /db/rmcol returns 404 after --delete"
+    else
+        fail "T03.17 /db/rmcol returns 404 after --delete (got HTTP ${_status})"
+    fi
+
+    # T03.18 — --delete when server collection already gone: exit 1, config unchanged
+    # Create /db/rmcol2, register it, then delete it from the server behind exsh's back
+    curl -sf -u "${ADMIN_AUTH}" -X PUT \
+        -H "Content-Type: application/octet-stream" \
+        --data-binary "" \
+        "${EXIST_URL}/db/rmcol2/.keep" >/dev/null
+    curl -sf -u "${ADMIN_AUTH}" -X DELETE "${EXIST_URL}/db/rmcol2/.keep" >/dev/null
+    assert_exit0 "T03.18 setup: register rmcol2" \
+        "${EXSH[@]}" collection add rmcol2@localhost
+    curl -sf -u "${ADMIN_AUTH}" -X DELETE "${EXIST_URL}/db/rmcol2" >/dev/null
+    assert_output "not found on server" \
+        "T03.18 collection rm --delete fails when server collection already gone" \
+        "${EXSH[@]}" collection rm rmcol2 --delete
+
+    # T03.19 — config-only cleanup: rmcol2 entry was preserved by T03.18 failure
+    assert_output "Collection 'rmcol2' removed." \
+        "T03.19 collection rm rmcol2 (config-only cleanup of dangling entry)" \
+        "${EXSH[@]}" collection rm rmcol2
 }
