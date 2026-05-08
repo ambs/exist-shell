@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# T03 — collection add / collection ls
+# T03 — collection add / collection ls / collection rm
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 section_T03_collection() {
-    step "T03 — collection add / collection ls"
+    step "T03 — collection add / collection ls / collection rm"
 
     # T03.1 — add a collection specifying the server explicitly
     assert_output "Collection 'testcol' added." \
@@ -55,4 +55,19 @@ section_T03_collection() {
     assert_output "conflicting" \
         "T03.9 collection add conflicting server specs fails" \
         "${EXSH[@]}" collection add testcol@localhost --server local2
+
+    # T03.11 — add a disposable alias nick for removal tests
+    assert_output "Collection 'rmtest' added." \
+        "T03.11 collection add rmtest alias" \
+        "${EXSH[@]}" collection add testcol@localhost --nick rmtest
+
+    # T03.12 — rm removes the config entry (no --delete: server collection untouched)
+    assert_output "Collection 'rmtest' removed." \
+        "T03.12 collection rm removes config entry" \
+        "${EXSH[@]}" collection rm rmtest
+
+    # T03.13 — ls no longer shows rmtest
+    assert_output_absent "rmtest" \
+        "T03.13 collection ls no longer shows rmtest" \
+        "${EXSH[@]}" collection ls
 }

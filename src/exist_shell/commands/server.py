@@ -1,4 +1,4 @@
-"""Server management commands (add, ls)."""
+"""Server management commands (add, ls, rm)."""
 
 import typer
 
@@ -58,3 +58,19 @@ def server_add(
         raise typer.Exit(1)
     config.add_server(server)
     typer.echo(f"Server '{resolved_nick}' added.")
+
+
+@app.command("rm")
+def server_rm(
+    nick: str = typer.Argument(help="Nickname of the server to remove."),
+) -> None:
+    """Remove a server and all its registered collections from the config."""
+    config = Config.load()
+    if nick not in config.servers:
+        typer.echo(f"Error: server nick '{nick}' not found.", err=True)
+        raise typer.Exit(1)
+    cascaded = config.remove_server(nick)
+    if cascaded:
+        noun = "collection" if len(cascaded) == 1 else "collections"
+        typer.echo(f"Also removed {len(cascaded)} {noun}: {', '.join(cascaded)}.")
+    typer.echo(f"Server '{nick}' removed.")

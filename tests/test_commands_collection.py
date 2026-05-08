@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from exist_shell.config import Collection, Config
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError
+from exist_shell.config import Collection, Config, Server
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
 from exist_shell.main import app
 
 
@@ -112,3 +112,67 @@ def test_collection_add_at_syntax_matching_server_option_ok(config_with_server, 
     client_mock.collection_exists.return_value = True
     result = runner.invoke(app, ["collection", "add", "myapp@local", "--server", "local"])
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# collection rm
+# ---------------------------------------------------------------------------
+
+
+def test_collection_rm_removes_from_config(config_with_collection, runner):
+    result = runner.invoke(app, ["collection", "rm", "myapp"])
+    assert result.exit_code == 0
+    assert "myapp" not in Config.load().collections
+    assert "removed" in result.output
+
+
+def test_collection_rm_unknown_nick_fails(config_path, runner):
+    result = runner.invoke(app, ["collection", "rm", "ghost"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_collection_rm_delete_calls_client(config_with_collection, client_mock, runner):
+    result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
+    assert result.exit_code == 0
+    client_mock.delete_collection.assert_called_once_with("/db/myapp")
+
+
+def test_collection_rm_delete_removes_from_config(config_with_collection, client_mock, runner):
+    result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
+    assert result.exit_code == 0
+    assert "myapp" not in Config.load().collections
+
+
+def test_collection_rm_delete_not_found_on_server_fails(config_with_collection, client_mock, runner):
+    client_mock.delete_collection.side_effect = ExistNotFoundError("/db/myapp")
+    result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+    assert "myapp" in Config.load().collections
+
+
+def test_collection_rm_delete_auth_error_fails(config_with_collection, client_mock, runner):
+    client_mock.delete_collection.side_effect = ExistAuthError("url")
+    result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
+    assert result.exit_code == 1
+    assert "authentication failed" in result.output
+    assert "myapp" in Config.load().collections
+
+
+def test_collection_rm_delete_connection_error_fails(config_with_collection, client_mock, runner):
+    client_mock.delete_collection.side_effect = ExistConnectionError("url", Exception("refused"))
+    result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
+    assert result.exit_code == 1
+    assert "myapp" in Config.load().collections
+
+
+def test_collection_rm_delete_missing_server_fails(config_path, runner):
+    from pydantic import SecretStr
+    config = Config.load()
+    config.add_server(Server(nick="local", host="localhost", password=SecretStr("")))
+    config.add_collection(Collection(nick="myapp", server_nick="orphan", name="myapp"))
+    result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
+    assert result.exit_code == 1
+    assert "server 'orphan' not found" in result.output
+    assert "myapp" in Config.load().collections
