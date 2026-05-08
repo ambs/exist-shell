@@ -2,6 +2,7 @@
 
 [![Tests](https://github.com/ambs/exist-shell/actions/workflows/tests.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/tests.yml)
 [![Coverage](https://codecov.io/gh/ambs/exist-shell/graph/badge.svg)](https://codecov.io/gh/ambs/exist-shell)
+[![e2e](https://github.com/ambs/exist-shell/actions/workflows/e2e.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/e2e.yml)
 [![Ruff](https://github.com/ambs/exist-shell/actions/workflows/ruff.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/ruff.yml)
 [![ty](https://github.com/ambs/exist-shell/actions/workflows/ty.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/ty.yml)
 
