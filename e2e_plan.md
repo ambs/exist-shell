@@ -25,7 +25,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T10 | [x]    | mkdir (create, idempotent, nested, errors) |
 | T11 | [x]    | edit (modified, no-change, editor error, not-found) |
 | T12 | [x]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, subdirectory tree, pull --dry-run, pull --delete, pull --force, errors, pull-conflict, --delete --dry-run) |
-| T13 | [ ]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
+| T13 | [x]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
 
 Mark tasks `[x]` as they are completed.
 
@@ -371,11 +371,13 @@ Create `.github/workflows/e2e.yml`. The Linux runner has Docker pre-installed; C
 
 | ID     | Step | Notes |
 |--------|------|-------|
-| T13.1  | `on: push` and `on: pull_request` triggers | Run on every push and PR |
-| T13.2  | `jobs.e2e` runs on `ubuntu-latest` | Docker available, no Colima |
-| T13.3  | Steps: `actions/checkout`, install `uv` via `astral-sh/setup-uv`, `uv sync` | Set up Python env |
-| T13.4  | Run `bash scripts/e2e.sh` | Explicit `docker pull` in script is fine on GHA (network access) |
-| T13.5  | Upload test output as artifact on failure (`if: failure()`) | Easier debugging in CI |
+| T13.1  | ~~`on: push` and `on: pull_request` triggers~~ | Run on every push and PR |
+| T13.2  | ~~`jobs.e2e` runs on `ubuntu-latest`~~ | Docker available, no Colima |
+| T13.3  | ~~Steps: `actions/checkout` (SHA-pinned), `astral-sh/setup-uv` (SHA-pinned), `uv sync`~~ | All actions pinned to commit SHAs with version comments |
+| T13.4  | ~~Run `bash scripts/e2e.sh ${{ matrix.flag }}`~~ | One run per image; `docker pull` in script is fine on GHA |
+| T13.5  | ~~Failure debugging~~ | `debug_info()` dumps container logs + config to stdout on any `fail`; GHA job log captures this — no separate artifact step needed |
+| T13.6  | ~~Dynamic image matrix via `--list-images`~~ | Dedicated `matrix` job parses `--list-images` with `awk + jq`, emits JSON; adding an image to `e2e.sh` automatically extends CI |
+| T13.7  | ~~`strategy.fail-fast: false`~~ | All images always tested independently even if one fails |
 
 ---
 

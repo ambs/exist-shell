@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,9 +17,33 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync
-      - run: uv run pytest --cov=exist_shell --cov-report=xml
+      - name: Run tests
+        id: pytest
+        continue-on-error: true
+        run: uv run pytest --cov=exist_shell --cov-report=xml --cov-report=term 2>&1 | tee pytest.log
+      - name: Build PR comment
+        if: github.event_name == 'pull_request'
+        run: |
+          status="${{ steps.pytest.outcome }}"
+          [[ "$status" == "success" ]] && icon="✅ Passed" || icon="❌ Failed"
+          test_line=$(grep -E "^[0-9]+ (passed|failed)" pytest.log | tail -1 || echo "—")
+          coverage=$(grep "^TOTAL" pytest.log | awk '{print $NF}' || echo "—")
+          {
+            echo "## 🧪 Tests — ${icon}"
+            echo ""
+            echo "**${test_line}**  "
+            echo "**Coverage: ${coverage}**"
+          } > comment.md
+      - uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2
+        if: github.event_name == 'pull_request'
+        with:
+          header: tests
+          path: comment.md
       - uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           fail_ci_if_error: false
+      - name: Propagate failure
+        if: steps.pytest.outcome == 'failure'
+        run: exit 1
