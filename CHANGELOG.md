@@ -8,7 +8,7 @@
 | Command | Description |
 |---------|-------------|
 | `server add / ls` | Register and list eXist-db server configurations |
-| `collection add / ls / rm` | Manage named collection shortcuts |
+| `collection add / new / ls / rm` | Manage named collection shortcuts; `new` creates the collection on the server and registers it in one step (idempotent: no-op if already exists) |
 | `ls [path]` | List documents and sub-collections at a remote path |
 | `cat <path>` | Print a remote document to stdout; `--raw` skips binary detection |
 | `put <path>` | Upload a document from stdin or a local file; auto-detects MIME type |
@@ -21,7 +21,8 @@
 ### Infrastructure
 
 - Shell completion for collection/document paths (with TTL cache)
-- `<name>@<server>` syntax for ad-hoc server targeting
+- `<name>@<server>` syntax for ad-hoc server targeting in `collection add` and `collection new`
+- `--server` option on `collection add` and `collection new` completes registered server nicks
 - Path traversal validation and URL encoding
 - Google-style docstrings enforced via ruff
 - CI: pytest + coverage (Codecov), ruff, ty, e2e test suite against live eXist-db in Docker
