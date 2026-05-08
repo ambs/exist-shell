@@ -5,6 +5,7 @@
 [![e2e](https://github.com/ambs/exist-shell/actions/workflows/e2e.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/e2e.yml)
 [![Ruff](https://github.com/ambs/exist-shell/actions/workflows/ruff.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/ruff.yml)
 [![ty](https://github.com/ambs/exist-shell/actions/workflows/ty.yml/badge.svg)](https://github.com/ambs/exist-shell/actions/workflows/ty.yml)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://ambs.github.io/exist-shell/)
 
 A command-line tool to interact with an [eXist-db](https://exist-db.org) server via its REST API. Designed for shell scripting and pipe-friendly workflows.
 
