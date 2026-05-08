@@ -115,6 +115,94 @@ def test_collection_add_at_syntax_matching_server_option_ok(config_with_server, 
 
 
 # ---------------------------------------------------------------------------
+# collection new
+# ---------------------------------------------------------------------------
+
+
+def test_collection_new_success(config_with_server, client_mock, runner):
+    client_mock.collection_exists.return_value = False
+    result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
+    assert result.exit_code == 0
+    assert "myapp" in Config.load().collections
+    client_mock.create_collection.assert_called_once_with("/db/myapp")
+
+
+def test_collection_new_auto_selects_single_server(config_with_server, client_mock, runner):
+    client_mock.collection_exists.return_value = False
+    result = runner.invoke(app, ["collection", "new", "myapp"])
+    assert result.exit_code == 0
+    assert Config.load().collections["myapp"].server_nick == "local"
+
+
+def test_collection_new_at_syntax(config_with_server, client_mock, runner):
+    client_mock.collection_exists.return_value = False
+    result = runner.invoke(app, ["collection", "new", "myapp@local"])
+    assert result.exit_code == 0
+    assert "myapp" in Config.load().collections
+
+
+def test_collection_new_at_syntax_conflict_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["collection", "new", "myapp@local", "--server", "other"])
+    assert result.exit_code == 1
+    assert "conflicting" in result.output
+
+
+def test_collection_new_requires_server_when_multiple(config_path, client_mock, runner, a_server):
+    from pydantic import SecretStr
+    config = Config.load()
+    config.add_server(a_server)
+    config.add_server(Server(nick="prod", host="prod.example.com", password=SecretStr("")))
+    result = runner.invoke(app, ["collection", "new", "myapp"])
+    assert result.exit_code == 1
+    assert "--server" in result.output
+
+
+def test_collection_new_unknown_server_fails(config_path, client_mock, runner):
+    result = runner.invoke(app, ["collection", "new", "myapp", "--server", "ghost"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_collection_new_duplicate_nick_fails(config_with_server, client_mock, runner):
+    client_mock.collection_exists.return_value = False
+    runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
+    result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
+    assert result.exit_code == 1
+    assert "already exists" in result.output
+
+
+def test_collection_new_custom_nick(config_with_server, client_mock, runner):
+    client_mock.collection_exists.return_value = False
+    result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local", "--nick", "ma"])
+    assert result.exit_code == 0
+    assert "ma" in Config.load().collections
+    assert Config.load().collections["ma"].name == "myapp"
+
+
+def test_collection_new_already_exists_on_server(config_with_server, client_mock, runner):
+    client_mock.collection_exists.return_value = True
+    result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
+    assert result.exit_code == 0
+    assert "already exists" in result.output
+    client_mock.create_collection.assert_not_called()
+    assert "myapp" not in Config.load().collections
+
+
+def test_collection_new_auth_error_fails(config_with_server, client_mock, runner):
+    client_mock.collection_exists.side_effect = ExistAuthError("url")
+    result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
+    assert result.exit_code == 1
+    assert "myapp" not in Config.load().collections
+
+
+def test_collection_new_connection_error_fails(config_with_server, client_mock, runner):
+    client_mock.collection_exists.side_effect = ExistConnectionError("url", Exception("refused"))
+    result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
+    assert result.exit_code == 1
+    assert "myapp" not in Config.load().collections
+
+
+# ---------------------------------------------------------------------------
 # collection rm
 # ---------------------------------------------------------------------------
 

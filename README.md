@@ -43,13 +43,25 @@ exsh server add localhost --port 8080 --user admin
 
 A nickname is derived from the hostname by default (e.g. `localhost`). Override with `--nick`.
 
-### Add a collection
+### Add an existing collection
 
 ```bash
 exsh collection add mydata@localhost
 ```
 
 This registers the `/db/mydata` collection on the `localhost` server under the nick `mydata`.
+
+### Create and register a new collection
+
+```bash
+exsh collection new mydata@localhost
+```
+
+Creates `/db/mydata` on the server and registers it in one step. If the collection already exists, it prints a message and exits without modifying the config. Use `--nick` to register it under a different name:
+
+```bash
+exsh collection new mydata@localhost --nick md
+```
 
 List configured servers and collections:
 
@@ -75,8 +87,11 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh sync <nick>[:<path>] <local>` | Pull a remote collection to a local folder |
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
-| `exsh collection add <name>[@<server>]` | Register a collection |
+| `exsh server rm <nick>` | Remove a server (and its collections) |
+| `exsh collection add <name>[@<server>]` | Register an existing collection |
+| `exsh collection new <name>[@<server>]` | Create a collection on the server and register it |
 | `exsh collection ls` | List registered collections |
+| `exsh collection rm <nick>` | Remove a collection from the config |
 
 ### Examples
 

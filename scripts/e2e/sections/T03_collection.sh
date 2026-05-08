@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# T03 — collection add / collection ls / collection rm
+# T03 — collection add / collection new / collection ls / collection rm
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 section_T03_collection() {
-    step "T03 — collection add / collection ls / collection rm"
+    step "T03 — collection add / collection new / collection ls / collection rm"
 
     # T03.1 — add a collection specifying the server explicitly
     assert_output "Collection 'testcol' added." \
@@ -137,4 +137,48 @@ section_T03_collection() {
     else
         fail "T03.20 /db/rmfull returns 404 after --delete (non-empty collection deleted recursively) (got HTTP ${_rmfull_status})"
     fi
+
+    # T03.21 — collection new creates /db/newcol on the server and registers it
+    assert_output "Collection 'newcol' created at /db/newcol." \
+        "T03.21 collection new creates collection and registers it" \
+        "${EXSH[@]}" collection new newcol@localhost
+    assert_output "newcol" \
+        "T03.21 collection ls shows newcol" \
+        "${EXSH[@]}" collection ls
+
+    # T03.22 — verify /db/newcol was actually created on the server
+    local _newcol_status
+    _newcol_status="$(curl -s -o /dev/null -w "%{http_code}" -u "${ADMIN_AUTH}" "${EXIST_URL}/db/newcol")"
+    if [[ "${_newcol_status}" == "200" ]]; then
+        ok "T03.22 /db/newcol returns 200 after collection new"
+    else
+        fail "T03.22 /db/newcol returns 200 after collection new (got HTTP ${_newcol_status})"
+    fi
+
+    # T03.23 — collection already exists on server: prints message, exits 0, config unchanged
+    assert_output "already exists" \
+        "T03.23 collection new on existing server collection exits 0 with message" \
+        "${EXSH[@]}" collection new newcol@localhost --nick newalias
+    assert_output_absent "newalias" \
+        "T03.23 newalias not added to config when collection already exists" \
+        "${EXSH[@]}" collection ls
+
+    # T03.24 — collection new with --nick registers under a custom nickname
+    assert_output "Collection 'nc2' created at /db/newcol2." \
+        "T03.24 collection new --nick uses custom nickname" \
+        "${EXSH[@]}" collection new newcol2@localhost --nick nc2
+    assert_output "nc2" \
+        "T03.24 collection ls shows nc2" \
+        "${EXSH[@]}" collection ls
+    assert_output "/db/newcol2" \
+        "T03.24 collection ls shows /db/newcol2 path for nc2" \
+        "${EXSH[@]}" collection ls
+
+    # T03.25 — config-only cleanup so T04+ start without extra nicks
+    assert_output "Collection 'newcol' removed." \
+        "T03.25 cleanup: rm newcol" \
+        "${EXSH[@]}" collection rm newcol
+    assert_output "Collection 'nc2' removed." \
+        "T03.25 cleanup: rm nc2" \
+        "${EXSH[@]}" collection rm nc2
 }
