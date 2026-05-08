@@ -47,4 +47,10 @@ section_T07_cat() {
     assert_output "path is required" \
         "T07.7 cat without path fails" \
         "${EXSH[@]}" cat testcol
+
+    # T07.8 — cat on a collection path: eXist returns the collection listing XML (200);
+    # cat treats it as a text document and prints it — exit 0, output contains the namespace
+    assert_output "exist.sourceforge.net" \
+        "T07.8 cat on collection path exits 0 and returns eXist collection XML" \
+        "${EXSH[@]}" cat testcol:/missing
 }

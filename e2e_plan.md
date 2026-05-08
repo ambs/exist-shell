@@ -24,7 +24,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T09 | [x]    | rm (single, multi, not-found, errors) |
 | T10 | [x]    | mkdir (create, idempotent, nested, errors) |
 | T11 | [x]    | edit (modified, no-change, editor error, not-found) |
-| T12 | [x]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, subdirectory tree, pull --dry-run, pull --delete, pull --force, errors) |
+| T12 | [x]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, subdirectory tree, pull --dry-run, pull --delete, pull --force, errors, pull-conflict, --delete --dry-run) |
 | T13 | [ ]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
 
 Mark tasks `[x]` as they are completed.
@@ -56,16 +56,16 @@ before T03 starts, as T03 depends on two servers being present.
 | T02.7  | ~~`exsh server ls` (repeat of T02.2)~~ | ✓ exit 0, still only `admin@localhost:8080` — failed adds left no trace |
 | T02.8  | ~~`exsh server add localhost --user admin --password "" --nick local2`~~ | ✓ exit 0, output contains `Server 'local2' added.` |
 | T02.9  | ~~`exsh server ls`~~ | ✓ exit 0, output contains both `localhost` and `local2` entries |
-| T02.10 | `exsh server add localhost --user admin --password "" --nick local3` | ✓ exit 0, `Server 'local3' added.` — disposable nick for rm tests |
-| T02.11 | `exsh collection add testcol@local3 --nick col3` | ✓ exit 0, `Collection 'col3' added.` — collection to cascade-remove with local3 |
-| T02.12 | `exsh server rm local3` | ✓ exit 0, output contains `Also removed 1 collection: col3.` and `Server 'local3' removed.` |
-| T02.13 | `exsh server ls` | ✓ exit 0, output does **not** contain `local3` |
-| T02.14 | `exsh collection ls` | ✓ exit 0, output does **not** contain `col3` — cascade verified |
-| T02.15 | `exsh server rm ghost` | ✓ exit 1, output contains `server nick 'ghost' not found` |
-| T02.16 | `exsh server rm local2` | ✓ exit 0, `Server 'local2' removed.` — leaves only one server |
-| T02.17 | `exsh collection add testcol --nick temptest` (no `@server`) | ✓ exit 0 — auto-selects sole remaining server `localhost` |
-| T02.18 | `exsh collection rm temptest` | ✓ exit 0 — cleanup; T03 must start with no collections registered |
-| T02.19 | `exsh server add localhost --user admin --password "" --nick local2` | ✓ exit 0 — restore `local2` so T03 preconditions hold (two servers) |
+| T02.10 | ~~`exsh server add localhost --user admin --password "" --nick local3`~~ | ✓ exit 0, `Server 'local3' added.` — disposable nick for rm tests |
+| T02.11 | ~~`exsh collection add testcol@local3 --nick col3`~~ | ✓ exit 0, `Collection 'col3' added.` — collection to cascade-remove with local3 |
+| T02.12 | ~~`exsh server rm local3`~~ | ✓ exit 0, output contains `Also removed 1 collection: col3.` and `Server 'local3' removed.` |
+| T02.13 | ~~`exsh server ls`~~ | ✓ exit 0, output does **not** contain `local3` |
+| T02.14 | ~~`exsh collection ls`~~ | ✓ exit 0, output does **not** contain `col3` — cascade verified |
+| T02.15 | ~~`exsh server rm ghost`~~ | ✓ exit 1, output contains `server nick 'ghost' not found` |
+| T02.16 | ~~`exsh server rm local2`~~ | ✓ exit 0, `Server 'local2' removed.` — leaves only one server |
+| T02.17 | ~~`exsh collection add testcol --nick temptest` (no `@server`)~~ | ✓ exit 0 — auto-selects sole remaining server `localhost` |
+| T02.18 | ~~`exsh collection rm temptest`~~ | ✓ exit 0 — cleanup; T03 must start with no collections registered |
+| T02.19 | ~~`exsh server add localhost --user admin --password "" --nick local2`~~ | ✓ exit 0 — restore `local2` so T03 preconditions hold (two servers) |
 
 ---
 
@@ -99,16 +99,17 @@ before saving. Error messages from `collection.py`:
 | T03.7 | ~~`exsh collection add testcol@ghost`~~ | ✓ exit 1, output contains `not found` (unknown server nick) |
 | T03.8 | ~~`exsh collection add testcol` (no server, two servers configured)~~ | ✓ exit 1, output contains `--server is required` |
 | T03.9 | ~~`exsh collection add testcol@localhost --server local2` (conflicting)~~ | ✓ exit 1, output contains `conflicting` |
-| T03.10 | **FIXME** Depends on T02.10 (`server rm`). Remove `local2`, then re-run a variant of T03.1 using `exsh collection add testcol3` (no `@server`) — should succeed by picking the sole registered server automatically. Re-add `local2` and clean up `testcol3` afterwards so later sections are unaffected. |
+| T03.10 | ~~covered by T02.17~~ | ✓ single-server auto-select already exercised in T02 (`server rm local2` → `collection add testcol --nick temptest` succeeds) |
 | T03.11 | ~~`exsh collection add testcol@localhost --nick rmtest`~~ | ✓ exit 0, `Collection 'rmtest' added.` — disposable alias for removal tests |
 | T03.12 | ~~`exsh collection rm rmtest`~~ | ✓ exit 0, output contains `Collection 'rmtest' removed.` — config-only removal |
 | T03.13 | ~~`exsh collection ls`~~ | ✓ exit 0, output does **not** contain `rmtest` — entry gone from config |
-| T03.14 | `exsh collection rm ghost` | ✓ exit 1, output contains `collection 'ghost' not found` |
-| T03.15 | curl-create `/db/rmcol` via REST; `exsh collection add rmcol@localhost` | ✓ exit 0 — setup for `--delete` test |
-| T03.16 | `exsh collection rm rmcol --delete` | ✓ exit 0, output contains `Collection 'rmcol' removed.` — config removed + server collection deleted |
-| T03.17 | `curl -o /dev/null -w "%{http_code}" GET /db/rmcol` | ✓ HTTP 404 — server collection actually gone |
-| T03.18 | curl-create `/db/rmcol2`; `collection add rmcol2@localhost`; curl-delete `/db/rmcol2` behind exsh's back; `collection rm rmcol2 --delete` | ✓ exit 1, output contains `not found on server` — server 404 leaves config unchanged |
-| T03.19 | `exsh collection rm rmcol2` | ✓ exit 0 — config-only cleanup of dangling entry from T03.18; also validates rm works when server collection is already gone |
+| T03.14 | ~~`exsh collection rm ghost`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
+| T03.15 | ~~curl-create `/db/rmcol` via REST; `exsh collection add rmcol@localhost`~~ | ✓ exit 0 — setup for `--delete` test |
+| T03.16 | ~~`exsh collection rm rmcol --delete`~~ | ✓ exit 0, output contains `Collection 'rmcol' removed.` — config removed + server collection deleted |
+| T03.17 | ~~`curl -o /dev/null -w "%{http_code}" GET /db/rmcol`~~ | ✓ HTTP 404 — server collection actually gone |
+| T03.18 | ~~curl-create `/db/rmcol2`; `collection add rmcol2@localhost`; curl-delete `/db/rmcol2` behind exsh's back; `collection rm rmcol2 --delete`~~ | ✓ exit 1, output contains `not found on server` — server 404 leaves config unchanged |
+| T03.19 | ~~`exsh collection rm rmcol2`~~ | ✓ exit 0 — config-only cleanup of dangling entry from T03.18; also validates rm works when server collection is already gone |
+| T03.20 | ~~curl PUT a document into `/db/rmfull` (creates collection + doc in one step); `exsh collection add rmfull@localhost`; `exsh collection rm rmfull --delete`~~ | ✓ exit 0, `Collection 'rmfull' removed.`; curl GET `/db/rmfull` returns 404 — `--delete` on a non-empty collection deletes recursively |
 
 ---
 
@@ -178,6 +179,7 @@ Preconditions: T05 has run. Remote state in `testcol` (`/db/testcol`):
 | T06.4 | ~~`exsh ls testcol`~~ | ✓ exit 0, output contains `missing/` (subcollections printed with trailing slash) |
 | T06.5 | ~~`exsh ls testcol:/missing`~~ | ✓ exit 0, output contains `sub/` |
 | T06.6 | ~~`exsh ls testcol:/missing/sub`~~ | ✓ exit 0, output contains `doc.xml` |
+| T06.7 | ~~`exsh ls testcol:/hello.xml` (document path, not a collection)~~ | ✓ exit 0, **empty** output — eXist returns the document body; XML parses successfully but has no `exist:` elements, so the listing is empty |
 
 ---
 
@@ -200,6 +202,7 @@ Error messages:
 | T07.5 | ~~`exsh cat testcol:/nonexistent.xml`~~ | ✓ exit 1, output contains `not found in collection` |
 | T07.6 | ~~`exsh cat ghost:/hello.xml`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
 | T07.7 | ~~`exsh cat testcol` (no colon/path)~~ | ✓ exit 1, output contains `path is required` |
+| T07.8 | ~~`exsh cat testcol:/missing` (collection path, not a document)~~ | ✓ exit 0, output contains `exist.sourceforge.net` — eXist returns the collection listing XML (200); cat treats it as a text document and prints it |
 
 T07.4 note: `--raw` writes bytes to `sys.stdout.buffer`, so redirect to a file and use `assert_file_eq` or `cmp` to verify the content.
 
@@ -228,6 +231,8 @@ Error messages:
 | T08.9  | ~~`exsh cp /nonexistent.xml testcol:/nope.xml`~~ | ✓ exit 1, `cannot read` |
 | T08.10 | ~~`exsh cp ghost:/hello.xml $TMPDIR_E2E/x.xml`~~ | ✓ exit 1, `collection 'ghost' not found` |
 | T08.11 | ~~`exsh cp testcol:/hello.xml $TMPDIR_E2E/cpdir/`~~ | ✓ exit 0, file lands as `cpdir/hello.xml` (directory target → append source filename) |
+| T08.12 | ~~`exsh cp testcol:/nonexistent.xml $TMPDIR_E2E/out.xml` (remote source does not exist)~~ | ✓ exit 1, output contains `not found in collection` |
+| T08.13 | ~~`exsh cp testcol:/hello.xml /dev/null/out.xml` (local target unwritable)~~ | ✓ exit 1, output contains `cannot write` |
 
 Files created in this section (persist for T09):
 - `testcol:/hello_copy.xml`
@@ -252,6 +257,7 @@ Error messages:
 | T09.4 | ~~repeat T09.1 (already deleted)~~ | ✓ exit 1, output contains `not found in collection` |
 | T09.5 | ~~`exsh rm ghost:/x.xml`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
 | T09.6 | ~~`exsh rm testcol` (no colon/path)~~ | ✓ exit 1, output contains `path is required` |
+| T09.7 | ~~`exsh rm testcol:/gone.xml testcol:/hello.xml` (first target missing, second valid)~~ | ✓ exit 1, output contains `not found in collection`; `exsh ls testcol` still shows `hello.xml` — loop exits on first failure, second target not attempted |
 
 T09.2 note: use `assert_output_absent` or run `exsh ls testcol` and grep for the absence of `hello_copy.xml`.
 
@@ -301,6 +307,7 @@ Error messages:
 | T11.5  | ~~`EDITOR=false exsh edit testcol:/hello.xml`~~ | ✓ exit 1, output contains `editor exited with code` |
 | T11.6  | ~~`EDITOR=true exsh edit testcol:/nonexistent.xml`~~ | ✓ exit 1, output contains `not found in collection` |
 | T11.7  | ~~`EDITOR=true exsh edit ghost:/hello.xml`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
+| T11.8  | ~~`VISUAL="${TMPDIR_E2E}/fake_editor.sh" EDITOR=false exsh edit testcol:/hello.xml`~~ | ✓ exit 0 — `$VISUAL` wins over `$EDITOR`; if `$EDITOR=false` had been consulted, exit would be 1 |
 
 ---
 
@@ -351,6 +358,8 @@ Error messages:
 | T12.24 | ~~`rm -rf syncdir/subdir`; push `--delete`~~ | ✓ output contains `✗ subdir/c.xml  (deleted)` and `✗ subdir/  (empty collection deleted)` |
 | T12.25 | ~~`exsh ls testcol:/syncroot`~~ | ✓ output does not contain `subdir/` |
 | T12.26 | ~~add `local_only.xml` to pulldir2; `exsh sync testcol2:/syncroot pulldir2/ --delete`~~ | ✓ output contains `✗ local_only.xml  (deleted)`, `✗ subdir/c.xml  (deleted)`, `✗ subdir/  (empty directory deleted)`; file removed from disk |
+| T12.27 | ~~overwrite `pulldir2/a.xml` locally; curl PUT a different version of `testcol:/syncroot/a.xml` on the server; `exsh sync testcol2:/syncroot pulldir2/` (no `--force`)~~ | ✓ exit 0, output contains `! a.xml  (conflict: modified on both sides, skipping)` — pull-direction conflict, symmetric to T12.12 |
+| T12.28 | ~~curl PUT a new file `testcol:/syncroot/dryextra.xml`; `exsh sync ${TMPDIR_E2E}/syncdir testcol:/syncroot --delete --dry-run` (local lacks `dryextra.xml`)~~ | ✓ exit 0, output contains `✗ dryextra.xml  (deleted)`; curl GET `/db/testcol/syncroot/dryextra.xml` returns 200 — `--delete --dry-run` logs but does not remove |
 
 T12.6 note: after --dry-run push, run the push again for real (T12.9) — if dry-run had actually uploaded, T12.9 would show `unchanged` instead of `modified`.
 

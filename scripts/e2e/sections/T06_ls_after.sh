@@ -21,4 +21,9 @@ section_T06_ls_after() {
     assert_output "doc.xml" \
         "T06.6 ls testcol:/missing/sub shows doc.xml" \
         "${EXSH[@]}" ls testcol:/missing/sub
+
+    # T06.7 — ls on a document path: eXist returns the document body (200); XML parses
+    # successfully but has no exist: namespace elements, so the listing is empty — exit 0
+    assert_exit0 "T06.7 ls on document path exits 0 (document body treated as empty collection)" \
+        "${EXSH[@]}" ls testcol:/hello.xml
 }
