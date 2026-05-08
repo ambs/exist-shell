@@ -1,0 +1,37 @@
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      flags: ${{ steps.list.outputs.flags }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Build image matrix from --list-images
+        id: list
+        run: |
+          flags=$(bash scripts/e2e.sh --list-images \
+            | awk '/^\s+--/{print $1}' \
+            | jq -R . | jq -sc .)
+          echo "flags=${flags}" >> "$GITHUB_OUTPUT"
+
+  e2e:
+    needs: matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        flag: ${{ fromJson(needs.matrix.outputs.flags) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+      - run: uv sync
+      - name: Run e2e tests (${{ matrix.flag }})
+        run: bash scripts/e2e.sh ${{ matrix.flag }}
