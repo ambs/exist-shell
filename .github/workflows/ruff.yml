@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  pull-requests: write
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -14,4 +17,31 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync
-      - run: uv run ruff check src/
+      - name: Run Ruff
+        id: ruff
+        continue-on-error: true
+        run: uv run ruff check src/ 2>&1 | tee ruff.log
+      - name: Build PR comment
+        if: github.event_name == 'pull_request'
+        run: |
+          status="${{ steps.ruff.outcome }}"
+          if [[ "$status" == "success" ]]; then
+            echo "## 🔍 Ruff — ✅ No issues" > comment.md
+          else
+            count=$(grep -cE "\.py:[0-9]" ruff.log 2>/dev/null || echo 0)
+            {
+              echo "## 🔍 Ruff — ❌ ${count} violation(s)"
+              echo ""
+              echo '```'
+              cat ruff.log
+              echo '```'
+            } > comment.md
+          fi
+      - uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2
+        if: github.event_name == 'pull_request'
+        with:
+          header: ruff
+          path: comment.md
+      - name: Propagate failure
+        if: steps.ruff.outcome == 'failure'
+        run: exit 1
