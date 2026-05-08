@@ -97,6 +97,19 @@ assert_output() {
     fi
 }
 
+# assert_output_absent <needle> <desc> <cmd...>
+assert_output_absent() {
+    local needle="$1"; shift
+    local desc="$1"; shift
+    local code=0
+    _run "$@" || code=$?
+    if echo "${_LAST_OUTPUT}" | grep -qF -- "$needle"; then
+        fail "$desc (unexpected '${needle}' found in output; exit=${code})"
+    else
+        ok "$desc"
+    fi
+}
+
 # assert_file_eq <file> <expected_content> <desc>
 assert_file_eq() {
     local file="$1"

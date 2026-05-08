@@ -21,7 +21,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T06 | [x]    | ls (after uploads, including auto-created subcollections from T05.10) |
 | T07 | [x]    | cat (text, binary, --raw, errors) |
 | T08 | [x]    | cp (local→remote, remote→local, remote→remote, trailing slash, errors) |
-| T09 | [ ]    | rm (single, multi, not-found, errors) |
+| T09 | [x]    | rm (single, multi, not-found, errors) |
 | T10 | [ ]    | mkdir (create, idempotent, nested, errors) |
 | T11 | [ ]    | edit (modified, no-change, editor error, not-found) |
 | T12 | [ ]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, errors) |
@@ -213,12 +213,12 @@ Error messages:
 
 | ID    | Command | Expected |
 |-------|---------|----------|
-| T09.1 | `exsh rm testcol:/hello_copy.xml` | exit 0 |
-| T09.2 | `exsh ls testcol` | exit 0, output does not contain `hello_copy.xml` |
-| T09.3 | `exsh rm testcol:/stdin.xml testcol:/hello_r2r.xml` | exit 0 (multi-target in one call) |
-| T09.4 | repeat T09.1 (already deleted) | exit 1, output contains `not found in collection` |
-| T09.5 | `exsh rm ghost:/x.xml` | exit 1, output contains `collection 'ghost' not found` |
-| T09.6 | `exsh rm testcol` (no colon/path) | exit 1, output contains `path is required` |
+| T09.1 | ~~`exsh rm testcol:/hello_copy.xml`~~ | ✓ exit 0 |
+| T09.2 | ~~`exsh ls testcol`~~ | ✓ exit 0, output does not contain `hello_copy.xml` |
+| T09.3 | ~~`exsh rm testcol:/stdin.xml testcol:/hello_r2r.xml`~~ | ✓ exit 0 (multi-target in one call) |
+| T09.4 | ~~repeat T09.1 (already deleted)~~ | ✓ exit 1, output contains `not found in collection` |
+| T09.5 | ~~`exsh rm ghost:/x.xml`~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
+| T09.6 | ~~`exsh rm testcol` (no colon/path)~~ | ✓ exit 1, output contains `path is required` |
 
 T09.2 note: use `assert_output_absent` or run `exsh ls testcol` and grep for the absence of `hello_copy.xml`.
 
