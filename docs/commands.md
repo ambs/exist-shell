@@ -238,3 +238,66 @@ exsh sync --dry-run ./reports mydata:reports
 # Push and delete server-side extras
 exsh sync --delete ./reports mydata:reports
 ```
+
+---
+
+## exec
+
+Execute an XQuery script on an eXist-db server and print the result to stdout.
+
+```
+exsh exec <nick>[:<path>] [-f FILE] [--no-fix] [--no-validate] [--validator NAME]
+```
+
+The query is read from `--file` or from stdin. Before sending, `exsh` optionally preprocesses the source and validates it locally:
+
+**Preprocessing** (enabled by default, skip with `--no-fix`):
+
+- Adds `xquery version "3.1";` if no version declaration is present.
+- Adds the `functx` module import if `functx:` functions are referenced but not declared.
+
+**Local validation** (enabled when a supported validator is installed, skip with `--no-validate`):
+
+The first installed validator found on `PATH` is used automatically. Use `--validator` to choose a specific one. Supported validators:
+
+| Name | Tool |
+|------|------|
+| `basex` | [BaseX](https://basex.org) |
+| `saxon` | [Saxon](https://www.saxonica.com) (requires a `saxon` wrapper script on PATH) |
+
+Run `exsh exec --list-validators` to see which validators are available on the current machine.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `-f / --file FILE` | XQuery file to execute. When omitted, stdin is read. |
+| `--no-fix` | Skip preprocessing (version declaration, namespace imports). |
+| `--no-validate` | Skip local validation even if a validator is installed. |
+| `--validator NAME` | Use a specific local validator by name. |
+| `--list-validators` | List known validators and their install status, then exit. |
+
+### Examples
+
+```bash
+# Execute a query file against the root of a collection
+exsh exec mydata:/ -f query.xq
+
+# Execute from stdin
+echo 'count(collection("/db/mydata"))' | exsh exec mydata:/
+
+# Pipe the result into xmllint for pretty-printing
+exsh exec mydata:/ -f query.xq | xmllint --format -
+
+# Execute in the context of a subcollection
+exsh exec mydata:reports/2025 -f summary.xq
+
+# Skip preprocessing and validation (e.g. for already-complete scripts)
+exsh exec mydata:/ --no-fix --no-validate -f query.xq
+
+# Force a specific validator
+exsh exec mydata:/ --validator basex -f query.xq
+
+# Check which validators are available locally
+exsh exec --list-validators
+```

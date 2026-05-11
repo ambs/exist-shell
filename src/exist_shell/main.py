@@ -8,6 +8,7 @@ from exist_shell import __version__
 from exist_shell.commands import collection, server
 from exist_shell.config import app_state
 from exist_shell.commands.cat import cat
+from exist_shell.commands.exec import exec as exec_query
 from exist_shell.commands.cp import cp
 from exist_shell.commands.mkdir import mkdir
 from exist_shell.commands.edit import edit
@@ -32,6 +33,7 @@ app.command("cp", help="Copy a document between local paths and remote collectio
 app.command("rm", help="Delete one or more documents from a collection path.")(rm)
 app.command("mkdir", help="Create a collection at a path inside a registered collection.")(mkdir)
 app.command("sync", help="Sync a local folder and a remote collection.")(sync)
+app.command("exec", help="Execute an XQuery script on an eXist-db server.")(exec_query)
 
 
 def _version_callback(value: bool) -> None:

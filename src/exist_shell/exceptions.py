@@ -53,3 +53,16 @@ class ExistNotFoundError(ExistError):
         """Initialize with the path that was not found."""
         super().__init__(f"Not found: {path}", status_code=404)
         self.path = path
+
+
+class ExistQueryError(ExistError):
+    """Raised when the server rejects or fails to execute an XQuery.
+
+    Attributes:
+        detail: The error detail returned by the server.
+    """
+
+    def __init__(self, detail: str) -> None:
+        """Initialize with the server-provided error detail."""
+        super().__init__(f"XQuery error: {detail}")
+        self.detail = detail

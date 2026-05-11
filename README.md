@@ -86,6 +86,7 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh mkdir <nick>:<path>` | Create a collection |
 | `exsh sync <local> <nick>[:<path>]` | Push a local folder to a remote collection |
 | `exsh sync <nick>[:<path>] <local>` | Pull a remote collection to a local folder |
+| `exsh exec <nick>[:<path>]` | Execute an XQuery script on a server |
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
 | `exsh server rm <nick>` | Remove a server (and its collections) |
@@ -123,6 +124,18 @@ exsh rm mydata:reports/2025/a.xml mydata:reports/2025/b.xml
 
 # Create a subcollection
 exsh mkdir mydata:reports/2026
+
+# Execute an XQuery script from a file
+exsh exec mydata:/ -f query.xq
+
+# Execute an XQuery script from stdin
+echo 'count(collection("/db/mydata"))' | exsh exec mydata:/
+
+# Execute without local preprocessing
+exsh exec mydata:/ --no-fix -f query.xq
+
+# List locally available XQuery validators
+exsh exec --list-validators
 
 # Push a local folder to the server (only transfers changed files)
 exsh sync ./reports mydata:reports
