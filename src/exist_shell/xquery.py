@@ -231,10 +231,10 @@ def _ensure_functx(code: str) -> str:
         return code
     if "namespace functx" in code:
         return code
-    import_line = (
-        'import module namespace functx = "http://www.functx.com"'
-        ' at "functx/functx.xq";\n'
-    )
+    # No "at" hint: eXist resolves the module from its package registry by URI.
+    # A file-path hint would override registry lookup and fail unless the file
+    # happens to exist at that path relative to the query context.
+    import_line = 'import module namespace functx = "http://www.functx.com";\n'
     lines = code.splitlines(keepends=True)
     for i, line in enumerate(lines):
         if line.lower().startswith("xquery version"):

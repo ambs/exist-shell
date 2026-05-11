@@ -5,7 +5,7 @@
 `scripts/e2e.sh` exercises the real `exsh` binary against a live eXist-db instance
 running in Docker. Every command is tested end-to-end; no HTTP mocking. The script
 is built task-by-task so each increment can be validated before the next is added.
-After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
+After T12 it runs as a full regression suite. T13 wires it into GitHub Actions. T14 adds end-to-end coverage for the `exec` command.
 
 ---
 
@@ -25,6 +25,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions.
 | T10 | [x]    | mkdir (create, idempotent, nested, errors) |
 | T11 | [x]    | edit (modified, no-change, editor error, not-found) |
 | T12 | [x]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, subdirectory tree, pull --dry-run, pull --delete, pull --force, errors, pull-conflict, --delete --dry-run) |
+| T14 | [x]    | exec (stdin, file, preprocessing, --no-fix, --list-validators, server error, error cases) |
 | T13 | [x]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
 
 Mark tasks `[x]` as they are completed.
@@ -367,6 +368,38 @@ Error messages:
 | T12.28 | ~~curl PUT a new file `testcol:/syncroot/dryextra.xml`; `exsh sync ${TMPDIR_E2E}/syncdir testcol:/syncroot --delete --dry-run` (local lacks `dryextra.xml`)~~ | ✓ exit 0, output contains `✗ dryextra.xml  (deleted)`; curl GET `/db/testcol/syncroot/dryextra.xml` returns 200 — `--delete --dry-run` logs but does not remove |
 
 T12.6 note: after --dry-run push, run the push again for real (T12.9) — if dry-run had actually uploaded, T12.9 would show `unchanged` instead of `modified`.
+
+---
+
+## T14 subtasks — exec (XQuery execution)
+
+Preconditions: T11 has run. `testcol:/hello.xml` contains `<hello>eXist</hello>`.
+All subtasks pass `--no-validate` to keep tests deterministic regardless of whether
+BaseX or Saxon are installed on the CI runner; local validator behaviour is covered
+by unit tests.  Preprocessing (`--no-fix`) is tested by checking that a bare
+expression (no version declaration) is accepted by the server when preprocessing
+runs, and rejected cleanly when `--no-fix` sends it verbatim (eXist tolerates
+version-less queries, so the meaningful preprocessing test is the functx case).
+
+| ID     | Command | Expected |
+|--------|---------|----------|
+| T14.1  | ~~`echo '1+1' \| exsh exec testcol:/ --no-validate`~~ | ✓ exit 0, output contains `2` |
+| T14.2  | ~~Write `$TMPDIR_E2E/count.xq` = `count(collection("/db/testcol"))`; `exsh exec testcol:/ -f $TMPDIR_E2E/count.xq --no-validate`~~ | ✓ exit 0, output is a positive integer |
+| T14.3  | ~~Write `$TMPDIR_E2E/doc.xq` = `doc("/db/testcol/hello.xml")`; `exsh exec testcol:/ -f $TMPDIR_E2E/doc.xq --no-validate`~~ | ✓ exit 0, output contains `eXist` |
+| T14.4  | ~~`echo 'count(/*)' \| exsh exec testcol:/ --no-validate` (no version declaration, preprocessing enabled)~~ | ✓ exit 0 — preprocessing prepended version declaration; server accepted query |
+| T14.5  | ~~`echo 'xquery version "3.1"; count(/*)' \| exsh exec testcol:/ --no-fix --no-validate`~~ | ✓ exit 0 — `--no-fix` skips preprocessing; explicit version passes through unchanged |
+| T14.6  | ~~Write `$TMPDIR_E2E/functx.xq` = `functx:capitalize-first("hello")` (no import, no version); `exsh exec testcol:/ -f $TMPDIR_E2E/functx.xq --no-validate`~~ | ✓ exit 0, output contains `Hello` — preprocessing added both the version declaration and the functx import; functx must be installed on the eXist instance |
+| T14.7  | ~~Same `functx.xq` with `--no-fix --no-validate`~~ | ✓ exit 1, output contains `XQuery error` — without preprocessing, missing namespace declaration causes a server-side static error |
+| T14.8  | ~~`echo 'this is not valid !!!' \| exsh exec testcol:/ --no-fix --no-validate`~~ | ✓ exit 1, output contains `XQuery error` — server rejects malformed query |
+| T14.9  | ~~`exsh exec --list-validators` (no target)~~ | ✓ exit 0, output lists at least `basex` and `saxon` by name |
+| T14.10 | ~~`exsh exec ghost:/ --no-validate` with piped input~~ | ✓ exit 1, output contains `collection 'ghost' not found` |
+| T14.11 | ~~`exsh exec` (no target, no flags)~~ | ✓ exit 1, output contains `TARGET` |
+| T14.12 | ~~`exsh exec testcol:/ -f /nonexistent/query.xq`~~ | ✓ exit 1, output contains `cannot read` |
+| T14.13 | ~~`echo 'doc("/db/testcol/hello.xml")' \| exsh exec testcol:/ --no-validate \| xmllint --format -`~~ | ✓ exit 0, xmllint parses output without error — result is pipe-friendly well-formed XML |
+
+T14.6–T14.7 note: functx availability varies by eXist image. Wrap both subtasks in a
+guard that skips them if `exsh exec testcol:/ --no-validate` with a functx call returns
+exit 1 with `namespace` in the error (functx not installed on this image).
 
 ---
 
