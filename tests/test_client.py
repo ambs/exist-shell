@@ -2,7 +2,7 @@ import httpx
 import pytest
 
 from exist_shell.client import ExistClient
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistQueryError
 from exist_shell.models import CollectionEntry, DocumentResult, ResourceEntry
 
 
@@ -275,3 +275,72 @@ def test_delete_collection_raises_connection_error_on_network_failure(httpx_mock
     with ExistClient(a_server) as client:
         with pytest.raises(ExistConnectionError):
             client.delete_collection("/db/myapp")
+
+
+# ---------------------------------------------------------------------------
+# execute_query
+# ---------------------------------------------------------------------------
+
+def test_execute_query_returns_text_on_200(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        text="<result>42</result>",
+    )
+    with ExistClient(a_server) as client:
+        output = client.execute_query("1 + 1")
+    assert output == "<result>42</result>"
+
+
+def test_execute_query_uses_custom_context(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp",
+        method="POST",
+        text="ok",
+    )
+    with ExistClient(a_server) as client:
+        output = client.execute_query("1 + 1", context="/db/myapp")
+    assert output == "ok"
+
+
+def test_execute_query_raises_query_error_on_400(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        status_code=400,
+        text="Unexpected token at line 1",
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError) as exc_info:
+            client.execute_query("invalid !!!")
+    assert "Unexpected token" in str(exc_info.value)
+
+
+def test_execute_query_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        status_code=500,
+        text="Internal server error",
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.execute_query("1 + 1")
+
+
+def test_execute_query_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        status_code=401,
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.execute_query("1 + 1")
+
+
+def test_execute_query_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.execute_query("1 + 1")

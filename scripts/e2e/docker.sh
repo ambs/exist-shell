@@ -65,6 +65,7 @@ bootstrap() {
         --data-binary "" \
         "${EXIST_URL}/db/testcol/.keep" >/dev/null
     curl -sf -u "${ADMIN_AUTH}" -X DELETE "${EXIST_URL}/db/testcol/.keep" >/dev/null
+
 }
 
 teardown() {
