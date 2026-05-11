@@ -3,7 +3,7 @@ import pytest
 
 from exist_shell.client import ExistClient
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
-from exist_shell.models import CollectionEntry, ResourceEntry
+from exist_shell.models import CollectionEntry, DocumentResult, ResourceEntry
 
 
 def test_check_connection_succeeds_on_200(httpx_mock, a_server):
@@ -115,3 +115,163 @@ def test_put_document_raises_connection_error_on_network_failure(httpx_mock, a_s
     with ExistClient(a_server) as client:
         with pytest.raises(ExistConnectionError):
             client.put_document("/db/myapp/doc.xml", b"<root/>", "application/xml")
+
+
+def test_collection_exists_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.collection_exists("myapp")
+
+
+def test_get_document_returns_content_and_mime_type(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml",
+        content=b"<root/>",
+        headers={"content-type": "application/xml; charset=utf-8"},
+    )
+    with ExistClient(a_server) as client:
+        result = client.get_document("/db/myapp/doc.xml")
+    assert isinstance(result, DocumentResult)
+    assert result.content == b"<root/>"
+    assert result.mime_type == "application/xml"
+
+
+def test_get_document_uses_default_mime_type_when_header_missing(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml",
+        content=b"\x00\x01",
+    )
+    with ExistClient(a_server) as client:
+        result = client.get_document("/db/myapp/doc.xml")
+    assert result.mime_type == "application/octet-stream"
+
+
+def test_get_document_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml", status_code=401
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.get_document("/db/myapp/doc.xml")
+
+
+def test_get_document_raises_not_found_on_404(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml", status_code=404
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistNotFoundError):
+            client.get_document("/db/myapp/doc.xml")
+
+
+def test_get_document_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.get_document("/db/myapp/doc.xml")
+
+
+_PLACEHOLDER = "http://localhost:8080/exist/rest/db/myapp/.keep"
+_COLLECTION = "http://localhost:8080/exist/rest/db/myapp"
+
+
+def test_create_collection_succeeds(httpx_mock, a_server):
+    httpx_mock.add_response(url=_PLACEHOLDER, method="PUT", status_code=201)
+    httpx_mock.add_response(url=_PLACEHOLDER, method="DELETE", status_code=200)
+    with ExistClient(a_server) as client:
+        client.create_collection("/db/myapp")
+
+
+def test_create_collection_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(url=_PLACEHOLDER, method="PUT", status_code=401)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.create_collection("/db/myapp")
+
+
+def test_create_collection_raises_not_found_on_404(httpx_mock, a_server):
+    httpx_mock.add_response(url=_PLACEHOLDER, method="PUT", status_code=404)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistNotFoundError):
+            client.create_collection("/db/myapp")
+
+
+def test_create_collection_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.create_collection("/db/myapp")
+
+
+def test_create_collection_suppresses_delete_failure(httpx_mock, a_server):
+    httpx_mock.add_response(url=_PLACEHOLDER, method="PUT", status_code=201)
+    httpx_mock.add_exception(httpx.ConnectError("refused"), url=_PLACEHOLDER, method="DELETE")
+    with ExistClient(a_server) as client:
+        client.create_collection("/db/myapp")
+
+
+def test_delete_document_succeeds(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="DELETE", status_code=200
+    )
+    with ExistClient(a_server) as client:
+        client.delete_document("/db/myapp/doc.xml")
+
+
+def test_delete_document_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="DELETE", status_code=401
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.delete_document("/db/myapp/doc.xml")
+
+
+def test_delete_document_raises_not_found_on_404(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="DELETE", status_code=404
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistNotFoundError):
+            client.delete_document("/db/myapp/doc.xml")
+
+
+def test_delete_document_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.delete_document("/db/myapp/doc.xml")
+
+
+def test_delete_collection_succeeds(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp", method="DELETE", status_code=200
+    )
+    with ExistClient(a_server) as client:
+        client.delete_collection("/db/myapp")
+
+
+def test_delete_collection_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp", method="DELETE", status_code=401
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.delete_collection("/db/myapp")
+
+
+def test_delete_collection_raises_not_found_on_404(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp", method="DELETE", status_code=404
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistNotFoundError):
+            client.delete_collection("/db/myapp")
+
+
+def test_delete_collection_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.delete_collection("/db/myapp")
