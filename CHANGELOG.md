@@ -17,6 +17,7 @@
 | `mkdir <path>` | Create a remote collection (idempotent) |
 | `edit <path>` | Download, open in `$VISUAL`/`$EDITOR`, re-upload if changed |
 | `sync push/pull <dir> <path>` | Sync a local directory tree with a remote collection; supports `--delete`, `--dry-run`, `--force` |
+| `exec <nick>[:<path>]` | Read an XQuery script from a file or stdin, optionally preprocess it (version declaration, functx import), validate locally with BaseX or Saxon (auto-detected via PATH), then execute against eXist and print the result; supports `--no-fix`, `--no-validate`, `--validator`, `--list-validators` |
 
 ### Infrastructure
 
