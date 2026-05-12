@@ -180,19 +180,33 @@ class ExistClient:
     def create_collection(self, path: str) -> None:
         """Create a collection at the given eXist path.
 
+        Intermediate collections are created automatically if they do not exist.
+
         Args:
             path: Full eXist path starting with /db/ (e.g. /db/myapp/newcoll).
 
         Raises:
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
-            ExistNotFoundError: If the parent collection does not exist.
+            ExistNotFoundError: If the collection cannot be created.
         """
         clean = path.rstrip("/")
-        parent, _, name = clean.rpartition("/")
-        query = f'xquery version "3.1"; xmldb:create-collection("{parent}", "{name}")'
+        # fold-left walks each path segment from /db downward, threading the
+        # parent path as the accumulator. xmldb:create-collection is idempotent
+        # (existing collections return their path without error), so intermediate
+        # levels are created only when missing. [1] keeps the path string and
+        # discards the create-collection return value from the sequence.
+        query = (
+            'xquery version "3.1"; '
+            f'let $parts := tokenize("{clean}", "/")[. != ""] '
+            "let $_ := fold-left(tail($parts), \"/\" || head($parts), function($parent, $seg) { "
+            "  let $new := $parent || \"/\" || $seg "
+            "  return ($new, xmldb:create-collection($parent, $seg))[1] "
+            "}) "
+            "return ()"
+        )
         try:
-            self.execute_query(query, context=parent or "/db")
+            self.execute_query(query, context="/db")
         except ExistQueryError:
             raise ExistNotFoundError(path)
 
