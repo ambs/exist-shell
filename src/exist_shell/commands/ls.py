@@ -37,21 +37,30 @@ def ls(
     else:
         items = sorted(items, key=lambda x: x.name, reverse=reverse)
 
+    if names_only:
+        for item in items:
+            display_name = f"{item.name}/" if isinstance(item, CollectionEntry) else item.name
+            typer.echo(display_name)
+        return
+
+    rows: list[tuple[str, str, str, str]] = []
     for item in items:
         display_name = f"{item.name}/" if isinstance(item, CollectionEntry) else item.name
-        if names_only:
-            typer.echo(display_name)
-            continue
         if isinstance(item, CollectionEntry):
-            row = (display_name, item.permissions or "", item.owner or "", item.created or "")
+            rows.append((display_name, item.permissions or "", item.owner or "", item.created or ""))
         else:
             assert isinstance(item, ResourceEntry)
-            row = (
+            rows.append((
                 display_name,
                 item.permissions or "",
                 item.owner or "",
-                str(item.size) if item.size is not None else "",
-                item.mime_type or "",
-                item.last_modified or "",
-            )
-        typer.echo("  ".join(cell for cell in row if cell))
+                item.last_modified or item.created or "",
+            ))
+
+    if not rows:
+        return
+
+    widths = [max(len(row[col]) for row in rows) for col in range(len(rows[0]))]
+    for row in rows:
+        padded = "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row[:-1]))
+        typer.echo(f"{padded}  {row[-1]}")
