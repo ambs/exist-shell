@@ -188,27 +188,13 @@ class ExistClient:
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the parent collection does not exist.
         """
-        # PUT /path/ with empty body creates a stray same-named resource in the
-        # parent, making GET /path return that resource instead of the collection
-        # listing. The correct approach is to PUT a placeholder document (which
-        # auto-creates the collection) and then delete it.
-        placeholder = path.rstrip("/") + "/.keep"
-        url_placeholder = self._url(placeholder)
-        url = self._url(path.rstrip("/"))
+        clean = path.rstrip("/")
+        parent, _, name = clean.rpartition("/")
+        query = f'xquery version "3.1"; xmldb:create-collection("{parent}", "{name}")'
         try:
-            r = self._http.put(url_placeholder, content=b"", headers={"Content-Type": "application/octet-stream"})
-        except httpx.RequestError as e:
-            raise ExistConnectionError(url, e) from e
-        if r.status_code == 401:
-            raise ExistAuthError(url)
-        if r.status_code == 404:
+            self.execute_query(query, context=parent or "/db")
+        except ExistQueryError:
             raise ExistNotFoundError(path)
-        r.raise_for_status()
-        # Best-effort cleanup; a leftover .keep is harmless if this fails.
-        try:
-            self._http.delete(url_placeholder)
-        except Exception:
-            pass
 
     def delete_document(self, path: str) -> None:
         """Delete a document at the given eXist path.
