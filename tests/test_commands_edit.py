@@ -1,6 +1,7 @@
 """Tests for the edit command."""
 
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -111,6 +112,15 @@ def test_edit_falls_back_to_editor_env(config_with_collection, client_mock, xml_
     with patch("exist_shell.commands.edit.subprocess.run", side_effect=_capture):
         runner.invoke(app, ["edit", "myapp:/doc.xml"])
     assert seen_cmd == ["nano"]
+
+
+def test_find_editor_falls_back_to_notepad_on_windows(monkeypatch):
+    from exist_shell.commands.edit import _find_editor
+
+    monkeypatch.delenv("VISUAL", raising=False)
+    monkeypatch.delenv("EDITOR", raising=False)
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert _find_editor() == "notepad"
 
 
 # --- error paths ---
