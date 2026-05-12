@@ -238,3 +238,32 @@ def test_server_rename_keeps_other_server_collections(config_path, a_server, run
     config.add_collection(Collection(nick="prodapp", server_nick="prod", name="prodapp"))
     runner.invoke(app, ["server", "rename", "local", "staging"])
     assert Config.load().collections["prodapp"].server_nick == "prod"
+
+
+# ---------------------------------------------------------------------------
+# _complete_server_nick
+# ---------------------------------------------------------------------------
+
+
+def test_complete_server_nick_returns_matching_nicks(config_path, a_server):
+    from exist_shell.commands.server import _complete_server_nick
+    Config.load().add_server(a_server)
+    assert _complete_server_nick("lo") == ["local"]
+
+
+def test_complete_server_nick_returns_all_when_empty_prefix(config_path, a_server):
+    from exist_shell.commands.server import _complete_server_nick
+    Config.load().add_server(a_server)
+    assert _complete_server_nick("") == ["local"]
+
+
+def test_complete_server_nick_returns_empty_when_no_match(config_path, a_server):
+    from exist_shell.commands.server import _complete_server_nick
+    Config.load().add_server(a_server)
+    assert _complete_server_nick("xyz") == []
+
+
+def test_complete_server_nick_returns_empty_on_config_error(monkeypatch):
+    from exist_shell.commands.server import _complete_server_nick
+    monkeypatch.setattr("exist_shell.commands.server.Config.load", lambda: (_ for _ in ()).throw(Exception("fail")))
+    assert _complete_server_nick("") == []
