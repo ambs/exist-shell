@@ -73,7 +73,7 @@ def test_ls_rejects_path_traversal(config_with_collection, client_mock, runner):
     assert "traversal" in result.output
 
 
-def test_ls_columns_separated_by_two_spaces(config_with_collection, client_mock, runner):
+def test_ls_columns_aligned(config_with_collection, client_mock, runner):
     client_mock.list_collection.return_value = [
         CollectionEntry(name="short", permissions="rwxr-xr-x", owner="admin"),
         ResourceEntry(name="a-much-longer-name.xml", size=42, mime_type="application/xml"),
@@ -82,8 +82,15 @@ def test_ls_columns_separated_by_two_spaces(config_with_collection, client_mock,
     assert result.exit_code == 0
     assert "\t" not in result.output
     lines = result.output.splitlines()
-    assert lines[0].startswith("a-much-longer-name.xml  42  application/xml")
-    assert lines[1].startswith("short/  rwxr-xr-x  admin")
+    # Sorted by name: resource before collection
+    assert lines[0].startswith("a-much-longer-name.xml")
+    assert lines[1].startswith("short/")
+    # Name column padded to max width — second column starts at same offset in both rows
+    name_width = len("a-much-longer-name.xml")  # 22, the longest name
+    assert lines[0][name_width : name_width + 2] == "  "
+    assert lines[1][name_width : name_width + 2] == "  "
+    # Permissions column is at the same offset in both rows
+    assert lines[1][name_width + 2 : name_width + 2 + 9] == "rwxr-xr-x"
 
 
 def test_ls_sort_by_name(config_with_collection, client_mock, runner):
