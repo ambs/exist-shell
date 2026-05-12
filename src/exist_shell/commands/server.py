@@ -1,11 +1,13 @@
-"""Server management commands (add, ls, rm)."""
+"""Server management commands (add, ls, rm, rename)."""
+
+import re
 
 import typer
 
 from pydantic import SecretStr
 
 from exist_shell.client import ExistClient
-from exist_shell.config import Config, Server
+from exist_shell.config import NICK_PATTERN, Config, Server
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError
 
 app = typer.Typer(help="Manage servers.", no_args_is_help=True)
@@ -13,6 +15,14 @@ app = typer.Typer(help="Manage servers.", no_args_is_help=True)
 
 def _default_nick(host: str) -> str:
     return host.split(".")[0]
+
+
+def _complete_server_nick(incomplete: str) -> list[str]:
+    try:
+        servers = Config.load().servers
+    except Exception:
+        return []
+    return [nick for nick in servers if nick.startswith(incomplete)]
 
 
 def _list() -> None:
@@ -58,6 +68,34 @@ def server_add(
         raise typer.Exit(1)
     config.add_server(server)
     typer.echo(f"Server '{resolved_nick}' added.")
+
+
+@app.command("rename")
+def server_rename(
+    old_nick: str = typer.Argument(
+        help="Current nickname of the server.", autocompletion=_complete_server_nick
+    ),
+    new_nick: str = typer.Argument(help="New nickname for the server."),
+) -> None:
+    """Rename a server nick, updating all collection references."""
+    if old_nick == new_nick:
+        typer.echo("Error: new nick is the same as the old nick.", err=True)
+        raise typer.Exit(1)
+    if not re.match(NICK_PATTERN, new_nick):
+        typer.echo(f"Error: '{new_nick}' is not a valid server nick.", err=True)
+        raise typer.Exit(1)
+    config = Config.load()
+    if old_nick not in config.servers:
+        typer.echo(f"Error: server nick '{old_nick}' not found.", err=True)
+        raise typer.Exit(1)
+    if new_nick in config.servers:
+        typer.echo(f"Error: server nick '{new_nick}' already exists.", err=True)
+        raise typer.Exit(1)
+    updated = config.rename_server(old_nick, new_nick)
+    if updated:
+        noun = "collection" if len(updated) == 1 else "collections"
+        typer.echo(f"Also updated {len(updated)} {noun}: {', '.join(updated)}.")
+    typer.echo(f"Server '{old_nick}' renamed to '{new_nick}'.")
 
 
 @app.command("rm")

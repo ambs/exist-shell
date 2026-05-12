@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# T02 — server add / server ls / server rm
+# T02 — server add / server ls / server rm / server rename
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 section_T02_server() {
-    step "T02 — server add / server ls / server rm"
+    step "T02 — server add / server ls / server rm / server rename"
 
     # T02.1 — add a valid server
     assert_output "Server 'localhost' added." \
@@ -106,4 +106,63 @@ section_T02_server() {
     assert_output "Server 'local2' added." \
         "T02.19 re-add local2 (restore T03 precondition)" \
         "${EXSH[@]}" server add localhost --user admin --password "" --nick local2
+
+    # ---------------------------------------------------------------------------
+    # server rename
+    # ---------------------------------------------------------------------------
+
+    # T02.20 — add a disposable nick to rename
+    assert_output "Server 'renametest' added." \
+        "T02.20 server add renametest (for rename tests)" \
+        "${EXSH[@]}" server add localhost --user admin --password "" --nick renametest
+
+    # T02.21 — register a collection on renametest to verify cascade update
+    assert_output "Collection 'renamecol' added." \
+        "T02.21 collection add renamecol@renametest (to verify cascade update)" \
+        "${EXSH[@]}" collection add testcol@renametest --nick renamecol
+
+    # T02.22 — rename renametest → newname; collection reference updated
+    _run "${EXSH[@]}" server rename renametest newname
+    assert_in_last "Also updated 1 collection: renamecol." \
+        "T02.22 server rename reports cascade update of renamecol"
+    assert_in_last "Server 'renametest' renamed to 'newname'." \
+        "T02.22 server rename success message"
+
+    # T02.23 — server ls shows newname, not renametest
+    assert_output "newname" \
+        "T02.23 server ls shows newname" \
+        "${EXSH[@]}" server ls
+    assert_output_absent "renametest" \
+        "T02.23 server ls no longer shows renametest" \
+        "${EXSH[@]}" server ls
+
+    # T02.24 — collection ls shows renamecol pointing to @newname
+    assert_output "@newname" \
+        "T02.24 collection ls shows renamecol with updated server nick" \
+        "${EXSH[@]}" collection ls
+
+    # T02.25 — rename unknown nick fails
+    assert_output "server nick 'ghost' not found" \
+        "T02.25 server rename unknown nick fails" \
+        "${EXSH[@]}" server rename ghost newname2
+
+    # T02.26 — rename to a nick that already exists fails
+    assert_output "server nick 'localhost' already exists" \
+        "T02.26 server rename to existing nick fails" \
+        "${EXSH[@]}" server rename newname localhost
+
+    # T02.27 — rename to the same nick fails
+    assert_output "same as the old nick" \
+        "T02.27 server rename same nick fails" \
+        "${EXSH[@]}" server rename newname newname
+
+    # T02.28 — rename to an invalid nick fails
+    assert_output "not a valid server nick" \
+        "T02.28 server rename invalid new nick fails" \
+        "${EXSH[@]}" server rename newname "invalid!"
+
+    # T02.29 — cleanup: rm newname (also cascade-removes renamecol)
+    assert_output "Server 'newname' removed." \
+        "T02.29 server rm newname (cleanup; renamecol cascade-removed)" \
+        "${EXSH[@]}" server rm newname
 }

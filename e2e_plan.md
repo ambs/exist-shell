@@ -14,7 +14,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions. 
 | ID  | Status | Section |
 |-----|--------|---------|
 | T01 | [x]    | Scaffold: helpers, Docker lifecycle, config setup/teardown, summary |
-| T02 | [x]    | server add / server ls / server rm |
+| T02 | [x]    | server add / server ls / server rm / server rename |
 | T03 | [x]    | collection add / collection new / collection ls / collection rm |
 | T04 | [x]    | ls (empty collection, error cases) |
 | T05 | [x]    | put (file, stdin, MIME, binary, overwrite, errors) |
@@ -32,7 +32,7 @@ Mark tasks `[x]` as they are completed.
 
 ---
 
-## T02 subtasks — server add / server ls / server rm
+## T02 subtasks — server add / server ls / server rm / server rename
 
 `server add` calls `check_connection()` before saving, so the Docker container must
 be running. Error messages come from `server.py` catch blocks:
@@ -42,6 +42,12 @@ be running. Error messages come from `server.py` catch blocks:
 
 `server rm` error messages:
 - unknown nick → `"Error: server nick '…' not found."`
+
+`server rename` is a pure config operation (no network call). Error messages:
+- same nick → `"Error: new nick is the same as the old nick."`
+- invalid nick format → `"Error: '…' is not a valid server nick."`
+- unknown old nick → `"Error: server nick '…' not found."`
+- new nick conflicts → `"Error: server nick '…' already exists."`
 
 `local3` and `temptest` are disposable; `localhost` and `local2` must be re-registered
 before T03 starts, as T03 depends on two servers being present.
@@ -67,6 +73,16 @@ before T03 starts, as T03 depends on two servers being present.
 | T02.17 | ~~`exsh collection add testcol --nick temptest` (no `@server`)~~ | ✓ exit 0 — auto-selects sole remaining server `localhost` |
 | T02.18 | ~~`exsh collection rm temptest`~~ | ✓ exit 0 — cleanup; T03 must start with no collections registered |
 | T02.19 | ~~`exsh server add localhost --user admin --password "" --nick local2`~~ | ✓ exit 0 — restore `local2` so T03 preconditions hold (two servers) |
+| T02.20 | ~~`exsh server add localhost --user admin --password "" --nick renametest`~~ | ✓ exit 0, `Server 'renametest' added.` — disposable nick for rename tests |
+| T02.21 | ~~`exsh collection add testcol@renametest --nick renamecol`~~ | ✓ exit 0, `Collection 'renamecol' added.` — registered to verify cascade update |
+| T02.22 | ~~`exsh server rename renametest newname`~~ | ✓ exit 0, output contains `Also updated 1 collection: renamecol.` and `Server 'renametest' renamed to 'newname'.` |
+| T02.23 | ~~`exsh server ls`~~ | ✓ exit 0, contains `newname`, does **not** contain `renametest` |
+| T02.24 | ~~`exsh collection ls`~~ | ✓ exit 0, `renamecol` entry shows `@newname` — collection reference updated |
+| T02.25 | ~~`exsh server rename ghost newname2`~~ | ✓ exit 1, output contains `server nick 'ghost' not found` |
+| T02.26 | ~~`exsh server rename newname localhost`~~ | ✓ exit 1, output contains `server nick 'localhost' already exists` |
+| T02.27 | ~~`exsh server rename newname newname`~~ | ✓ exit 1, output contains `same as the old nick` |
+| T02.28 | ~~`exsh server rename newname "invalid!"`~~ | ✓ exit 1, output contains `not a valid server nick` |
+| T02.29 | ~~`exsh server rm newname`~~ | ✓ exit 0, `Server 'newname' removed.` — cleanup; `renamecol` cascade-removed so T03 starts clean |
 
 ---
 

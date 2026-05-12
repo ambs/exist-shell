@@ -131,3 +131,110 @@ def test_server_rm_makes_no_http_call(config_path, a_server, client_mock, runner
     Config.load().add_server(a_server)
     runner.invoke(app, ["server", "rm", "local"])
     client_mock.check_connection.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# server rename
+# ---------------------------------------------------------------------------
+
+
+def test_server_rename_renames_server(config_path, a_server, runner):
+    Config.load().add_server(a_server)
+    result = runner.invoke(app, ["server", "rename", "local", "prod"])
+    assert result.exit_code == 0
+    config = Config.load()
+    assert "prod" in config.servers
+    assert "local" not in config.servers
+
+
+def test_server_rename_updates_nick_field(config_path, a_server, runner):
+    Config.load().add_server(a_server)
+    runner.invoke(app, ["server", "rename", "local", "prod"])
+    assert Config.load().servers["prod"].nick == "prod"
+
+
+def test_server_rename_updates_collection_references(config_path, a_server, runner):
+    config = Config.load()
+    config.add_server(a_server)
+    config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
+    result = runner.invoke(app, ["server", "rename", "local", "prod"])
+    assert result.exit_code == 0
+    assert Config.load().collections["myapp"].server_nick == "prod"
+
+
+def test_server_rename_reports_updated_collections_singular(config_path, a_server, runner):
+    config = Config.load()
+    config.add_server(a_server)
+    config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
+    result = runner.invoke(app, ["server", "rename", "local", "prod"])
+    assert "Also updated 1 collection: myapp" in result.output
+
+
+def test_server_rename_reports_updated_collections_plural(config_path, a_server, runner):
+    config = Config.load()
+    config.add_server(a_server)
+    config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
+    config.add_collection(Collection(nick="other", server_nick="local", name="other"))
+    result = runner.invoke(app, ["server", "rename", "local", "prod"])
+    assert "Also updated 2 collections:" in result.output
+
+
+def test_server_rename_no_cascade_message_when_no_collections(config_path, a_server, runner):
+    Config.load().add_server(a_server)
+    result = runner.invoke(app, ["server", "rename", "local", "prod"])
+    assert "Also updated" not in result.output
+
+
+def test_server_rename_prints_success_message(config_path, a_server, runner):
+    Config.load().add_server(a_server)
+    result = runner.invoke(app, ["server", "rename", "local", "prod"])
+    assert "Server 'local' renamed to 'prod'." in result.output
+
+
+def test_server_rename_unknown_old_nick_fails(config_path, runner):
+    result = runner.invoke(app, ["server", "rename", "ghost", "prod"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_server_rename_duplicate_new_nick_fails(config_path, a_server, runner):
+    from pydantic import SecretStr
+    from exist_shell.config import Server
+    config = Config.load()
+    config.add_server(a_server)
+    config.add_server(Server(nick="prod", host="prod.example.com", password=SecretStr("")))
+    result = runner.invoke(app, ["server", "rename", "local", "prod"])
+    assert result.exit_code == 1
+    assert "already exists" in result.output
+
+
+def test_server_rename_same_nick_fails(config_path, a_server, runner):
+    Config.load().add_server(a_server)
+    result = runner.invoke(app, ["server", "rename", "local", "local"])
+    assert result.exit_code == 1
+    assert "same as the old nick" in result.output
+
+
+def test_server_rename_invalid_new_nick_fails(config_path, a_server, runner):
+    Config.load().add_server(a_server)
+    result = runner.invoke(app, ["server", "rename", "local", "invalid!nick"])
+    assert result.exit_code == 1
+    assert "not a valid" in result.output
+
+
+def test_server_rename_makes_no_http_call(config_path, a_server, client_mock, runner):
+    Config.load().add_server(a_server)
+    runner.invoke(app, ["server", "rename", "local", "prod"])
+    client_mock.check_connection.assert_not_called()
+
+
+def test_server_rename_keeps_other_server_collections(config_path, a_server, runner):
+    from pydantic import SecretStr
+    from exist_shell.config import Server
+    config = Config.load()
+    config.add_server(a_server)
+    config.add_server(Server(nick="prod", host="prod.example.com", password=SecretStr("")))
+    config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
+    config.add_collection(Collection(nick="prodapp", server_nick="prod", name="prodapp"))
+    runner.invoke(app, ["server", "rename", "local", "staging"])
+    assert Config.load().collections["prodapp"].server_nick == "prod"
