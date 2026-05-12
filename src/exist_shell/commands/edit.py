@@ -3,6 +3,7 @@
 import os
 import shlex
 import subprocess
+import sys
 import tempfile
 from pathlib import Path, PurePosixPath
 
@@ -15,7 +16,7 @@ from exist_shell.utils import handle_exist_errors, parse_target, resolve_collect
 
 
 def _find_editor() -> str:
-    """Return the editor command from $VISUAL, $EDITOR, or fall back to vi.
+    """Return the editor command from $VISUAL, $EDITOR, or a platform default.
 
     Returns:
         Editor command string (may include flags, e.g. ``code --wait``).
@@ -24,7 +25,7 @@ def _find_editor() -> str:
         val = os.environ.get(var, "").strip()
         if val:
             return val
-    return "vi"
+    return "notepad" if sys.platform == "win32" else "vi"
 
 
 def edit(

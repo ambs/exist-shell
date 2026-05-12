@@ -180,35 +180,35 @@ class ExistClient:
     def create_collection(self, path: str) -> None:
         """Create a collection at the given eXist path.
 
+        Intermediate collections are created automatically if they do not exist.
+
         Args:
             path: Full eXist path starting with /db/ (e.g. /db/myapp/newcoll).
 
         Raises:
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
-            ExistNotFoundError: If the parent collection does not exist.
+            ExistNotFoundError: If the collection cannot be created.
         """
-        # PUT /path/ with empty body creates a stray same-named resource in the
-        # parent, making GET /path return that resource instead of the collection
-        # listing. The correct approach is to PUT a placeholder document (which
-        # auto-creates the collection) and then delete it.
-        placeholder = path.rstrip("/") + "/.keep"
-        url_placeholder = self._url(placeholder)
-        url = self._url(path.rstrip("/"))
+        clean = path.rstrip("/")
+        # fold-left walks each path segment from /db downward, threading the
+        # parent path as the accumulator. xmldb:create-collection is idempotent
+        # (existing collections return their path without error), so intermediate
+        # levels are created only when missing. [1] keeps the path string and
+        # discards the create-collection return value from the sequence.
+        query = (
+            'xquery version "3.1"; '
+            f'let $parts := tokenize("{clean}", "/")[. != ""] '
+            "let $_ := fold-left(tail($parts), \"/\" || head($parts), function($parent, $seg) { "
+            "  let $new := $parent || \"/\" || $seg "
+            "  return ($new, xmldb:create-collection($parent, $seg))[1] "
+            "}) "
+            "return ()"
+        )
         try:
-            r = self._http.put(url_placeholder, content=b"", headers={"Content-Type": "application/octet-stream"})
-        except httpx.RequestError as e:
-            raise ExistConnectionError(url, e) from e
-        if r.status_code == 401:
-            raise ExistAuthError(url)
-        if r.status_code == 404:
+            self.execute_query(query, context="/db")
+        except ExistQueryError:
             raise ExistNotFoundError(path)
-        r.raise_for_status()
-        # Best-effort cleanup; a leftover .keep is harmless if this fails.
-        try:
-            self._http.delete(url_placeholder)
-        except Exception:
-            pass
 
     def delete_document(self, path: str) -> None:
         """Delete a document at the given eXist path.

@@ -1,6 +1,7 @@
 """Configuration models and persistence for servers and collections."""
 
 import os
+import sys
 from pathlib import Path
 
 import tomlkit
@@ -8,17 +9,25 @@ from pydantic import BaseModel, Field, SecretStr
 
 NICK_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
 
-_DEFAULT_CONFIG_PATH = Path.home() / ".config" / "exsh" / "config.toml"
-_DEFAULT_CACHE_DIR = Path.home() / ".cache" / "exsh"
+if sys.platform == "win32":
+    import platformdirs
+
+    _DEFAULT_CONFIG_PATH = Path(platformdirs.user_config_dir("exsh", appauthor=False)) / "config.toml"
+    _DEFAULT_CACHE_DIR = Path(platformdirs.user_cache_dir("exsh", appauthor=False))
+else:
+    _DEFAULT_CONFIG_PATH = Path.home() / ".config" / "exsh" / "config.toml"
+    _DEFAULT_CACHE_DIR = Path.home() / ".cache" / "exsh"
 
 
 class _AppState:
-    """Process-level singleton that holds the active config file path.
+    r"""Process-level singleton that holds the active config file path.
 
     The path is resolved in this order:
     1. Explicitly set via ``set_config_path()`` (called by the ``--config`` flag).
     2. ``EXSH_CONFIG`` environment variable.
-    3. Default: ``~/.config/exsh/config.toml``.
+    3. Platform default: XDG (``~/.config/exsh``) on Unix, ``%APPDATA%\exsh`` on Windows.
+       XDG Base Directory Specification is a freedesktop.org standard for where
+       applications should store config, cache, and data files on Linux/macOS.
     """
 
     def __init__(self) -> None:

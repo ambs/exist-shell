@@ -172,26 +172,24 @@ def test_get_document_raises_connection_error_on_network_failure(httpx_mock, a_s
             client.get_document("/db/myapp/doc.xml")
 
 
-_PLACEHOLDER = "http://localhost:8080/exist/rest/db/myapp/.keep"
-_COLLECTION = "http://localhost:8080/exist/rest/db/myapp"
+_PARENT_URL = "http://localhost:8080/exist/rest/db"
 
 
 def test_create_collection_succeeds(httpx_mock, a_server):
-    httpx_mock.add_response(url=_PLACEHOLDER, method="PUT", status_code=201)
-    httpx_mock.add_response(url=_PLACEHOLDER, method="DELETE", status_code=200)
+    httpx_mock.add_response(url=_PARENT_URL, method="POST", status_code=200)
     with ExistClient(a_server) as client:
         client.create_collection("/db/myapp")
 
 
 def test_create_collection_raises_auth_error_on_401(httpx_mock, a_server):
-    httpx_mock.add_response(url=_PLACEHOLDER, method="PUT", status_code=401)
+    httpx_mock.add_response(url=_PARENT_URL, method="POST", status_code=401)
     with ExistClient(a_server) as client:
         with pytest.raises(ExistAuthError):
             client.create_collection("/db/myapp")
 
 
-def test_create_collection_raises_not_found_on_404(httpx_mock, a_server):
-    httpx_mock.add_response(url=_PLACEHOLDER, method="PUT", status_code=404)
+def test_create_collection_raises_not_found_on_query_error(httpx_mock, a_server):
+    httpx_mock.add_response(url=_PARENT_URL, method="POST", status_code=500, text="collection not found")
     with ExistClient(a_server) as client:
         with pytest.raises(ExistNotFoundError):
             client.create_collection("/db/myapp")
@@ -202,13 +200,6 @@ def test_create_collection_raises_connection_error_on_network_failure(httpx_mock
     with ExistClient(a_server) as client:
         with pytest.raises(ExistConnectionError):
             client.create_collection("/db/myapp")
-
-
-def test_create_collection_suppresses_delete_failure(httpx_mock, a_server):
-    httpx_mock.add_response(url=_PLACEHOLDER, method="PUT", status_code=201)
-    httpx_mock.add_exception(httpx.ConnectError("refused"), url=_PLACEHOLDER, method="DELETE")
-    with ExistClient(a_server) as client:
-        client.create_collection("/db/myapp")
 
 
 def test_delete_document_succeeds(httpx_mock, a_server):
