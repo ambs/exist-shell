@@ -7,14 +7,23 @@ All commands follow the pattern `exsh <command> [options]`. Paths to remote docu
 List subcollections and documents at a collection path.
 
 ```
-exsh ls <nick>[:<path>]
+exsh ls <nick>[:<path>] [--sort name|time] [--reverse] [--names-only]
 ```
 
-The output is tab-separated with one entry per line. Subcollections are shown with a trailing `/`.
+Output has one entry per line with columns separated by two spaces. Subcollections are shown with a trailing `/`. Empty fields (e.g. size for a collection) are omitted.
 
 **Columns for collections:** `name/`, `permissions`, `owner`, `created`
 
 **Columns for resources:** `name`, `permissions`, `owner`, `size (bytes)`, `mime-type`, `last-modified`
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--sort name` | Sort entries alphabetically by name (default) |
+| `--sort time` | Sort by modification time (oldest first) |
+| `--reverse / -r` | Reverse the sort order |
+| `--names-only` | Print only names, one per line — useful for piping |
 
 ### Examples
 
@@ -24,6 +33,12 @@ exsh ls mydata
 
 # List a subdirectory
 exsh ls mydata:reports/2025
+
+# Sort by modification time, newest first
+exsh ls mydata:reports/2025 --sort time --reverse
+
+# Pipe only filenames into another command
+exsh ls mydata:reports/2025 --names-only | xargs -I{} exsh cat mydata:reports/2025/{}
 
 # Pipe into grep
 exsh ls mydata:reports/2025 | grep ".xml"

@@ -26,4 +26,37 @@ section_T06_ls_after() {
     # successfully but has no exist: namespace elements, so the listing is empty — exit 0
     assert_exit0 "T06.7 ls on document path exits 0 (document body treated as empty collection)" \
         "${EXSH[@]}" ls testcol:/hello.xml
+
+    # T06.8 — --sort name: 'data.bin' (d) appears before 'stdin.xml' (s)
+    _run "${EXSH[@]}" ls testcol --sort name
+    _line_data=$(echo "${_LAST_OUTPUT}" | grep -n "data.bin"  | cut -d: -f1)
+    _line_stdin=$(echo "${_LAST_OUTPUT}" | grep -n "stdin.xml" | cut -d: -f1)
+    if [[ "${_line_data}" -lt "${_line_stdin}" ]]; then
+        ok "T06.8 --sort name: data.bin before stdin.xml"
+    else
+        fail "T06.8 --sort name: expected data.bin (line ${_line_data}) before stdin.xml (line ${_line_stdin})"
+    fi
+
+    # T06.9 — --sort name --reverse: 'stdin.xml' before 'data.bin'
+    _run "${EXSH[@]}" ls testcol --sort name --reverse
+    _line_data=$(echo "${_LAST_OUTPUT}" | grep -n "data.bin"  | cut -d: -f1)
+    _line_stdin=$(echo "${_LAST_OUTPUT}" | grep -n "stdin.xml" | cut -d: -f1)
+    if [[ "${_line_stdin}" -lt "${_line_data}" ]]; then
+        ok "T06.9 --sort name --reverse: stdin.xml before data.bin"
+    else
+        fail "T06.9 --sort name --reverse: expected stdin.xml (line ${_line_stdin}) before data.bin (line ${_line_data})"
+    fi
+
+    # T06.10 — --names-only: filenames present, properties absent
+    assert_output "hello.xml" \
+        "T06.10 --names-only shows filenames" \
+        "${EXSH[@]}" ls testcol --names-only
+    assert_output_absent "application/xml" \
+        "T06.11 --names-only hides properties" \
+        "${EXSH[@]}" ls testcol --names-only
+
+    # T06.12 — --sort time: exits 0 and shows items
+    assert_output "hello.xml" \
+        "T06.12 --sort time lists items" \
+        "${EXSH[@]}" ls testcol --sort time
 }
