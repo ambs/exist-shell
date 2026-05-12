@@ -202,6 +202,11 @@ Preconditions: T05 has run. Remote state in `testcol` (`/db/testcol`):
 | T06.5 | ~~`exsh ls testcol:/missing`~~ | ✓ exit 0, output contains `sub/` |
 | T06.6 | ~~`exsh ls testcol:/missing/sub`~~ | ✓ exit 0, output contains `doc.xml` |
 | T06.7 | ~~`exsh ls testcol:/hello.xml` (document path, not a collection)~~ | ✓ exit 0, **empty** output — eXist returns the document body; XML parses successfully but has no `exist:` elements, so the listing is empty |
+| T06.8 | `exsh ls testcol --sort name` | ✓ exit 0, `data.bin` appears before `stdin.xml` |
+| T06.9 | `exsh ls testcol --sort name --reverse` | ✓ exit 0, `stdin.xml` appears before `data.bin` |
+| T06.10 | `exsh ls testcol --names-only` | ✓ exit 0, output contains `hello.xml` |
+| T06.11 | `exsh ls testcol --names-only` (properties absent) | ✓ output does **not** contain `application/xml` |
+| T06.12 | `exsh ls testcol --sort time` | ✓ exit 0, output contains `hello.xml` |
 
 ---
 

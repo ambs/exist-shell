@@ -73,7 +73,7 @@ def test_ls_rejects_path_traversal(config_with_collection, client_mock, runner):
     assert "traversal" in result.output
 
 
-def test_ls_columns_aligned_to_max_width(config_with_collection, client_mock, runner):
+def test_ls_columns_separated_by_two_spaces(config_with_collection, client_mock, runner):
     client_mock.list_collection.return_value = [
         CollectionEntry(name="short", permissions="rwxr-xr-x", owner="admin"),
         ResourceEntry(name="a-much-longer-name.xml", size=42, mime_type="application/xml"),
@@ -82,6 +82,58 @@ def test_ls_columns_aligned_to_max_width(config_with_collection, client_mock, ru
     assert result.exit_code == 0
     assert "\t" not in result.output
     lines = result.output.splitlines()
-    # Both name columns must be padded to the same width (len of longest name + /)
-    col_width = len("a-much-longer-name.xml")
-    assert lines[0].startswith("short/".ljust(col_width))
+    assert lines[0].startswith("a-much-longer-name.xml  42  application/xml")
+    assert lines[1].startswith("short/  rwxr-xr-x  admin")
+
+
+def test_ls_sort_by_name(config_with_collection, client_mock, runner):
+    client_mock.list_collection.return_value = [
+        ResourceEntry(name="zebra.xml"),
+        ResourceEntry(name="apple.xml"),
+        CollectionEntry(name="mango"),
+    ]
+    result = runner.invoke(app, ["ls", "myapp:/", "--sort", "name"])
+    assert result.exit_code == 0
+    lines = [l for l in result.output.splitlines() if l]
+    assert lines[0].startswith("apple.xml")
+    assert lines[1].startswith("mango/")
+    assert lines[2].startswith("zebra.xml")
+
+
+def test_ls_sort_by_name_reverse(config_with_collection, client_mock, runner):
+    client_mock.list_collection.return_value = [
+        ResourceEntry(name="apple.xml"),
+        CollectionEntry(name="mango"),
+        ResourceEntry(name="zebra.xml"),
+    ]
+    result = runner.invoke(app, ["ls", "myapp:/", "--sort", "name", "--reverse"])
+    assert result.exit_code == 0
+    lines = [l for l in result.output.splitlines() if l]
+    assert lines[0].startswith("zebra.xml")
+    assert lines[1].startswith("mango/")
+    assert lines[2].startswith("apple.xml")
+
+
+def test_ls_sort_by_time(config_with_collection, client_mock, runner):
+    client_mock.list_collection.return_value = [
+        ResourceEntry(name="new.xml", last_modified="2024-03-01T00:00:00.000"),
+        ResourceEntry(name="old.xml", last_modified="2024-01-01T00:00:00.000"),
+        CollectionEntry(name="mid", created="2024-02-01T00:00:00.000"),
+    ]
+    result = runner.invoke(app, ["ls", "myapp:/", "--sort", "time"])
+    assert result.exit_code == 0
+    lines = [l for l in result.output.splitlines() if l]
+    assert lines[0].startswith("old.xml")
+    assert lines[1].startswith("mid/")
+    assert lines[2].startswith("new.xml")
+
+
+def test_ls_names_only(config_with_collection, client_mock, items, runner):
+    client_mock.list_collection.return_value = items
+    result = runner.invoke(app, ["ls", "myapp:/", "--names-only"])
+    assert result.exit_code == 0
+    lines = result.output.splitlines()
+    assert "subdir/" in lines
+    assert "file.xml" in lines
+    assert "application/xml" not in result.output
+    assert "rwxr-xr-x" not in result.output

@@ -9,7 +9,7 @@
 |---------|-------------|
 | `server add / ls` | Register and list eXist-db server configurations |
 | `collection add / new / ls / rm` | Manage named collection shortcuts; `new` creates the collection on the server and registers it in one step (idempotent: no-op if already exists) |
-| `ls [path]` | List documents and sub-collections at a remote path |
+| `ls [path]` | List documents and sub-collections at a remote path; `--sort name\|time`, `--reverse`, `--names-only` |
 | `cat <path>` | Print a remote document to stdout; `--raw` skips binary detection |
 | `put <path>` | Upload a document from stdin or a local file; auto-detects MIME type |
 | `cp <src> <dst>` | Copy documents local↔remote or remote↔remote |
