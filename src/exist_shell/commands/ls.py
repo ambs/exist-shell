@@ -22,9 +22,32 @@ def ls(
         with ExistClient(server) as client:
             items = client.list_collection(full_path)
 
+    rows: list[tuple[str, ...]] = []
     for item in items:
         if isinstance(item, CollectionEntry):
-            typer.echo(f"{item.name}/\t{item.permissions or ''}\t{item.owner or ''}\t{item.created or ''}")
+            rows.append((
+                f"{item.name}/",
+                item.permissions or "",
+                item.owner or "",
+                "",
+                "",
+                item.created or "",
+            ))
         else:
             assert isinstance(item, ResourceEntry)
-            typer.echo(f"{item.name}\t{item.permissions or ''}\t{item.owner or ''}\t{item.size or ''}\t{item.mime_type or ''}\t{item.last_modified or ''}")
+            rows.append((
+                item.name,
+                item.permissions or "",
+                item.owner or "",
+                str(item.size) if item.size is not None else "",
+                item.mime_type or "",
+                item.last_modified or "",
+            ))
+
+    if not rows:
+        return
+
+    widths = [max(len(row[col]) for row in rows) for col in range(len(rows[0]))]
+    for row in rows:
+        padded = "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row[:-1]))
+        typer.echo(f"{padded}  {row[-1]}")

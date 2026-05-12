@@ -71,3 +71,17 @@ def test_ls_rejects_path_traversal(config_with_collection, client_mock, runner):
     result = runner.invoke(app, ["ls", "myapp:/../other"])
     assert result.exit_code == 1
     assert "traversal" in result.output
+
+
+def test_ls_columns_aligned_to_max_width(config_with_collection, client_mock, runner):
+    client_mock.list_collection.return_value = [
+        CollectionEntry(name="short", permissions="rwxr-xr-x", owner="admin"),
+        ResourceEntry(name="a-much-longer-name.xml", size=42, mime_type="application/xml"),
+    ]
+    result = runner.invoke(app, ["ls", "myapp:/"])
+    assert result.exit_code == 0
+    assert "\t" not in result.output
+    lines = result.output.splitlines()
+    # Both name columns must be padded to the same width (len of longest name + /)
+    col_width = len("a-much-longer-name.xml")
+    assert lines[0].startswith("short/".ljust(col_width))
