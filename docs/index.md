@@ -50,6 +50,7 @@ See [Installation](installation.md) and [Configuration](configuration.md) for fu
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
 | `exsh server rm <nick>` | Remove a server |
+| `exsh server rename <old> <new>` | Rename a server nick |
 | `exsh collection add <name>[@<server>]` | Register a collection |
 | `exsh collection new <name>[@<server>]` | Create and register a collection |
 | `exsh collection ls` | List registered collections |

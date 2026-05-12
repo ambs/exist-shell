@@ -28,6 +28,22 @@ exsh server add 192.168.1.10 --port 8080 --user admin --nick myserver
 exsh server ls
 ```
 
+### Rename a server
+
+Rename a server's nick. All collections registered against it are updated automatically — no collections are lost and no re-registration is needed.
+
+```bash
+exsh server rename <old-nick> <new-nick>
+```
+
+Example:
+
+```bash
+exsh server rename localhost prod
+# Server 'localhost' renamed to 'prod'.
+# (any collections pointing to 'localhost' now point to 'prod')
+```
+
 ### Remove a server
 
 Removing a server also removes all collections registered against it.

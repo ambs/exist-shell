@@ -200,3 +200,34 @@ class Config(BaseModel):
             del self.collections[c]
         self.save()
         return cascaded
+
+    def rename_server(self, old_nick: str, new_nick: str) -> list[str]:
+        """Rename a server nick and update all collection references, then persist.
+
+        Args:
+            old_nick: Current nickname of the server.
+            new_nick: New nickname for the server.
+
+        Returns:
+            List of collection nicks whose server_nick was updated.
+
+        Raises:
+            KeyError: If no server with old_nick exists.
+            ValueError: If new_nick already exists as a server nick.
+        """
+        if new_nick in self.servers:
+            raise ValueError(f"Server nick '{new_nick}' already exists.")
+        server = self.servers[old_nick]
+        self.servers[new_nick] = Server(
+            nick=new_nick,
+            host=server.host,
+            port=server.port,
+            user=server.user,
+            password=server.password,
+        )
+        del self.servers[old_nick]
+        updated = [c for c, col in self.collections.items() if col.server_nick == old_nick]
+        for c in updated:
+            self.collections[c] = self.collections[c].model_copy(update={"server_nick": new_nick})
+        self.save()
+        return updated

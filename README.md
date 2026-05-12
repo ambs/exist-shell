@@ -90,6 +90,7 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
 | `exsh server rm <nick>` | Remove a server (and its collections) |
+| `exsh server rename <old> <new>` | Rename a server nick (updates collection references) |
 | `exsh collection add <name>[@<server>]` | Register an existing collection |
 | `exsh collection new <name>[@<server>]` | Create a collection on the server and register it |
 | `exsh collection ls` | List registered collections |
