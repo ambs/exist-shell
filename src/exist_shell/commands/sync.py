@@ -454,7 +454,9 @@ def _print_summary(counts: dict[SyncAction, int]) -> None:
     typer.echo(", ".join(parts) if parts else "nothing to do")
 
 
-def _push(source: Path, nick: str, path: str, force: bool, dry_run: bool, delete: bool) -> None:
+def _push(
+    source: Path, nick: str, path: str, force: bool, dry_run: bool, delete: bool, checkpoint_every: int
+) -> None:
     """Push a local directory tree to a remote collection.
 
     Args:
@@ -464,6 +466,7 @@ def _push(source: Path, nick: str, path: str, force: bool, dry_run: bool, delete
         force: If True, upload all files regardless of manifest state.
         dry_run: If True, print actions without performing them.
         delete: If True, remove remote files absent from the local tree.
+        checkpoint_every: Flush the manifest to disk after every N files processed.
     """
     collection, server, full_path = resolve_collection(nick, path)
     manifest = _load_manifest(nick, path)
@@ -476,6 +479,7 @@ def _push(source: Path, nick: str, path: str, force: bool, dry_run: bool, delete
 
             _ensure_remote_dirs(client, full_path, source, tree.subcollections, dry_run)
 
+            processed = 0
             for local_file in sorted(source.rglob("*")):
                 if not local_file.is_file():
                     continue
@@ -490,6 +494,9 @@ def _push(source: Path, nick: str, path: str, force: bool, dry_run: bool, delete
                 if label:
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
+                processed += 1
+                if not dry_run and processed % checkpoint_every == 0:
+                    _save_manifest(nick, path, manifest)
 
             if delete:
                 counts[SyncAction.DELETED] = _delete_remote_extras(
@@ -515,7 +522,9 @@ def _push(source: Path, nick: str, path: str, force: bool, dry_run: bool, delete
     _print_summary(counts)
 
 
-def _pull(nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: bool) -> None:
+def _pull(
+    nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: bool, checkpoint_every: int
+) -> None:
     """Pull a remote collection into a local directory.
 
     Args:
@@ -525,6 +534,7 @@ def _pull(nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: 
         force: If True, download all files regardless of manifest state.
         dry_run: If True, print actions without performing them.
         delete: If True, remove local files absent from the remote collection.
+        checkpoint_every: Flush the manifest to disk after every N files processed.
     """
     collection, server, full_path = resolve_collection(nick, path)
     manifest = _load_manifest(nick, path)
@@ -536,6 +546,7 @@ def _pull(nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: 
 
             _ensure_local_dirs(dest, tree.subcollections, dry_run)
 
+            processed = 0
             for resource in tree.resources:
                 remote_mtime = resource.entry.last_modified or ""
                 is_new = resource.rel_path not in manifest
@@ -550,6 +561,9 @@ def _pull(nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: 
                 if label:
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
+                processed += 1
+                if not dry_run and processed % checkpoint_every == 0:
+                    _save_manifest(nick, path, manifest)
 
             if delete:
                 counts[SyncAction.DELETED] = _delete_local_extras(
@@ -575,6 +589,9 @@ def sync(
     force: bool = typer.Option(False, "--force", "-f", help="Transfer all files, bypassing conflict detection."),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would be transferred without doing it."),
     delete: bool = typer.Option(False, "--delete", help="Remove destination files absent from the source."),
+    checkpoint_every: int = typer.Option(
+        100, "--checkpoint-every", help="Save the sync manifest every N files so a failed run can resume."
+    ),
 ) -> None:
     """Sync a local folder and a remote collection, transferring only changed files."""
     src_remote = is_remote(source)
@@ -593,7 +610,7 @@ def sync(
             typer.echo(f"Error: '{source}' is not a directory.", err=True)
             raise typer.Exit(1)
         nick, path = parse_target(dest, path_required=False)
-        _push(source_path, nick, path, force, dry_run, delete)
+        _push(source_path, nick, path, force, dry_run, delete, checkpoint_every)
     else:
         nick, path = parse_target(source, path_required=False)
-        _pull(nick, path, Path(dest), force, dry_run, delete)
+        _pull(nick, path, Path(dest), force, dry_run, delete, checkpoint_every)
