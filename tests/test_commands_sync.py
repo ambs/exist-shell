@@ -415,3 +415,111 @@ def test_sync_connection_error_fails(config_with_collection, client_mock, manife
     client_mock.list_collection.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# Checkpointing
+# ---------------------------------------------------------------------------
+
+def test_push_checkpoints_manifest_periodically(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    for i in range(3):
+        (local_dir / f"doc{i}.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+
+    save_calls: list[int] = []
+
+    def _counting_save(nick: str, path: str, manifest: dict) -> None:
+        save_calls.append(len(manifest))
+
+    monkeypatch.setattr("exist_shell.commands.sync._save_manifest", _counting_save)
+
+    result = runner.invoke(app, ["sync", "--checkpoint-every", "2", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+    # checkpoint at file 2 + final save = 2 calls
+    assert len(save_calls) == 2
+
+
+def test_pull_checkpoints_manifest_periodically(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    from exist_shell.models import DocumentResult
+
+    client_mock.list_collection.return_value = [
+        _resource("a.xml"),
+        _resource("b.xml"),
+        _resource("c.xml"),
+    ]
+    client_mock.get_document.return_value = DocumentResult(b"<x/>", "application/xml")
+
+    save_calls: list[int] = []
+
+    def _counting_save(nick: str, path: str, manifest: dict) -> None:
+        save_calls.append(len(manifest))
+
+    monkeypatch.setattr("exist_shell.commands.sync._save_manifest", _counting_save)
+
+    result = runner.invoke(app, ["sync", "--checkpoint-every", "2", "myapp:/", str(local_dir)])
+    assert result.exit_code == 0
+    # checkpoint at file 2 + final save = 2 calls
+    assert len(save_calls) == 2
+
+
+def test_push_dry_run_skips_checkpoints(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    for i in range(3):
+        (local_dir / f"doc{i}.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+
+    save_calls: list[int] = []
+
+    def _counting_save(nick: str, path: str, manifest: dict) -> None:
+        save_calls.append(len(manifest))
+
+    monkeypatch.setattr("exist_shell.commands.sync._save_manifest", _counting_save)
+
+    result = runner.invoke(app, ["sync", "--dry-run", "--checkpoint-every", "1", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+    assert len(save_calls) == 0
+
+
+def test_pull_dry_run_skips_checkpoints(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    client_mock.list_collection.return_value = [_resource("a.xml"), _resource("b.xml")]
+
+    save_calls: list[int] = []
+
+    def _counting_save(nick: str, path: str, manifest: dict) -> None:
+        save_calls.append(len(manifest))
+
+    monkeypatch.setattr("exist_shell.commands.sync._save_manifest", _counting_save)
+
+    result = runner.invoke(app, ["sync", "--dry-run", "--checkpoint-every", "1", "myapp:/", str(local_dir)])
+    assert result.exit_code == 0
+    assert len(save_calls) == 0
+
+
+def test_push_resumes_skipping_already_uploaded_file(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """A file uploaded in a prior interrupted run (empty remote mtime) is skipped on restart when local is unchanged."""
+    content = b"<root/>"
+    (local_dir / "doc.xml").write_bytes(content)
+
+    manifest_dir.mkdir(parents=True)
+    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
+    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path.write_text(json.dumps({
+        "doc.xml": {"local_sha256": _sha256(content), "remote_last_modified": ""}
+    }))
+
+    # Remote now has the mtime the server assigned during the prior (incomplete) run
+    client_mock.list_collection.return_value = [_resource("doc.xml", "2025-06-01T00:00:00.000")]
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_not_called()
+    assert "= doc.xml  (unchanged)" in result.output

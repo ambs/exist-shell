@@ -3,7 +3,7 @@
 Synchronise a local directory tree with a remote eXist collection, transferring only files that have actually changed.
 
 ```
-exsh sync <source> <dest> [--force] [--dry-run] [--delete]
+exsh sync <source> <dest> [--force] [--dry-run] [--delete] [--checkpoint-every N]
 ```
 
 ## Direction
@@ -55,6 +55,7 @@ Use `--force` to override conflict detection and transfer the source uncondition
 | `--force / -f` | Transfer every file, ignoring the manifest |
 | `--dry-run / -n` | Print what would happen without moving any data |
 | `--delete` | Remove files and empty folders on the destination that no longer exist on the source |
+| `--checkpoint-every N` | Flush the manifest to disk every N files (default: 100) |
 
 ## Output
 
@@ -100,6 +101,21 @@ exsh sync --delete ./reports mydata:reports
 # Force a full push (re-upload everything regardless of state)
 exsh sync --force ./reports mydata:reports
 ```
+
+## Large collections and resumability
+
+For collections with many files, the manifest is flushed to disk every 100 files by default. If a sync is interrupted (network failure, process kill, etc.), the next run reads the saved manifest and skips files that were already transferred, restarting near the point of failure rather than from scratch.
+
+Adjust the interval with `--checkpoint-every`:
+
+```bash
+# Checkpoint every 50 files instead of the default 100
+exsh sync --checkpoint-every 50 ./data myserver:data
+```
+
+Setting `--checkpoint-every 1` gives maximum resume granularity at the cost of more disk writes.
+
+**Note on push resumability:** uploaded files are checkpointed with an empty `remote_last_modified` because the server-assigned timestamp is only captured at the end of a complete run. On restart, files with an empty mtime whose local content has not changed are correctly skipped — they will not be re-uploaded. The mtime is corrected once a full push completes successfully.
 
 ## Manifest location
 
