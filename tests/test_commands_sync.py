@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, call
 
 import pytest
 
+from exist_shell.commands.sync import Manifest
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError
 from exist_shell.main import app
 from exist_shell.models import DocumentResult, ResourceEntry
@@ -436,17 +437,13 @@ def test_push_checkpoints_manifest_periodically(
         (local_dir / f"doc{i}.xml").write_bytes(b"<x/>")
     client_mock.list_collection.return_value = []
 
-    save_calls: list[int] = []
-
-    def _counting_save(nick: str, path: str, manifest: dict) -> None:
-        save_calls.append(len(manifest))
-
-    monkeypatch.setattr("exist_shell.commands.sync._save_manifest", _counting_save)
+    write_calls: list[None] = []
+    monkeypatch.setattr(Manifest, "_write", lambda *_: write_calls.append(None))
 
     result = runner.invoke(app, ["sync", "--checkpoint-every", "2", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
-    # checkpoint at file 2 + final save = 2 calls
-    assert len(save_calls) == 2
+    # checkpoint after 2nd mutation + final save = 2 writes
+    assert len(write_calls) == 2
 
 
 def test_pull_checkpoints_manifest_periodically(
@@ -461,17 +458,13 @@ def test_pull_checkpoints_manifest_periodically(
     ]
     client_mock.get_document.return_value = DocumentResult(b"<x/>", "application/xml")
 
-    save_calls: list[int] = []
-
-    def _counting_save(nick: str, path: str, manifest: dict) -> None:
-        save_calls.append(len(manifest))
-
-    monkeypatch.setattr("exist_shell.commands.sync._save_manifest", _counting_save)
+    write_calls: list[None] = []
+    monkeypatch.setattr(Manifest, "_write", lambda *_: write_calls.append(None))
 
     result = runner.invoke(app, ["sync", "--checkpoint-every", "2", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
-    # checkpoint at file 2 + final save = 2 calls
-    assert len(save_calls) == 2
+    # checkpoint after 2nd mutation + final save = 2 writes
+    assert len(write_calls) == 2
 
 
 def test_push_dry_run_skips_checkpoints(
@@ -481,16 +474,12 @@ def test_push_dry_run_skips_checkpoints(
         (local_dir / f"doc{i}.xml").write_bytes(b"<x/>")
     client_mock.list_collection.return_value = []
 
-    save_calls: list[int] = []
-
-    def _counting_save(nick: str, path: str, manifest: dict) -> None:
-        save_calls.append(len(manifest))
-
-    monkeypatch.setattr("exist_shell.commands.sync._save_manifest", _counting_save)
+    write_calls: list[None] = []
+    monkeypatch.setattr(Manifest, "_write", lambda *_: write_calls.append(None))
 
     result = runner.invoke(app, ["sync", "--dry-run", "--checkpoint-every", "1", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
-    assert len(save_calls) == 0
+    assert len(write_calls) == 0
 
 
 def test_pull_dry_run_skips_checkpoints(
@@ -498,16 +487,12 @@ def test_pull_dry_run_skips_checkpoints(
 ):
     client_mock.list_collection.return_value = [_resource("a.xml"), _resource("b.xml")]
 
-    save_calls: list[int] = []
-
-    def _counting_save(nick: str, path: str, manifest: dict) -> None:
-        save_calls.append(len(manifest))
-
-    monkeypatch.setattr("exist_shell.commands.sync._save_manifest", _counting_save)
+    write_calls: list[None] = []
+    monkeypatch.setattr(Manifest, "_write", lambda *_: write_calls.append(None))
 
     result = runner.invoke(app, ["sync", "--dry-run", "--checkpoint-every", "1", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
-    assert len(save_calls) == 0
+    assert len(write_calls) == 0
 
 
 def test_push_resumes_skipping_already_uploaded_file(
@@ -535,3 +520,33 @@ def test_push_resumes_skipping_already_uploaded_file(
     result = runner.invoke(app, ["sync", "--verbose", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     assert "= doc.xml  (unchanged)" in result.output
+
+
+def test_push_skips_touched_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """A file whose mtime changed but whose content is identical must be skipped, not uploaded."""
+    content = b"<root/>"
+    local_file = local_dir / "doc.xml"
+    local_file.write_bytes(content)
+
+    mtime = "2025-01-01T00:00:00.000"
+    manifest_dir.mkdir(parents=True)
+    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
+    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    stat = local_file.stat()
+    manifest_path.write_text(json.dumps({
+        "doc.xml": {
+            "local_sha256": _sha256(content),
+            "remote_last_modified": mtime,
+            "local_mtime_ns": stat.st_mtime_ns,
+            "local_size": stat.st_size,
+        }
+    }))
+
+    # Simulate a touch: re-write identical content so mtime advances
+    local_file.write_bytes(content)
+
+    client_mock.list_collection.return_value = [_resource("doc.xml", mtime)]
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_not_called()
