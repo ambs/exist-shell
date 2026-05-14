@@ -479,23 +479,23 @@ def _push(
 
             _ensure_remote_dirs(client, full_path, source, tree.subcollections, dry_run)
 
-            processed = 0
-            for local_file in sorted(source.rglob("*")):
-                if not local_file.is_file():
-                    continue
+            local_files = sorted(p for p in source.rglob("*") if p.is_file())
+            total = len(local_files)
+            for i, local_file in enumerate(local_files, 1):
                 rel = local_file.relative_to(source).as_posix()
                 remote_mtime = remote_index[rel].last_modified or "" if rel in remote_index else ""
                 action = _push_file(client, full_path, local_file, rel, remote_mtime, manifest, force, dry_run)
+                pct = int(i / total * 100) if total else 100
+                prefix = f"[{pct:3d}%] "
                 label = {
-                    SyncAction.UPLOADED: f"↑ {rel}  ({'new' if rel not in remote_index else 'modified'})",
-                    SyncAction.SKIPPED: f"= {rel}  (unchanged)",
-                    SyncAction.CONFLICT: f"! {rel}  (conflict: modified on both sides, skipping)",
+                    SyncAction.UPLOADED: f"{prefix}↑ {rel}  ({'new' if rel not in remote_index else 'modified'})",
+                    SyncAction.SKIPPED: f"{prefix}= {rel}  (unchanged)",
+                    SyncAction.CONFLICT: f"{prefix}! {rel}  (conflict: modified on both sides, skipping)",
                 }.get(action, "")
                 if label:
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
-                processed += 1
-                if not dry_run and processed % checkpoint_every == 0:
+                if not dry_run and i % checkpoint_every == 0:
                     _save_manifest(nick, path, manifest)
 
             if delete:
@@ -546,23 +546,24 @@ def _pull(
 
             _ensure_local_dirs(dest, tree.subcollections, dry_run)
 
-            processed = 0
-            for resource in tree.resources:
+            total = len(tree.resources)
+            for i, resource in enumerate(tree.resources, 1):
                 remote_mtime = resource.entry.last_modified or ""
                 is_new = resource.rel_path not in manifest
                 action = _pull_file(
                     client, full_path, dest, resource.rel_path, remote_mtime, manifest, force, dry_run
                 )
+                pct = int(i / total * 100) if total else 100
+                prefix = f"[{pct:3d}%] "
                 label = {
-                    SyncAction.DOWNLOADED: f"↓ {resource.rel_path}  ({'new' if is_new else 'modified'})",
-                    SyncAction.SKIPPED: f"= {resource.rel_path}  (unchanged)",
-                    SyncAction.CONFLICT: f"! {resource.rel_path}  (conflict: modified on both sides, skipping)",
+                    SyncAction.DOWNLOADED: f"{prefix}↓ {resource.rel_path}  ({'new' if is_new else 'modified'})",
+                    SyncAction.SKIPPED: f"{prefix}= {resource.rel_path}  (unchanged)",
+                    SyncAction.CONFLICT: f"{prefix}! {resource.rel_path}  (conflict: modified on both sides, skipping)",
                 }.get(action, "")
                 if label:
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
-                processed += 1
-                if not dry_run and processed % checkpoint_every == 0:
+                if not dry_run and i % checkpoint_every == 0:
                     _save_manifest(nick, path, manifest)
 
             if delete:
