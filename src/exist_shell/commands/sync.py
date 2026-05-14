@@ -455,7 +455,7 @@ def _print_summary(counts: dict[SyncAction, int]) -> None:
 
 
 def _push(
-    source: Path, nick: str, path: str, force: bool, dry_run: bool, delete: bool, checkpoint_every: int
+    source: Path, nick: str, path: str, force: bool, dry_run: bool, delete: bool, checkpoint_every: int, verbose: bool
 ) -> None:
     """Push a local directory tree to a remote collection.
 
@@ -467,6 +467,7 @@ def _push(
         dry_run: If True, print actions without performing them.
         delete: If True, remove remote files absent from the local tree.
         checkpoint_every: Flush the manifest to disk after every N files processed.
+        verbose: If True, also print unchanged (skipped) files.
     """
     collection, server, full_path = resolve_collection(nick, path)
     manifest = _load_manifest(nick, path)
@@ -487,11 +488,13 @@ def _push(
                 action = _push_file(client, full_path, local_file, rel, remote_mtime, manifest, force, dry_run)
                 pct = int(i / total * 100) if total else 100
                 prefix = f"[{pct:3d}%] "
-                label = {
+                labels = {
                     SyncAction.UPLOADED: f"{prefix}↑ {rel}  ({'new' if rel not in remote_index else 'modified'})",
-                    SyncAction.SKIPPED: f"{prefix}= {rel}  (unchanged)",
                     SyncAction.CONFLICT: f"{prefix}! {rel}  (conflict: modified on both sides, skipping)",
-                }.get(action, "")
+                }
+                if verbose:
+                    labels[SyncAction.SKIPPED] = f"{prefix}= {rel}  (unchanged)"
+                label = labels.get(action, "")
                 if label:
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
@@ -523,7 +526,7 @@ def _push(
 
 
 def _pull(
-    nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: bool, checkpoint_every: int
+    nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: bool, checkpoint_every: int, verbose: bool
 ) -> None:
     """Pull a remote collection into a local directory.
 
@@ -535,6 +538,7 @@ def _pull(
         dry_run: If True, print actions without performing them.
         delete: If True, remove local files absent from the remote collection.
         checkpoint_every: Flush the manifest to disk after every N files processed.
+        verbose: If True, also print unchanged (skipped) files.
     """
     collection, server, full_path = resolve_collection(nick, path)
     manifest = _load_manifest(nick, path)
@@ -555,11 +559,13 @@ def _pull(
                 )
                 pct = int(i / total * 100) if total else 100
                 prefix = f"[{pct:3d}%] "
-                label = {
+                labels = {
                     SyncAction.DOWNLOADED: f"{prefix}↓ {resource.rel_path}  ({'new' if is_new else 'modified'})",
-                    SyncAction.SKIPPED: f"{prefix}= {resource.rel_path}  (unchanged)",
                     SyncAction.CONFLICT: f"{prefix}! {resource.rel_path}  (conflict: modified on both sides, skipping)",
-                }.get(action, "")
+                }
+                if verbose:
+                    labels[SyncAction.SKIPPED] = f"{prefix}= {resource.rel_path}  (unchanged)"
+                label = labels.get(action, "")
                 if label:
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
@@ -590,6 +596,7 @@ def sync(
     force: bool = typer.Option(False, "--force", "-f", help="Transfer all files, bypassing conflict detection."),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would be transferred without doing it."),
     delete: bool = typer.Option(False, "--delete", help="Remove destination files absent from the source."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show unchanged (skipped) files in addition to transfers."),
     checkpoint_every: int = typer.Option(
         100, "--checkpoint-every", help="Save the sync manifest every N files so a failed run can resume."
     ),
@@ -611,7 +618,7 @@ def sync(
             typer.echo(f"Error: '{source}' is not a directory.", err=True)
             raise typer.Exit(1)
         nick, path = parse_target(dest, path_required=False)
-        _push(source_path, nick, path, force, dry_run, delete, checkpoint_every)
+        _push(source_path, nick, path, force, dry_run, delete, checkpoint_every, verbose)
     else:
         nick, path = parse_target(source, path_required=False)
-        _pull(nick, path, Path(dest), force, dry_run, delete, checkpoint_every)
+        _pull(nick, path, Path(dest), force, dry_run, delete, checkpoint_every, verbose)

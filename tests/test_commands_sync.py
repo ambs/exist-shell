@@ -86,6 +86,10 @@ def test_push_skips_unchanged_file(config_with_collection, client_mock, manifest
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.put_document.assert_not_called()
+    assert "= doc.xml  (unchanged)" not in result.output
+
+    result = runner.invoke(app, ["sync", "--verbose", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
     assert "= doc.xml  (unchanged)" in result.output
 
 
@@ -242,6 +246,10 @@ def test_pull_skips_unchanged_file(config_with_collection, client_mock, manifest
     result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
     assert result.exit_code == 0
     client_mock.get_document.assert_not_called()
+    assert "= doc.xml  (unchanged)" not in result.output
+
+    result = runner.invoke(app, ["sync", "--verbose", "myapp:/", str(local_dir)])
+    assert result.exit_code == 0
     assert "= doc.xml  (unchanged)" in result.output
 
 
@@ -522,4 +530,8 @@ def test_push_resumes_skipping_already_uploaded_file(
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.put_document.assert_not_called()
+    assert "= doc.xml  (unchanged)" not in result.output
+
+    result = runner.invoke(app, ["sync", "--verbose", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
     assert "= doc.xml  (unchanged)" in result.output
