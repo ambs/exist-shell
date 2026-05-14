@@ -25,13 +25,13 @@ section_T12_sync() {
     assert_in_last "b.xml" "T12.3 ls syncroot shows b.xml"
 
     # T12.4 — push again with no local changes: both files skipped (single run, two checks)
-    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot
+    _run "${EXSH[@]}" sync --verbose "${TMPDIR_E2E}/syncdir" testcol:/syncroot
     assert_in_last "= a.xml  (unchanged)" "T12.4 second push skips unchanged a.xml"
     assert_in_last "= b.xml  (unchanged)" "T12.4 second push skips unchanged b.xml"
 
     # T12.5 — modify a.xml locally and push: uploaded as modified, b.xml still skipped
     printf '<a2/>' > "${TMPDIR_E2E}/syncdir/a.xml"
-    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot
+    _run "${EXSH[@]}" sync --verbose "${TMPDIR_E2E}/syncdir" testcol:/syncroot
     assert_in_last "↑ a.xml  (modified)" "T12.5 push uploads modified a.xml"
     assert_in_last "= b.xml  (unchanged)" "T12.5 push skips unchanged b.xml"
 
