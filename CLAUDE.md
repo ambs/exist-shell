@@ -34,6 +34,12 @@ All changes must go through a pull request — never commit directly to `main`.
 3. Push the branch and open a PR via `gh pr create`
 4. Do not merge without the PR being reviewed and all CI checks passing
 
+### Pull request descriptions
+
+- Never include unticked checkboxes in a PR description.
+- Run all relevant tests before opening the PR (or ask the user to run them if that is not possible).
+- Only create the PR once everything passes — with all checklist items already ticked.
+
 ## File discipline
 
 Never stage or commit files that were not explicitly created as part of the current task or explicitly requested by the user. This includes cache directories, build artifacts, lock files, and any other files that appear as a side effect of running tools.
