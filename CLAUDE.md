@@ -81,7 +81,12 @@ def my_method(self, path: str) -> list[str]:
 src/exist_shell/
   main.py        # Typer app, global callback, subcommand registration
   client.py      # ExistClient — thin httpx wrapper over the eXist REST API
-  completions.py # Dynamic shell completion functions (hit the server at tab time)
+  completions.py # shell completion (hits server at tab time)
+  cache.py       # TTL cache for completions
+  config.py      # server/collection config persistence
+  exceptions.py  # custom exceptions
+  models.py      # Pydantic API response models
+  utils.py       # shared utilities
+  xquery.py      # XQuery preprocessing and validation
+  commands/      # one module per subcommand: cat, collection, cp, edit, exec, ls, mkdir, put, rm, server, sync
 ```
-
-Subcommands will be added as modules and registered via `app.add_typer()` or `@app.command()` in `main.py`.

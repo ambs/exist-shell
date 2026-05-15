@@ -3,7 +3,7 @@
 Synchronise a local directory tree with a remote eXist collection, transferring only files that have actually changed.
 
 ```
-exsh sync <source> <dest> [--force] [--dry-run] [--delete] [--checkpoint-every N]
+exsh sync <source> <dest> [--force] [--dry-run] [--delete] [--verbose] [--checkpoint-every N]
 ```
 
 ## Direction
@@ -55,6 +55,7 @@ Use `--force` to override conflict detection and transfer the source uncondition
 | `--force / -f` | Transfer every file, ignoring the manifest |
 | `--dry-run / -n` | Print what would happen without moving any data |
 | `--delete` | Remove files and empty folders on the destination that no longer exist on the source |
+| `--verbose / -v` | Also print unchanged (skipped) files |
 | `--checkpoint-every N` | Flush the manifest to disk every N files (default: 100) |
 
 ## Output
@@ -67,7 +68,7 @@ Each file is printed with a status prefix:
 | `↑ file (modified)` | Uploaded, overwrote existing remote file |
 | `↓ file (new)` | Downloaded, did not exist locally |
 | `↓ file (modified)` | Downloaded, overwrote existing local file |
-| `= file (unchanged)` | Skipped — no changes detected |
+| `= file (unchanged)` | Skipped — no changes detected (only shown with `--verbose`) |
 | `! file (conflict…)` | Skipped — modified on both sides |
 | `✗ file (deleted)` | Removed from destination (only with `--delete`) |
 | `+ dir/ (new collection)` | Remote collection created during push |
