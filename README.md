@@ -168,6 +168,7 @@ exsh sync --delete ./reports mydata:reports
 | `--force` / `-f` | Transfer all files, bypassing change detection |
 | `--dry-run` / `-n` | Show what would happen without transferring |
 | `--delete` | Remove files and empty folders on the destination that no longer exist on the source |
+| `--verbose` / `-v` | Also print unchanged (skipped) files |
 | `--checkpoint-every N` | Flush the manifest every N files (default: 100); allows interrupted syncs to resume near the point of failure |
 
 ## Shell completion

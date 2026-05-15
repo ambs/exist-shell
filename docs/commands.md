@@ -225,7 +225,7 @@ Synchronise a local directory tree and a remote collection, transferring only ch
 See the dedicated [sync page](sync.md) for full details.
 
 ```
-exsh sync <source> <dest> [--force] [--dry-run] [--delete]
+exsh sync <source> <dest> [--force] [--dry-run] [--delete] [--verbose]
 ```
 
 Direction is inferred from argument order: local-first means push, remote-first means pull.
@@ -237,6 +237,7 @@ Direction is inferred from argument order: local-first means push, remote-first 
 | `--force / -f` | Transfer all files, bypassing conflict detection |
 | `--dry-run / -n` | Show what would happen without transferring anything |
 | `--delete` | Remove files on the destination that no longer exist on the source |
+| `--verbose / -v` | Also print unchanged (skipped) files |
 
 ### Quick examples
 
