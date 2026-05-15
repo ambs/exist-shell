@@ -2,9 +2,10 @@
 
 import hashlib
 import json
+import os
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TypedDict
 
 import typer
 
@@ -29,6 +30,23 @@ def _get_sync_cache_dir() -> Path:
         Path to the sync cache directory.
     """
     return Config.load().resolved_cache_dir() / "sync"
+
+
+class ManifestEntry(TypedDict, total=False):
+    """Per-file state stored in the sync manifest.
+
+    Attributes:
+        local_sha256: SHA-256 hex digest of the local file at last sync.
+        remote_last_modified: Server-assigned mtime at last sync (empty string
+            immediately after upload, before the re-list that records it).
+        local_mtime_ns: Local file mtime in nanoseconds at last sync.
+        local_size: Local file size in bytes at last sync.
+    """
+
+    local_sha256: str
+    remote_last_modified: str
+    local_mtime_ns: int
+    local_size: int
 
 
 class SyncAction(Enum):
@@ -66,6 +84,95 @@ class RemoteTree(NamedTuple):
     subcollections: list[str]
 
 
+class Manifest:
+    """Sync manifest: tracks per-file state and handles checkpoint writes."""
+
+    def __init__(self, data: dict[str, ManifestEntry], checkpoint_every: int) -> None:
+        """Initialize the manifest.
+
+        Args:
+            data: Per-file state loaded from disk (or empty for a fresh manifest).
+            checkpoint_every: Mutation count between automatic checkpoint writes.
+        """
+        self._data = data
+        self._dirty = 0
+        self._checkpoint_every = checkpoint_every
+
+    def get(self, rel_path: str) -> ManifestEntry:
+        """Return the manifest entry for rel_path, or an empty entry if absent.
+
+        Args:
+            rel_path: Relative path of the file within the sync tree.
+
+        Returns:
+            The stored ManifestEntry, or an empty ManifestEntry if not present.
+        """
+        return self._data.get(rel_path, ManifestEntry())
+
+    def __contains__(self, rel_path: str) -> bool:
+        """Return True if rel_path has a manifest entry.
+
+        Args:
+            rel_path: Relative path of the file within the sync tree.
+
+        Returns:
+            True if an entry exists for rel_path, False otherwise.
+        """
+        return rel_path in self._data
+
+    def set(self, rel_path: str, entry: ManifestEntry) -> None:
+        """Upsert an entry and mark the manifest dirty.
+
+        Args:
+            rel_path: Relative path of the file within the sync tree.
+            entry: New state to store for this file.
+        """
+        self._data[rel_path] = entry
+        self._dirty += 1
+
+    def pop(self, rel_path: str) -> None:
+        """Remove an entry (if present) and mark the manifest dirty.
+
+        Args:
+            rel_path: Relative path of the file within the sync tree.
+        """
+        self._data.pop(rel_path, None)
+        self._dirty += 1
+
+    def maybe_save(self, nick: str, remote_path: str) -> None:
+        """Write to disk when accumulated mutations reach the threshold.
+
+        Args:
+            nick: Collection nickname.
+            remote_path: Remote collection path.
+        """
+        if self._dirty >= self._checkpoint_every:
+            self._write(nick, remote_path)
+            self._dirty = 0
+
+    def save(self, nick: str, remote_path: str) -> None:
+        """Unconditional final write.
+
+        Args:
+            nick: Collection nickname.
+            remote_path: Remote collection path.
+        """
+        self._write(nick, remote_path)
+
+    def _write(self, nick: str, remote_path: str) -> None:
+        """Atomically write manifest data to disk.
+
+        Args:
+            nick: Collection nickname.
+            remote_path: Remote collection path.
+        """
+        p = _manifest_path(nick, remote_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self._data))
+        tmp.rename(p)
+
+
 def _sha256(path: Path) -> str:
     """Return the hex SHA-256 digest of a file's contents.
 
@@ -92,38 +199,24 @@ def _manifest_path(nick: str, remote_path: str) -> Path:
     return _get_sync_cache_dir() / f"{nick}@{key}.json"
 
 
-def _load_manifest(nick: str, remote_path: str) -> dict[str, dict]:
-    """Load the sync manifest, returning an empty dict if the file is missing.
+def _load_manifest(nick: str, remote_path: str, checkpoint_every: int) -> Manifest:
+    """Load the sync manifest, returning an empty manifest if the file is missing.
 
     Args:
         nick: Collection nickname.
         remote_path: Remote collection path.
+        checkpoint_every: Mutation count between automatic checkpoint writes.
 
     Returns:
-        Dict mapping relative file path to its last-synced state.
+        Manifest wrapping the last-synced state for each file.
     """
     p = _manifest_path(nick, remote_path)
     if not p.exists():
-        return {}
+        return Manifest({}, checkpoint_every)
     try:
-        return json.loads(p.read_text())
+        return Manifest(json.loads(p.read_text()), checkpoint_every)
     except Exception:
-        return {}
-
-
-def _save_manifest(nick: str, remote_path: str, manifest: dict[str, dict]) -> None:
-    """Atomically write the sync manifest to disk.
-
-    Args:
-        nick: Collection nickname.
-        remote_path: Remote collection path.
-        manifest: Dict mapping relative file path to its last-synced state.
-    """
-    p = _manifest_path(nick, remote_path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps(manifest, indent=2))
-    tmp.rename(p)
+        return Manifest({}, checkpoint_every)
 
 
 def _walk_remote(client: ExistClient, base_path: str) -> RemoteTree:
@@ -156,9 +249,9 @@ def _push_file(
     client: ExistClient,
     full_path: str,
     local_file: Path,
-    rel: str,
+    rel_path: str,
     remote_mtime: str,
-    manifest: dict[str, dict],
+    manifest: Manifest,
     force: bool,
     dry_run: bool,
 ) -> SyncAction:
@@ -167,11 +260,15 @@ def _push_file(
     Stores an empty ``remote_last_modified`` after upload; callers must
     re-list the remote collection afterwards to record the server-assigned mtime.
 
+    Uses a stat-based fast path: if both the local file's mtime/size and the
+    remote mtime match the manifest, the file is skipped without reading or
+    hashing its contents.
+
     Args:
         client: Active ExistClient.
         full_path: Full eXist base path of the collection (e.g. ``/db/myapp``).
         local_file: Local file to upload.
-        rel: Relative path of the file within the sync tree.
+        rel_path: Relative path of the file within the sync tree.
         remote_mtime: Current ``last_modified`` from the remote listing.
         manifest: Sync manifest (mutated in place on upload).
         force: If True, upload regardless of manifest state.
@@ -181,32 +278,52 @@ def _push_file(
         The SyncAction taken.
     """
 
-    def _upload(local_hash: str) -> None:
+    def _upload(local_hash: str, stat: os.stat_result) -> None:
         if not dry_run:
             client.put_document(
-                f"{full_path}/{rel}",
+                f"{full_path}/{rel_path}",
                 local_file.read_bytes(),
                 guess_mime(local_file, "application/xml"),
             )
-            manifest[rel] = {"local_sha256": local_hash, "remote_last_modified": ""}
+            manifest.set(rel_path, ManifestEntry(
+                local_sha256=local_hash,
+                remote_last_modified="",
+                local_mtime_ns=stat.st_mtime_ns,
+                local_size=stat.st_size,
+            ))
 
-    entry = manifest.get(rel, {})
+    entry = manifest.get(rel_path)
 
-    if force or rel not in manifest:
-        _upload(_sha256(local_file))
+    if force or rel_path not in manifest:
+        stat = local_file.stat()
+        _upload(_sha256(local_file), stat)
         return SyncAction.UPLOADED
+
+    remote_changed = remote_mtime != entry.get("remote_last_modified", "")
+    stat = local_file.stat()
+    stat_changed = (
+        stat.st_mtime_ns != entry.get("local_mtime_ns", -1)
+        or stat.st_size != entry.get("local_size", -1)
+    )
+
+    if not stat_changed and not remote_changed:
+        return SyncAction.SKIPPED
 
     local_hash = _sha256(local_file)
     local_changed = local_hash != entry.get("local_sha256", "")
-    remote_changed = remote_mtime != entry.get("remote_last_modified", "")
 
     if local_changed and remote_changed:
         return SyncAction.CONFLICT
 
     if local_changed:
-        _upload(local_hash)
+        _upload(local_hash, stat)
         return SyncAction.UPLOADED
 
+    # stat changed but content identical (e.g. file was touched) — refresh stat only
+    if not dry_run:
+        manifest.set(rel_path, ManifestEntry(
+            **{**entry, "local_mtime_ns": stat.st_mtime_ns, "local_size": stat.st_size}
+        ))
     return SyncAction.SKIPPED
 
 
@@ -214,9 +331,9 @@ def _pull_file(
     client: ExistClient,
     full_path: str,
     dest: Path,
-    rel: str,
+    rel_path: str,
     remote_mtime: str,
-    manifest: dict[str, dict],
+    manifest: Manifest,
     force: bool,
     dry_run: bool,
 ) -> SyncAction:
@@ -226,7 +343,7 @@ def _pull_file(
         client: Active ExistClient.
         full_path: Full eXist base path of the collection (e.g. ``/db/myapp``).
         dest: Local directory to pull into.
-        rel: Relative path of the file within the sync tree.
+        rel_path: Relative path of the file within the sync tree.
         remote_mtime: Current ``last_modified`` from the remote listing.
         manifest: Sync manifest (mutated in place on download).
         force: If True, download regardless of manifest state.
@@ -235,21 +352,24 @@ def _pull_file(
     Returns:
         The SyncAction taken.
     """
-    local_file = dest / rel
+    local_file = dest / rel_path
 
     def _download() -> None:
         if not dry_run:
-            result = client.get_document(f"{full_path}/{rel}")
+            result = client.get_document(f"{full_path}/{rel_path}")
             local_file.parent.mkdir(parents=True, exist_ok=True)
             local_file.write_bytes(result.content)
-            manifest[rel] = {
-                "local_sha256": _sha256(local_file),
-                "remote_last_modified": remote_mtime,
-            }
+            stat = local_file.stat()
+            manifest.set(rel_path, ManifestEntry(
+                local_sha256=_sha256(local_file),
+                remote_last_modified=remote_mtime,
+                local_mtime_ns=stat.st_mtime_ns,
+                local_size=stat.st_size,
+            ))
 
-    entry = manifest.get(rel, {})
+    entry = manifest.get(rel_path)
 
-    if force or rel not in manifest:
+    if force or rel_path not in manifest:
         _download()
         return SyncAction.DOWNLOADED
 
@@ -270,19 +390,19 @@ def _pull_file(
 
 
 def _ensure_remote_dirs(
-    client: ExistClient, full_path: str, source: Path, remote_cols: list[str], dry_run: bool
+    client: ExistClient, full_path: str, local_dirs: set[str], remote_cols: list[str], dry_run: bool
 ) -> None:
     """Create remote subcollections that exist locally but not remotely.
 
     Args:
         client: Active ExistClient.
         full_path: Full eXist base path of the collection.
-        source: Local source directory.
+        local_dirs: Relative paths of all local subdirectories.
         remote_cols: Relative paths of subcollections already present remotely.
         dry_run: If True, log but do not create.
     """
     remote_col_set = set(remote_cols)
-    for local_dir in sorted(p.relative_to(source).as_posix() for p in source.rglob("*") if p.is_dir()):
+    for local_dir in sorted(local_dirs):
         if local_dir not in remote_col_set:
             typer.echo(f"+ {local_dir}/  (new collection)")
             if not dry_run:
@@ -308,9 +428,9 @@ def _ensure_local_dirs(dest: Path, remote_cols: list[str], dry_run: bool) -> Non
 def _delete_remote_extras(
     client: ExistClient,
     full_path: str,
-    source: Path,
+    local_files: set[str],
     remote_resources: list[RemoteResource],
-    manifest: dict[str, dict],
+    manifest: Manifest,
     dry_run: bool,
 ) -> int:
     """Delete remote files that have no corresponding local file.
@@ -318,7 +438,7 @@ def _delete_remote_extras(
     Args:
         client: Active ExistClient.
         full_path: Full eXist base path of the collection.
-        source: Local source directory.
+        local_files: Relative paths of all local files.
         remote_resources: All remote resources from the current listing.
         manifest: Sync manifest (mutated in place on deletion).
         dry_run: If True, log but do not delete.
@@ -326,14 +446,13 @@ def _delete_remote_extras(
     Returns:
         Number of files deleted (or that would be deleted).
     """
-    local_files = {p.relative_to(source).as_posix() for p in source.rglob("*") if p.is_file()}
     count = 0
     for resource in remote_resources:
         if resource.rel_path not in local_files:
             typer.echo(f"✗ {resource.rel_path}  (deleted)")
             if not dry_run:
                 client.delete_document(f"{full_path}/{resource.rel_path}")
-                manifest.pop(resource.rel_path, None)
+                manifest.pop(resource.rel_path)
             count += 1
     return count
 
@@ -341,7 +460,7 @@ def _delete_remote_extras(
 def _delete_local_extras(
     dest: Path,
     remote_resources: list[RemoteResource],
-    manifest: dict[str, dict],
+    manifest: Manifest,
     dry_run: bool,
 ) -> int:
     """Delete local files that have no corresponding remote resource.
@@ -360,12 +479,12 @@ def _delete_local_extras(
     for local_file in sorted(dest.rglob("*")):
         if not local_file.is_file():
             continue
-        rel = local_file.relative_to(dest).as_posix()
-        if rel not in remote_set:
-            typer.echo(f"✗ {rel}  (deleted)")
+        rel_path = local_file.relative_to(dest).as_posix()
+        if rel_path not in remote_set:
+            typer.echo(f"✗ {rel_path}  (deleted)")
             if not dry_run:
                 local_file.unlink()
-                manifest.pop(rel, None)
+                manifest.pop(rel_path)
             count += 1
     return count
 
@@ -466,11 +585,11 @@ def _push(
         force: If True, upload all files regardless of manifest state.
         dry_run: If True, print actions without performing them.
         delete: If True, remove remote files absent from the local tree.
-        checkpoint_every: Flush the manifest to disk after every N files processed.
+        checkpoint_every: Save the manifest after every N mutations (uploads/deletes).
         verbose: If True, also print unchanged (skipped) files.
     """
     collection, server, full_path = resolve_collection(nick, path)
-    manifest = _load_manifest(nick, path)
+    manifest = _load_manifest(nick, path, checkpoint_every)
     counts: dict[SyncAction, int] = {}
 
     with handle_exist_errors(path, nick, collection.server_nick):
@@ -478,32 +597,35 @@ def _push(
             tree = _walk_remote(client, full_path)
             remote_index = {r.rel_path: r.entry for r in tree.resources}
 
-            _ensure_remote_dirs(client, full_path, source, tree.subcollections, dry_run)
+            all_paths = list(source.rglob("*"))
+            local_files = sorted(p for p in all_paths if p.is_file())
+            local_dirs = {p.relative_to(source).as_posix() for p in all_paths if p.is_dir()}
+            local_file_rels = {p.relative_to(source).as_posix() for p in local_files}
 
-            local_files = sorted(p for p in source.rglob("*") if p.is_file())
+            _ensure_remote_dirs(client, full_path, local_dirs, tree.subcollections, dry_run)
+
             total = len(local_files)
             for i, local_file in enumerate(local_files, 1):
-                rel = local_file.relative_to(source).as_posix()
-                remote_mtime = remote_index[rel].last_modified or "" if rel in remote_index else ""
-                action = _push_file(client, full_path, local_file, rel, remote_mtime, manifest, force, dry_run)
+                rel_path = local_file.relative_to(source).as_posix()
+                remote_mtime = remote_index[rel_path].last_modified or "" if rel_path in remote_index else ""
+                action = _push_file(client, full_path, local_file, rel_path, remote_mtime, manifest, force, dry_run)
                 pct = int(i / total * 100) if total else 100
                 prefix = f"[{pct:3d}%] "
                 labels = {
-                    SyncAction.UPLOADED: f"{prefix}↑ {rel}  ({'new' if rel not in remote_index else 'modified'})",
-                    SyncAction.CONFLICT: f"{prefix}! {rel}  (conflict: modified on both sides, skipping)",
+                    SyncAction.UPLOADED: f"{prefix}↑ {rel_path}  ({'new' if rel_path not in remote_index else 'modified'})",
+                    SyncAction.CONFLICT: f"{prefix}! {rel_path}  (conflict: modified on both sides, skipping)",
                 }
                 if verbose:
-                    labels[SyncAction.SKIPPED] = f"{prefix}= {rel}  (unchanged)"
+                    labels[SyncAction.SKIPPED] = f"{prefix}= {rel_path}  (unchanged)"
                 label = labels.get(action, "")
                 if label:
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
-                if not dry_run and i % checkpoint_every == 0:
-                    _save_manifest(nick, path, manifest)
+                manifest.maybe_save(nick, path)
 
             if delete:
                 counts[SyncAction.DELETED] = _delete_remote_extras(
-                    client, full_path, source, tree.resources, manifest, dry_run
+                    client, full_path, local_file_rels, tree.resources, manifest, dry_run
                 )
                 counts[SyncAction.DELETED] += _delete_empty_remote_dirs(
                     client, full_path, source, dry_run
@@ -514,12 +636,12 @@ def _push(
                 updated_tree = _walk_remote(client, full_path)
                 for resource in updated_tree.resources:
                     if resource.rel_path in manifest:
-                        manifest[resource.rel_path]["remote_last_modified"] = (
+                        manifest.get(resource.rel_path)["remote_last_modified"] = (
                             resource.entry.last_modified or ""
                         )
 
     if not dry_run:
-        _save_manifest(nick, path, manifest)
+        manifest.save(nick, path)
         invalidate(nick)
 
     _print_summary(counts)
@@ -537,11 +659,11 @@ def _pull(
         force: If True, download all files regardless of manifest state.
         dry_run: If True, print actions without performing them.
         delete: If True, remove local files absent from the remote collection.
-        checkpoint_every: Flush the manifest to disk after every N files processed.
+        checkpoint_every: Save the manifest after every N mutations (downloads/deletes).
         verbose: If True, also print unchanged (skipped) files.
     """
     collection, server, full_path = resolve_collection(nick, path)
-    manifest = _load_manifest(nick, path)
+    manifest = _load_manifest(nick, path, checkpoint_every)
     counts: dict[SyncAction, int] = {}
 
     with handle_exist_errors(path, nick, collection.server_nick):
@@ -569,8 +691,7 @@ def _pull(
                 if label:
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
-                if not dry_run and i % checkpoint_every == 0:
-                    _save_manifest(nick, path, manifest)
+                manifest.maybe_save(nick, path)
 
             if delete:
                 counts[SyncAction.DELETED] = _delete_local_extras(
@@ -579,7 +700,7 @@ def _pull(
                 counts[SyncAction.DELETED] += _delete_empty_local_dirs(dest, dry_run)
 
     if not dry_run:
-        _save_manifest(nick, path, manifest)
+        manifest.save(nick, path)
 
     _print_summary(counts)
 
