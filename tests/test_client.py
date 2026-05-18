@@ -335,3 +335,91 @@ def test_execute_query_raises_connection_error_on_network_failure(httpx_mock, a_
     with ExistClient(a_server) as client:
         with pytest.raises(ExistConnectionError):
             client.execute_query("1 + 1")
+
+
+# ---------------------------------------------------------------------------
+# is_collection
+# ---------------------------------------------------------------------------
+
+def test_is_collection_returns_true(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="true")
+    with ExistClient(a_server) as client:
+        assert client.is_collection("/db/myapp/subcol") is True
+
+
+def test_is_collection_returns_false_for_document(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="false")
+    with ExistClient(a_server) as client:
+        assert client.is_collection("/db/myapp/doc.xml") is False
+
+
+def test_is_collection_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", status_code=401)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.is_collection("/db/myapp/sub")
+
+
+def test_is_collection_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.is_collection("/db/myapp/sub")
+
+
+# ---------------------------------------------------------------------------
+# move_document
+# ---------------------------------------------------------------------------
+
+def test_move_document_same_parent_uses_rename_query(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.move_document("/db/myapp/old.xml", "/db/myapp/new.xml")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "xmldb:rename" in body["_query"][0]
+    assert "old.xml" in body["_query"][0]
+    assert "new.xml" in body["_query"][0]
+
+
+def test_move_document_different_parent_same_name_uses_move_query(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.move_document("/db/myapp/src/doc.xml", "/db/myapp/dst/doc.xml")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "xmldb:move" in body["_query"][0]
+    assert "xmldb:rename" not in body["_query"][0]
+
+
+def test_move_document_different_parent_different_name_uses_move_and_rename(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.move_document("/db/myapp/src/old.xml", "/db/myapp/dst/new.xml")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "xmldb:move" in body["_query"][0]
+    assert "xmldb:rename" in body["_query"][0]
+
+
+def test_move_document_raises_not_found_on_query_error(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db", method="POST", status_code=500, text="not found"
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistNotFoundError):
+            client.move_document("/db/myapp/missing.xml", "/db/myapp/dst.xml")
+
+
+def test_move_document_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", status_code=401)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.move_document("/db/myapp/doc.xml", "/db/myapp/new.xml")
+
+
+def test_move_document_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.move_document("/db/myapp/doc.xml", "/db/myapp/new.xml")
