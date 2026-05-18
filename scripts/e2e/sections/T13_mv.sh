@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # T13 — mv (document rename, document move, trailing slash, collection rename,
-#           collection move with contents, errors)
+#           collection move with contents, multi-level tree move, errors)
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 section_T13_mv() {
@@ -130,26 +130,57 @@ section_T13_mv() {
         "${EXSH[@]}" ls testcol:/mv_parent/mv_multi
 
     # ---------------------------------------------------------------------------
+    # T13.19 — move a collection that contains subcollections (multi-level tree)
+    # ---------------------------------------------------------------------------
+    assert_exit0 "T13.19 setup: create nested tree mv_tree/sub/deep.xml" \
+        "${EXSH[@]}" put testcol:/mv_tree/sub/deep.xml -f "${TMPDIR_E2E}/mv_src.xml"
+    assert_exit0 "T13.19 setup: root-level doc in mv_tree" \
+        "${EXSH[@]}" put testcol:/mv_tree/root.xml -f "${TMPDIR_E2E}/mv_src.xml"
+
+    assert_exit0 "T13.19 mv moves multi-level collection tree" \
+        "${EXSH[@]}" mv testcol:/mv_tree testcol:/mv_tree_moved
+
+    # Source is gone
+    assert_output_absent "mv_tree" \
+        "T13.19 mv_tree no longer in testcol root after move" \
+        "${EXSH[@]}" ls testcol
+
+    # Destination exists with root-level doc
+    assert_output "root.xml" \
+        "T13.19 root.xml accessible at destination root" \
+        "${EXSH[@]}" ls testcol:/mv_tree_moved
+
+    # Subcollection exists at destination
+    assert_output "sub" \
+        "T13.19 subcollection sub present inside mv_tree_moved" \
+        "${EXSH[@]}" ls testcol:/mv_tree_moved
+
+    # Deep document is accessible at full new path
+    assert_output "<mv>test</mv>" \
+        "T13.19 deep document content intact after multi-level move" \
+        "${EXSH[@]}" cat testcol:/mv_tree_moved/sub/deep.xml
+
+    # ---------------------------------------------------------------------------
     # Error cases
     # ---------------------------------------------------------------------------
 
-    # T13.19 — both paths local
+    # T13.20 — both paths local
     assert_output "remote" \
-        "T13.19 mv with both local paths fails" \
+        "T13.20 mv with both local paths fails" \
         "${EXSH[@]}" mv "${TMPDIR_E2E}/mv_src.xml" "${TMPDIR_E2E}/mv_dst.xml"
 
-    # T13.20 — unknown collection nick
+    # T13.21 — unknown collection nick
     assert_output "collection 'ghost' not found" \
-        "T13.20 mv unknown source nick fails" \
+        "T13.21 mv unknown source nick fails" \
         "${EXSH[@]}" mv ghost:/doc.xml testcol:/doc.xml
 
-    # T13.21 — path traversal in source
+    # T13.22 — path traversal in source
     assert_output "path traversal not allowed" \
-        "T13.21 mv path traversal in source rejected" \
+        "T13.22 mv path traversal in source rejected" \
         "${EXSH[@]}" mv "testcol:/../escape.xml" testcol:/dst.xml
 
-    # T13.22 — source document does not exist
+    # T13.23 — source document does not exist
     assert_output "not found" \
-        "T13.22 mv nonexistent source fails" \
+        "T13.23 mv nonexistent source fails" \
         "${EXSH[@]}" mv testcol:/nonexistent_mv.xml testcol:/dst.xml
 }
