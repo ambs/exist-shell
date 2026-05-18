@@ -1,6 +1,7 @@
 """HTTP client for the eXist-db REST API."""
 
 import xml.etree.ElementTree as ET
+from pathlib import PurePosixPath
 from urllib.parse import quote
 
 import httpx
@@ -280,6 +281,71 @@ class ExistClient:
             raise ExistQueryError(r.text.strip())
         r.raise_for_status()
         return r.text
+
+    def is_collection(self, path: str) -> bool:
+        """Return True if path is an existing collection, False if it is a document or absent.
+
+        Args:
+            path: Full eXist path starting with /db/ (e.g. /db/myapp/sub).
+
+        Returns:
+            True when a collection exists at that path, False otherwise.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+        """
+        query = f'xquery version "3.1"; xmldb:collection-available("{path}")'
+        result = self.execute_query(query)
+        return result.strip() == "true"
+
+    def move_document(self, src_path: str, dst_path: str) -> None:
+        """Move or rename a single document using XQuery.
+
+        Selects the most efficient XQuery call based on the relationship
+        between source and destination:
+
+        - Same parent → ``xmldb:rename``
+        - Different parent, same name → ``xmldb:move``
+        - Different parent, different name → ``xmldb:move`` then ``xmldb:rename``
+
+        Args:
+            src_path: Full eXist path of the source document.
+            dst_path: Full eXist path of the destination document.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistNotFoundError: If the source or destination parent does not exist.
+        """
+        src = PurePosixPath(src_path.rstrip("/"))
+        dst = PurePosixPath(dst_path.rstrip("/"))
+        src_parent = str(src.parent)
+        src_name = src.name
+        dst_parent = str(dst.parent)
+        dst_name = dst.name
+
+        if src_parent == dst_parent:
+            query = (
+                f'xquery version "3.1"; '
+                f'xmldb:rename("{src_parent}", "{src_name}", "{dst_name}")'
+            )
+        elif src_name == dst_name:
+            query = (
+                f'xquery version "3.1"; '
+                f'xmldb:move("{src_parent}", "{dst_parent}", "{src_name}")'
+            )
+        else:
+            query = (
+                f'xquery version "3.1"; '
+                f'let $_ := xmldb:move("{src_parent}", "{dst_parent}", "{src_name}") '
+                f'return xmldb:rename("{dst_parent}", "{src_name}", "{dst_name}")'
+            )
+
+        try:
+            self.execute_query(query)
+        except ExistQueryError as e:
+            raise ExistNotFoundError(src_path) from e
 
     def close(self) -> None:
         """Close the underlying HTTP connection."""
