@@ -3,7 +3,17 @@
 import pytest
 from typer.testing import CliRunner
 
-from exist_shell.utils import check_xml_wellformed, parse_target, validate_path
+from exist_shell.utils import check_xml_wellformed, parse_target, validate_path, xq_escape
+
+
+# --- xq_escape ---
+
+def test_xq_escape_passthrough_when_no_quotes():
+    assert xq_escape("hello") == "hello"
+
+
+def test_xq_escape_doubles_double_quotes():
+    assert xq_escape('say "hello"') == 'say ""hello""'
 
 
 # --- check_xml_wellformed ---

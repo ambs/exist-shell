@@ -122,6 +122,24 @@ def test_user_add_prompts_for_password(config_with_server, client_mock, runner):
     client_mock.create_user.assert_called_once_with("alice", "test-pw", ["editors"])
 
 
+def test_user_add_no_servers_fails(config_path, runner):
+    result = runner.invoke(app, ["user", "add", "alice", "--password", "test-pw"])
+    assert result.exit_code == 1
+    assert "no servers configured" in result.output
+
+
+def test_user_add_unknown_server_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "add", "alice", "--password", "test-pw", "--server", "ghost"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_user_add_empty_group_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "add", "alice", "--group", "  ,  ", "--password", "test-pw"])
+    assert result.exit_code == 1
+    assert "group" in result.output
+
+
 def test_user_add_requires_server_when_multiple(config_with_two_servers, client_mock, runner):
     result = runner.invoke(app, ["user", "add", "alice", "--password", "test-pw"])
     assert result.exit_code == 1
@@ -169,6 +187,18 @@ def test_user_rm_abort_on_no(config_with_server, client_mock, runner):
     result = runner.invoke(app, ["user", "rm", "alice"], input="n\n")
     assert result.exit_code != 0
     client_mock.delete_user.assert_not_called()
+
+
+def test_user_rm_no_servers_fails(config_path, runner):
+    result = runner.invoke(app, ["user", "rm", "alice", "--yes"])
+    assert result.exit_code == 1
+    assert "no servers configured" in result.output
+
+
+def test_user_rm_unknown_server_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "rm", "alice", "--yes", "--server", "ghost"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
 
 
 def test_user_rm_requires_server_when_multiple(config_with_two_servers, client_mock, runner):
@@ -226,6 +256,18 @@ def test_user_info_omits_full_name_when_absent(config_with_server, client_mock, 
     result = runner.invoke(app, ["user", "info", "alice"])
     assert result.exit_code == 0
     assert "Full name" not in result.output
+
+
+def test_user_info_no_servers_fails(config_path, runner):
+    result = runner.invoke(app, ["user", "info", "alice"])
+    assert result.exit_code == 1
+    assert "no servers configured" in result.output
+
+
+def test_user_info_unknown_server_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "info", "alice", "--server", "ghost"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
 
 
 def test_user_info_requires_server_when_multiple(config_with_two_servers, client_mock, runner):
