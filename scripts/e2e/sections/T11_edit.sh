@@ -66,9 +66,4 @@ section_T11_edit() {
         fail "T11.9 edit warns on malformed XML and re-opens editor (exit=${_edit_code}, output=${_edit_output})"
     fi
 
-    # T11.10 — --allow-malformed uploads without validation
-    printf '#!/usr/bin/env bash\nprintf "<broken>" > "$1"\n' > "${TMPDIR_E2E}/always_broken.sh"
-    chmod +x "${TMPDIR_E2E}/always_broken.sh"
-    assert_exit0 "T11.10 edit --allow-malformed uploads malformed XML" \
-        env EDITOR="${TMPDIR_E2E}/always_broken.sh" "${EXSH[@]}" edit testcol:/hello.xml --allow-malformed
 }

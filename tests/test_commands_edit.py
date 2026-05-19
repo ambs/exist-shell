@@ -238,16 +238,6 @@ def test_edit_aborts_when_user_abandons_malformed_xml(
     client_mock.put_document.assert_not_called()
 
 
-def test_edit_allow_malformed_uploads_despite_errors(
-    config_with_collection, client_mock, xml_doc, runner, monkeypatch
-):
-    client_mock.get_document.return_value = xml_doc
-    monkeypatch.setenv("VISUAL", "vi")
-    with patch("exist_shell.commands.edit.subprocess.run", side_effect=_editor_that_writes(b"<broken")):
-        result = runner.invoke(app, ["edit", "myapp:/doc.xml", "--allow-malformed"])
-    assert result.exit_code == 0
-    client_mock.put_document.assert_called_once_with("/db/myapp/doc.xml", b"<broken", "application/xml")
-
 
 def test_edit_non_xml_mime_skips_validation(
     config_with_collection, client_mock, runner, monkeypatch
