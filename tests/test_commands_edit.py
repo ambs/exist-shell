@@ -181,3 +181,82 @@ def test_edit_auth_error_on_put_fails(config_with_collection, client_mock, xml_d
         result = runner.invoke(app, ["edit", "myapp:/doc.xml"])
     assert result.exit_code == 1
     assert "authentication failed" in result.output
+
+
+# --- XML well-formedness ---
+
+def test_edit_warns_on_malformed_xml_and_reopens_editor(
+    config_with_collection, client_mock, xml_doc, runner, monkeypatch
+):
+    """Editor writes bad XML first, then valid XML — should warn, re-open, and upload."""
+    client_mock.get_document.return_value = xml_doc
+    monkeypatch.setenv("VISUAL", "vi")
+
+    call_count = 0
+
+    def _editor(args, **kwargs):
+        nonlocal call_count
+        path = Path(args[-1])
+        if call_count == 0:
+            path.write_bytes(b"<broken")
+        else:
+            path.write_bytes(b"<fixed/>")
+        call_count += 1
+        return subprocess.CompletedProcess(args, 0)
+
+    with patch("exist_shell.commands.edit.subprocess.run", side_effect=_editor):
+        result = runner.invoke(app, ["edit", "myapp:/doc.xml"], input="\n")
+
+    assert result.exit_code == 0
+    assert "not well-formed XML" in result.output
+    assert "Press Enter" in result.output
+    client_mock.put_document.assert_called_once_with("/db/myapp/doc.xml", b"<fixed/>", "application/xml")
+
+
+def test_edit_aborts_when_user_abandons_malformed_xml(
+    config_with_collection, client_mock, xml_doc, runner, monkeypatch
+):
+    """Editor writes bad XML, then saves without changes on retry — should abort."""
+    client_mock.get_document.return_value = xml_doc
+    monkeypatch.setenv("VISUAL", "vi")
+
+    call_count = 0
+
+    def _editor(args, **kwargs):
+        nonlocal call_count
+        if call_count == 0:
+            Path(args[-1]).write_bytes(b"<broken")
+        # second call: leave the file unchanged (simulate user quitting)
+        call_count += 1
+        return subprocess.CompletedProcess(args, 0)
+
+    with patch("exist_shell.commands.edit.subprocess.run", side_effect=_editor):
+        result = runner.invoke(app, ["edit", "myapp:/doc.xml"], input="\n")
+
+    assert result.exit_code == 1
+    assert "still has XML errors" in result.output
+    client_mock.put_document.assert_not_called()
+
+
+def test_edit_allow_malformed_uploads_despite_errors(
+    config_with_collection, client_mock, xml_doc, runner, monkeypatch
+):
+    client_mock.get_document.return_value = xml_doc
+    monkeypatch.setenv("VISUAL", "vi")
+    with patch("exist_shell.commands.edit.subprocess.run", side_effect=_editor_that_writes(b"<broken")):
+        result = runner.invoke(app, ["edit", "myapp:/doc.xml", "--allow-malformed"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once_with("/db/myapp/doc.xml", b"<broken", "application/xml")
+
+
+def test_edit_non_xml_mime_skips_validation(
+    config_with_collection, client_mock, runner, monkeypatch
+):
+    """Binary document — malformed-as-XML bytes should pass through unchecked."""
+    doc = DocumentResult(content=b"\x89PNG", mime_type="image/png")
+    client_mock.get_document.return_value = doc
+    monkeypatch.setenv("VISUAL", "vi")
+    with patch("exist_shell.commands.edit.subprocess.run", side_effect=_editor_that_writes(b"\x89PNG\x00")):
+        result = runner.invoke(app, ["edit", "myapp:/image.png"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()

@@ -1,6 +1,7 @@
 """Shared utilities for exist-shell commands."""
 
 import mimetypes
+import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from collections.abc import Generator
 from pathlib import Path
@@ -35,6 +36,29 @@ def guess_mime(path: Path, default: str = "application/octet-stream") -> str:
     """
     guessed, _ = mimetypes.guess_type(str(path))
     return guessed or default
+
+
+def check_xml_wellformed(content: bytes, mime: str) -> str | None:
+    """Return an error message if content is malformed XML, or None if valid or not XML.
+
+    Only inspects content when the MIME type is an XML type (``application/xml``,
+    ``text/xml``, or any type ending in ``+xml``).
+
+    Args:
+        content: Raw bytes to check.
+        mime: MIME type of the content.
+
+    Returns:
+        None if the content passes the check or is not an XML MIME type; an
+        error message string if the XML is malformed.
+    """
+    if mime != "application/xml" and mime != "text/xml" and not mime.endswith("+xml"):
+        return None
+    try:
+        ET.fromstring(content)
+    except ET.ParseError as e:
+        return str(e)
+    return None
 
 
 def validate_path(path: str) -> None:

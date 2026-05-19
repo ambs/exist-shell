@@ -3,7 +3,7 @@
 Synchronise a local directory tree with a remote eXist collection, transferring only files that have actually changed.
 
 ```
-exsh sync <source> <dest> [--force] [--dry-run] [--delete] [--verbose] [--checkpoint-every N]
+exsh sync <source> <dest> [--force] [--allow-malformed] [--fail-fast] [--dry-run] [--delete] [--verbose] [--checkpoint-every N]
 ```
 
 ## Direction
@@ -33,6 +33,31 @@ Both source and destination cannot be remote. For remote-to-remote copies, use [
 - Files with a newer timestamp are downloaded; unchanged files are skipped.
 - If the file no longer exists locally, it is always re-downloaded.
 
+## XML well-formedness (push only)
+
+When pushing, `exsh` checks that each XML file (any file whose MIME type is `application/xml`, `text/xml`, or ends in `+xml`) is well-formed before uploading it. Files that fail the check are **skipped** and reported with a `✗` prefix:
+
+```
+✗ reports/broken.xml  (not well-formed XML, skipping — use --allow-malformed to upload anyway)
+```
+
+The summary line counts skipped-invalid files separately:
+
+```
+---
+2 uploaded, 1 invalid xml
+```
+
+Non-XML files (images, binaries, JSON, etc.) are uploaded without any check.
+
+### `--allow-malformed`
+
+Skip XML well-formedness validation entirely and upload all files unconditionally (subject to normal conflict detection).
+
+### `--fail-fast`
+
+Stop at the **first** file that is either a conflict or fails XML validation, instead of skipping it and continuing. The manifest is saved at that point, so the next run can resume from where it stopped rather than re-transferring already-uploaded files.
+
 ## Conflicts
 
 A *conflict* occurs when **both** sides have changed since the last sync:
@@ -53,6 +78,8 @@ Use `--force` to override conflict detection and transfer the source uncondition
 | Flag | Description |
 |------|-------------|
 | `--force / -f` | Transfer every file, ignoring the manifest |
+| `--allow-malformed` | Skip XML well-formedness check; upload all XML files regardless (push only) |
+| `--fail-fast` | Stop on the first conflict or XML validation failure; manifest is saved (push only) |
 | `--dry-run / -n` | Print what would happen without moving any data |
 | `--delete` | Remove files and empty folders on the destination that no longer exist on the source |
 | `--verbose / -v` | Also print unchanged (skipped) files |
@@ -70,6 +97,7 @@ Each file is printed with a status prefix:
 | `↓ file (modified)` | Downloaded, overwrote existing local file |
 | `= file (unchanged)` | Skipped — no changes detected (only shown with `--verbose`) |
 | `! file (conflict…)` | Skipped — modified on both sides |
+| `! file (not well-formed XML…)` | Skipped — XML validation failed (push only) |
 | `✗ file (deleted)` | Removed from destination (only with `--delete`) |
 | `+ dir/ (new collection)` | Remote collection created during push |
 | `+ dir/ (new directory)` | Local directory created during pull |

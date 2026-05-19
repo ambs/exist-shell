@@ -15,6 +15,7 @@ from exist_shell.completions import collection_target_completer
 from exist_shell.config import Config
 from exist_shell.models import CollectionEntry, ResourceEntry
 from exist_shell.utils import (
+    check_xml_wellformed,
     guess_mime,
     handle_exist_errors,
     is_remote,
@@ -58,6 +59,7 @@ class SyncAction(Enum):
     CONFLICT = "conflict"
     DELETED = "deleted"
     CREATED = "created"
+    INVALID = "invalid"
 
 
 class RemoteResource(NamedTuple):
@@ -253,6 +255,7 @@ def _push_file(
     remote_mtime: str,
     manifest: Manifest,
     force: bool,
+    allow_malformed: bool,
     dry_run: bool,
 ) -> SyncAction:
     """Decide and execute the push action for a single file.
@@ -272,18 +275,20 @@ def _push_file(
         remote_mtime: Current ``last_modified`` from the remote listing.
         manifest: Sync manifest (mutated in place on upload).
         force: If True, upload regardless of manifest state.
+        allow_malformed: If True, skip XML well-formedness validation.
         dry_run: If True, do not perform the upload.
 
     Returns:
         The SyncAction taken.
     """
+    mime = guess_mime(local_file, "application/xml")
 
     def _upload(local_hash: str, stat: os.stat_result) -> None:
         if not dry_run:
             client.put_document(
                 f"{full_path}/{rel_path}",
                 local_file.read_bytes(),
-                guess_mime(local_file, "application/xml"),
+                mime,
             )
             manifest.set(rel_path, ManifestEntry(
                 local_sha256=local_hash,
@@ -292,9 +297,14 @@ def _push_file(
                 local_size=stat.st_size,
             ))
 
+    def _xml_valid() -> bool:
+        return allow_malformed or not check_xml_wellformed(local_file.read_bytes(), mime)
+
     entry = manifest.get(rel_path)
 
     if force or rel_path not in manifest:
+        if not _xml_valid():
+            return SyncAction.INVALID
         stat = local_file.stat()
         _upload(_sha256(local_file), stat)
         return SyncAction.UPLOADED
@@ -316,6 +326,8 @@ def _push_file(
         return SyncAction.CONFLICT
 
     if local_changed:
+        if not _xml_valid():
+            return SyncAction.INVALID
         _upload(local_hash, stat)
         return SyncAction.UPLOADED
 
@@ -559,22 +571,24 @@ def _print_summary(counts: dict[SyncAction, int]) -> None:
         counts: Map of SyncAction to the number of files that took that action.
     """
     parts = []
+    no_plural = {"conflict", "invalid xml"}
     for action, label in [
         (SyncAction.UPLOADED, "uploaded"),
         (SyncAction.DOWNLOADED, "downloaded"),
         (SyncAction.SKIPPED, "skipped"),
         (SyncAction.CONFLICT, "conflict"),
         (SyncAction.DELETED, "deleted"),
+        (SyncAction.INVALID, "invalid xml"),
     ]:
         n = counts.get(action, 0)
         if n:
-            parts.append(f"{n} {label}{'s' if n != 1 and label != 'conflict' else ''}")
+            parts.append(f"{n} {label}{'s' if n != 1 and label not in no_plural else ''}")
     typer.echo("---")
     typer.echo(", ".join(parts) if parts else "nothing to do")
 
 
 def _push(
-    source: Path, nick: str, path: str, force: bool, dry_run: bool, delete: bool, checkpoint_every: int, verbose: bool
+    source: Path, nick: str, path: str, force: bool, allow_malformed: bool, fail_fast: bool, dry_run: bool, delete: bool, checkpoint_every: int, verbose: bool
 ) -> None:
     """Push a local directory tree to a remote collection.
 
@@ -583,6 +597,8 @@ def _push(
         nick: Collection nickname.
         path: Remote path within the collection.
         force: If True, upload all files regardless of manifest state.
+        allow_malformed: If True, skip XML well-formedness validation.
+        fail_fast: If True, stop on the first conflict or XML validation failure (manifest is saved).
         dry_run: If True, print actions without performing them.
         delete: If True, remove remote files absent from the local tree.
         checkpoint_every: Save the manifest after every N mutations (uploads/deletes).
@@ -605,15 +621,17 @@ def _push(
             _ensure_remote_dirs(client, full_path, local_dirs, tree.subcollections, dry_run)
 
             total = len(local_files)
+            fail_fast_triggered = False
             for i, local_file in enumerate(local_files, 1):
                 rel_path = local_file.relative_to(source).as_posix()
                 remote_mtime = remote_index[rel_path].last_modified or "" if rel_path in remote_index else ""
-                action = _push_file(client, full_path, local_file, rel_path, remote_mtime, manifest, force, dry_run)
+                action = _push_file(client, full_path, local_file, rel_path, remote_mtime, manifest, force, allow_malformed, dry_run)
                 pct = int(i / total * 100) if total else 100
                 prefix = f"[{pct:3d}%] "
                 labels = {
                     SyncAction.UPLOADED: f"{prefix}↑ {rel_path}  ({'new' if rel_path not in remote_index else 'modified'})",
                     SyncAction.CONFLICT: f"{prefix}! {rel_path}  (conflict: modified on both sides, skipping)",
+                    SyncAction.INVALID: f"{prefix}! {rel_path}  (not well-formed XML, skipping — use --allow-malformed to upload anyway)",
                 }
                 if verbose:
                     labels[SyncAction.SKIPPED] = f"{prefix}= {rel_path}  (unchanged)"
@@ -622,8 +640,11 @@ def _push(
                     typer.echo(label)
                 counts[action] = counts.get(action, 0) + 1
                 manifest.maybe_save(nick, path)
+                if action in {SyncAction.INVALID, SyncAction.CONFLICT} and fail_fast:
+                    fail_fast_triggered = True
+                    break
 
-            if delete:
+            if not fail_fast_triggered and delete:
                 counts[SyncAction.DELETED] = _delete_remote_extras(
                     client, full_path, local_file_rels, tree.resources, manifest, dry_run
                 )
@@ -645,6 +666,9 @@ def _push(
         invalidate(nick)
 
     _print_summary(counts)
+
+    if fail_fast_triggered:
+        raise typer.Exit(1)
 
 
 def _pull(
@@ -715,6 +739,8 @@ def sync(
         autocompletion=collection_target_completer("collection", allow_local=True),
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Transfer all files, bypassing conflict detection."),
+    allow_malformed: bool = typer.Option(False, "--allow-malformed", help="Upload XML files even if they are not well-formed."),
+    fail_fast: bool = typer.Option(False, "--fail-fast", help="Stop on the first conflict or XML validation failure (manifest is saved so the run can resume)."),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would be transferred without doing it."),
     delete: bool = typer.Option(False, "--delete", help="Remove destination files absent from the source."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show unchanged (skipped) files in addition to transfers."),
@@ -739,7 +765,7 @@ def sync(
             typer.echo(f"Error: '{source}' is not a directory.", err=True)
             raise typer.Exit(1)
         nick, path = parse_target(dest, path_required=False)
-        _push(source_path, nick, path, force, dry_run, delete, checkpoint_every, verbose)
+        _push(source_path, nick, path, force, allow_malformed, fail_fast, dry_run, delete, checkpoint_every, verbose)
     else:
         nick, path = parse_target(source, path_required=False)
         _pull(nick, path, Path(dest), force, dry_run, delete, checkpoint_every, verbose)
