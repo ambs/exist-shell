@@ -395,13 +395,17 @@ class ExistClient:
         safe = xq_escape(username)
         query = (
             'xquery version "3.1"; '
-            'declare namespace sec = "http://exist-db.org/security/manager"; '
-            f'let $d := sm:get-account-details("{safe}") '
-            'return <user '
-            'name="{$d/sec:username}" '
-            'fullname="{$d/sec:fullName}" '
-            'enabled="{$d/sec:enabled}" '
-            'groups="{string-join($d/sec:groups/sec:group, \',\')}" />'
+            f'if (not(sm:user-exists("{safe}"))) '
+            f'then error((), "User not found: {safe}") '
+            f'else '
+            f'let $groups := sm:get-user-groups("{safe}") '
+            f'let $enabled := sm:is-account-enabled("{safe}") '
+            f'let $fullname := (sm:get-account-metadata("{safe}", xs:anyURI("http://axschema.org/namePerson")), "")[1] '
+            f'return <user '
+            f'name="{safe}" '
+            f'fullname="{{$fullname}}" '
+            f'enabled="{{$enabled}}" '
+            f'groups="{{string-join($groups, \',\')}}" />'
         )
         raw = self.execute_query(query)
         el = ET.fromstring(raw)

@@ -89,7 +89,7 @@ section_T13_mv() {
         "${EXSH[@]}" ls testcol
 
     # T13.14 — original collection name is gone
-    assert_output_absent "mv_col" \
+    assert_output_absent "mv_col/" \
         "T13.14 mv_col no longer in ls after rename" \
         "${EXSH[@]}" ls testcol
 
@@ -141,7 +141,7 @@ section_T13_mv() {
         "${EXSH[@]}" mv testcol:/mv_tree testcol:/mv_tree_moved
 
     # Source is gone
-    assert_output_absent "mv_tree" \
+    assert_output_absent "mv_tree/" \
         "T13.19 mv_tree no longer in testcol root after move" \
         "${EXSH[@]}" ls testcol
 
