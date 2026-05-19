@@ -38,6 +38,7 @@ jobs:
       - run: uv sync
       - name: Run e2e tests (${{ matrix.flag }})
         id: run
+        continue-on-error: true
         run: bash scripts/e2e.sh ${{ matrix.flag }} 2>&1 | tee e2e.log
       - name: Save result artifact
         if: always()
@@ -46,7 +47,12 @@ jobs:
           slug="${flag#--}"
           image=$(grep "^Using image:" e2e.log | awk '{print $3}' || echo "$flag")
           summary=$(grep -E "[0-9]+ passed, [0-9]+ failed" e2e.log | tail -1 | xargs || echo "no summary")
-          printf '%s\n%s\n%s\n' "${{ steps.run.outcome }}" "${image}" "${summary}" \
+          if grep -qF "FAILURES DETECTED" e2e.log 2>/dev/null; then
+            outcome="failure"
+          else
+            outcome="success"
+          fi
+          printf '%s\n%s\n%s\n' "${outcome}" "${image}" "${summary}" \
             > "result-${slug}.txt"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -85,3 +91,13 @@ jobs:
         with:
           header: e2e
           path: comment.md
+      - name: Fail if any image had test failures
+        run: |
+          for f in result-*.txt; do
+            [[ -f "$f" ]] || continue
+            read -r status _ < "$f"
+            if [[ "$status" != "success" ]]; then
+              echo "::error::E2E failures detected — see the comment above for details."
+              exit 1
+            fi
+          done
