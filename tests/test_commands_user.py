@@ -98,32 +98,32 @@ def test_user_ls_connection_error(config_with_server, client_mock, runner):
 
 
 def test_user_add_success(config_with_server, client_mock, runner):
-    result = runner.invoke(app, ["user", "add", "alice", "--group", "editors", "--password", "s3cr3t"])
+    result = runner.invoke(app, ["user", "add", "alice", "--group", "editors", "--password", "test-pw"])
     assert result.exit_code == 0
     assert "alice" in result.output
-    client_mock.create_user.assert_called_once_with("alice", "s3cr3t", ["editors"])
+    client_mock.create_user.assert_called_once_with("alice", "test-pw", ["editors"])
 
 
 def test_user_add_multiple_groups(config_with_server, client_mock, runner):
-    result = runner.invoke(app, ["user", "add", "alice", "--group", "editors,users", "--password", "s3cr3t"])
+    result = runner.invoke(app, ["user", "add", "alice", "--group", "editors,users", "--password", "test-pw"])
     assert result.exit_code == 0
-    client_mock.create_user.assert_called_once_with("alice", "s3cr3t", ["editors", "users"])
+    client_mock.create_user.assert_called_once_with("alice", "test-pw", ["editors", "users"])
 
 
 def test_user_add_default_group_is_guest(config_with_server, client_mock, runner):
-    result = runner.invoke(app, ["user", "add", "alice", "--password", "s3cr3t"])
+    result = runner.invoke(app, ["user", "add", "alice", "--password", "test-pw"])
     assert result.exit_code == 0
-    client_mock.create_user.assert_called_once_with("alice", "s3cr3t", ["guest"])
+    client_mock.create_user.assert_called_once_with("alice", "test-pw", ["guest"])
 
 
 def test_user_add_prompts_for_password(config_with_server, client_mock, runner):
-    result = runner.invoke(app, ["user", "add", "alice", "--group", "editors"], input="s3cr3t\ns3cr3t\n")
+    result = runner.invoke(app, ["user", "add", "alice", "--group", "editors"], input="test-pw\ntest-pw\n")
     assert result.exit_code == 0
-    client_mock.create_user.assert_called_once_with("alice", "s3cr3t", ["editors"])
+    client_mock.create_user.assert_called_once_with("alice", "test-pw", ["editors"])
 
 
 def test_user_add_requires_server_when_multiple(config_with_two_servers, client_mock, runner):
-    result = runner.invoke(app, ["user", "add", "alice", "--password", "s3cr3t"])
+    result = runner.invoke(app, ["user", "add", "alice", "--password", "test-pw"])
     assert result.exit_code == 1
     assert "--server" in result.output
 
