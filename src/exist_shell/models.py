@@ -36,3 +36,19 @@ class DocumentResult(NamedTuple):
 
     content: bytes
     mime_type: str
+
+
+class UserEntry(BaseModel):
+    """A user entry with username and groups."""
+
+    username: str
+    groups: list[str]
+
+
+class UserInfo(BaseModel):
+    """Detailed user account information."""
+
+    username: str
+    full_name: str | None = None
+    groups: list[str] = []
+    enabled: bool = True

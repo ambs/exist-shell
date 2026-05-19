@@ -12,6 +12,21 @@ from exist_shell.config import Collection, Config, Server
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
 
 
+def xq_escape(value: str) -> str:
+    """Escape a string for safe embedding in an XQuery double-quoted string literal.
+
+    Doubles every ``"`` character so the value can be placed directly
+    between XQuery double-quote delimiters without ending the literal early.
+
+    Args:
+        value: The raw string to embed in an XQuery double-quoted string.
+
+    Returns:
+        The string with every double-quote character doubled.
+    """
+    return value.replace('"', '""')
+
+
 def is_remote(target: str) -> bool:
     """Return True if target uses the ``nick:path`` remote syntax.
 

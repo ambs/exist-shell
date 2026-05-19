@@ -339,3 +339,125 @@ exsh exec mydata:/ --validator basex -f query.xq
 # Check which validators are available locally
 exsh exec --list-validators
 ```
+
+---
+
+## user
+
+Manage user accounts on an eXist-db server.
+
+### user ls
+
+List all user accounts and their group memberships.
+
+```
+exsh user ls [--server NICK]
+```
+
+Output has one line per user with two tab-separated columns: username and comma-separated group list.
+
+#### Options
+
+| Flag | Description |
+|------|-------------|
+| `--server NICK` | Server to query. Auto-selected when only one server is configured. |
+
+#### Examples
+
+```bash
+# List all users on the only configured server
+exsh user ls
+
+# List users on a specific server
+exsh user ls --server localhost
+```
+
+---
+
+### user add
+
+Create a new user account on the server.
+
+```
+exsh user add <username> [--group GROUPS] [--password PASSWORD] [--server NICK]
+```
+
+Prompts for a password when `--password` is not supplied so the credential is never written to shell history. The first group in the comma-separated list becomes the primary group.
+
+#### Options
+
+| Flag | Description |
+|------|-------------|
+| `--group GROUPS` | Comma-separated group names. The first is the primary group. Defaults to `guest`. |
+| `--password PASSWORD` | Plaintext password. Prompted interactively when omitted. |
+| `--server NICK` | Server to target. Auto-selected when only one server is configured. |
+
+#### Examples
+
+```bash
+# Create a user, prompt for password
+exsh user add alice --group editors
+
+# Create a user with an explicit password and multiple groups
+exsh user add alice --group editors,users --password s3cr3t
+
+# Create a user on a specific server
+exsh user add alice --server prod --group editors
+```
+
+---
+
+### user rm
+
+Remove a user account from the server.
+
+```
+exsh user rm <username> [--yes] [--server NICK]
+```
+
+Prompts for confirmation unless `--yes` is supplied.
+
+#### Options
+
+| Flag | Description |
+|------|-------------|
+| `--yes / -y` | Skip the confirmation prompt. |
+| `--server NICK` | Server to target. Auto-selected when only one server is configured. |
+
+#### Examples
+
+```bash
+# Remove a user interactively
+exsh user rm alice
+
+# Remove without confirmation (e.g. in a script)
+exsh user rm alice --yes
+```
+
+---
+
+### user info
+
+Show detailed information about a user account.
+
+```
+exsh user info <username> [--server NICK]
+```
+
+Prints username, full name (when set), group memberships, and enabled status.
+
+#### Options
+
+| Flag | Description |
+|------|-------------|
+| `--server NICK` | Server to query. Auto-selected when only one server is configured. |
+
+#### Examples
+
+```bash
+# Inspect the admin account
+exsh user info admin
+
+# Inspect a user on a specific server
+exsh user info alice --server prod
+```

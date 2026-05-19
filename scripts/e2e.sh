@@ -89,6 +89,7 @@ source "${SCRIPT_DIR}/e2e/sections/T11_edit.sh"
 source "${SCRIPT_DIR}/e2e/sections/T12_sync.sh"
 source "${SCRIPT_DIR}/e2e/sections/T13_mv.sh"
 source "${SCRIPT_DIR}/e2e/sections/T14_exec.sh"
+source "${SCRIPT_DIR}/e2e/sections/T15_user.sh"
 
 # ---------------------------------------------------------------------------
 # Main
@@ -112,6 +113,7 @@ main() {
     section_T12_sync
     section_T13_mv
     section_T14_exec
+    section_T15_user
 }
 
 main
