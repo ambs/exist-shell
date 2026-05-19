@@ -550,3 +550,95 @@ def test_push_skips_touched_file(config_with_collection, client_mock, manifest_d
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 0
     client_mock.put_document.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Push — XML well-formedness
+# ---------------------------------------------------------------------------
+
+def test_push_skips_malformed_xml(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    (local_dir / "bad.xml").write_bytes(b"<unclosed>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_not_called()
+    assert "! bad.xml  (not well-formed XML" in result.output
+    assert "1 invalid xml" in result.output
+
+
+def test_push_allow_malformed_uploads_invalid_xml(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    (local_dir / "bad.xml").write_bytes(b"<unclosed>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", "--allow-malformed", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()
+
+
+def test_push_non_xml_file_skips_validation(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    (local_dir / "image.png").write_bytes(b"\x89PNG\r\n")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()
+
+
+def test_push_fail_fast_stops_on_first_invalid(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    (local_dir / "a.xml").write_bytes(b"<unclosed>")
+    (local_dir / "b.xml").write_bytes(b"<valid/>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", "--fail-fast", str(local_dir), "myapp:/"])
+    assert result.exit_code == 1
+    # Only the first file was processed; the second was never reached
+    assert client_mock.put_document.call_count == 0
+
+
+def test_push_fail_fast_saves_manifest_on_stop(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Files uploaded before the failure should be recorded in the manifest."""
+    (local_dir / "a.xml").write_bytes(b"<valid/>")
+    (local_dir / "b.xml").write_bytes(b"<unclosed>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", "--fail-fast", str(local_dir), "myapp:/"])
+    assert result.exit_code == 1
+    # The valid file was uploaded before the failure
+    client_mock.put_document.assert_called_once()
+    # Manifest directory should exist and contain a saved manifest
+    assert any(manifest_dir.rglob("*.json"))
+
+
+def test_push_fail_fast_exits_zero_when_no_invalid(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    (local_dir / "doc.xml").write_bytes(b"<root/>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", "--fail-fast", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+
+
+def test_push_fail_fast_stops_on_conflict(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """--fail-fast should also abort on conflicts, not just XML errors."""
+    import hashlib
+    import json
+
+    content = b"<local/>"
+    local_file = local_dir / "doc.xml"
+    local_file.write_bytes(content)
+
+    # Manifest records a different hash (simulating prior sync of different content)
+    manifest_dir.mkdir(parents=True)
+    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
+    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path.write_text(json.dumps({
+        "doc.xml": {"local_sha256": _sha256(b"<original/>"), "remote_last_modified": "2025-01-01T00:00:00.000"}
+    }))
+
+    # Remote also changed (different mtime) → conflict
+    client_mock.list_collection.return_value = [_resource("doc.xml", "2025-06-01T00:00:00.000")]
+
+    result = runner.invoke(app, ["sync", "--fail-fast", str(local_dir), "myapp:/"])
+    assert result.exit_code == 1
+    assert "conflict" in result.output
+    client_mock.put_document.assert_not_called()

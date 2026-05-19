@@ -44,4 +44,31 @@ section_T11_edit() {
     # T11.8 — $VISUAL takes precedence over $EDITOR: fake_editor.sh is used, not EDITOR=false
     assert_exit0 "T11.8 \$VISUAL wins over \$EDITOR (fake_editor used, not EDITOR=false)" \
         env VISUAL="${TMPDIR_E2E}/fake_editor.sh" EDITOR=false "${EXSH[@]}" edit testcol:/hello.xml
+
+    # T11.9 — editor that produces malformed XML: exsh warns and re-opens; second save is valid
+    # First call: writes malformed XML. Second call (after user presses Enter): writes valid XML.
+    local _call_count_file="${TMPDIR_E2E}/t11_calls"
+    printf '0' > "${_call_count_file}"
+    printf '#!/usr/bin/env bash\n' \
+        'n=$(cat "%s")\n' \
+        'if [[ $n -eq 0 ]]; then printf "<broken>" > "$1"; else printf "<repaired/>\\n" > "$1"; fi\n' \
+        'printf "%s" $((n+1)) > "%s"\n' \
+        "${_call_count_file}" "${_call_count_file}" \
+        > "${TMPDIR_E2E}/edit_malformed.sh"
+    chmod +x "${TMPDIR_E2E}/edit_malformed.sh"
+
+    local _edit_output
+    _edit_output="$(printf '\n' | env EDITOR="${TMPDIR_E2E}/edit_malformed.sh" "${EXSH[@]}" edit testcol:/hello.xml 2>&1)"
+    local _edit_code=$?
+    if [[ ${_edit_code} -eq 0 ]] && printf '%s' "${_edit_output}" | grep -q "not well-formed XML"; then
+        ok "T11.9 edit warns on malformed XML and re-opens editor"
+    else
+        fail "T11.9 edit warns on malformed XML and re-opens editor (exit=${_edit_code}, output=${_edit_output})"
+    fi
+
+    # T11.10 — --allow-malformed uploads without validation
+    printf '#!/usr/bin/env bash\nprintf "<broken>" > "$1"\n' > "${TMPDIR_E2E}/always_broken.sh"
+    chmod +x "${TMPDIR_E2E}/always_broken.sh"
+    assert_exit0 "T11.10 edit --allow-malformed uploads malformed XML" \
+        env EDITOR="${TMPDIR_E2E}/always_broken.sh" "${EXSH[@]}" edit testcol:/hello.xml --allow-malformed
 }

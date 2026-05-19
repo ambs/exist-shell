@@ -8,7 +8,7 @@ import typer
 from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
-from exist_shell.utils import guess_mime, handle_exist_errors, parse_target, resolve_collection
+from exist_shell.utils import check_xml_wellformed, guess_mime, handle_exist_errors, parse_target, resolve_collection
 
 
 def _resolve_mime(file: Path | None, mime: str | None) -> str:
@@ -35,6 +35,7 @@ def put(
     ),
     file: Path | None = typer.Option(None, "-f", "--file", help="Local file to upload (default: stdin)."),
     mime: str | None = typer.Option(None, "--mime", help="MIME type (default: application/xml, or guessed from file extension)."),
+    allow_malformed: bool = typer.Option(False, "--allow-malformed", help="Upload even if the document is not well-formed XML."),
 ) -> None:
     """Upload a document to a collection path from a file or stdin."""
     nick, path = parse_target(target)
@@ -49,6 +50,12 @@ def put(
             raise typer.Exit(1)
     else:
         content = sys.stdin.buffer.read()
+
+    if not allow_malformed:
+        if xml_error := check_xml_wellformed(content, resolved_mime):
+            source = str(file) if file is not None else "stdin"
+            typer.echo(f"Error: '{source}' is not well-formed XML: {xml_error}", err=True)
+            raise typer.Exit(1)
 
     # PUT silently overwrites existing documents. A --no-clobber flag could
     # check existence first (HEAD request) and abort if the resource is found.

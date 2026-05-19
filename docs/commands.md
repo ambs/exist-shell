@@ -82,10 +82,12 @@ exsh cat --raw mydata:images/logo.png > logo.png
 Upload a local file (or stdin) to a collection path.
 
 ```
-exsh put <nick>:<path> [-f FILE] [--mime MIME]
+exsh put <nick>:<path> [-f FILE] [--mime MIME] [--allow-malformed]
 ```
 
 If the target document already exists it is silently overwritten. The MIME type is guessed from the file extension when not specified; it falls back to `application/xml`.
+
+Before uploading, `exsh` checks that the content is well-formed XML whenever the resolved MIME type is an XML type (`application/xml`, `text/xml`, or any type ending in `+xml`). If the check fails, the upload is refused and the parse error is printed. Non-XML MIME types (e.g. `image/png`, `application/json`) are uploaded without any validation.
 
 ### Options
 
@@ -93,6 +95,7 @@ If the target document already exists it is silently overwritten. The MIME type 
 |------|-------------|
 | `-f / --file FILE` | Local file to upload. When omitted, stdin is read. |
 | `--mime MIME` | Explicit MIME type. Overrides guessed value. |
+| `--allow-malformed` | Skip XML well-formedness check and upload regardless. |
 
 ### Examples
 
@@ -108,6 +111,9 @@ exsh put mydata:data/config.json -f config.json --mime application/json
 
 # Upload binary
 exsh put mydata:images/logo.png -f logo.png --mime image/png
+
+# Upload a work-in-progress XML file that is not yet well-formed
+exsh put mydata:drafts/wip.xml -f wip.xml --allow-malformed
 ```
 
 ---
@@ -153,12 +159,20 @@ exsh cp mydata:reports/2025/summary.xml archive:reports/2025/summary.xml
 Download a document, open it in your editor, and automatically re-upload if the content changed.
 
 ```
-exsh edit <nick>:<path>
+exsh edit <nick>:<path> [--allow-malformed]
 ```
 
 The editor is resolved from the `$VISUAL` environment variable, then `$EDITOR`, falling back to `vi`. If you use VS Code, set `EDITOR="code --wait"`.
 
 If the file is not modified, `exsh` prints `No changes.` and exits without uploading.
+
+For XML documents, the content is checked for well-formedness before uploading. If the check fails, `exsh` prints the parse error, prompts you to press Enter, and re-opens the editor so you can fix the problem in place. Quitting the editor without making further changes aborts the upload.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--allow-malformed` | Skip XML well-formedness check and upload regardless. |
 
 ### Examples
 
@@ -168,6 +182,9 @@ exsh edit mydata:reports/2025/summary.xml
 
 # Temporarily override the editor
 EDITOR=nano exsh edit mydata:config.xml
+
+# Upload even if the resulting XML is not well-formed
+exsh edit mydata:drafts/wip.xml --allow-malformed
 ```
 
 ---
@@ -225,7 +242,7 @@ Synchronise a local directory tree and a remote collection, transferring only ch
 See the dedicated [sync page](sync.md) for full details.
 
 ```
-exsh sync <source> <dest> [--force] [--dry-run] [--delete] [--verbose]
+exsh sync <source> <dest> [--force] [--allow-malformed] [--fail-fast] [--dry-run] [--delete] [--verbose]
 ```
 
 Direction is inferred from argument order: local-first means push, remote-first means pull.
@@ -235,6 +252,8 @@ Direction is inferred from argument order: local-first means push, remote-first 
 | Flag | Description |
 |------|-------------|
 | `--force / -f` | Transfer all files, bypassing conflict detection |
+| `--allow-malformed` | Upload XML files even if they are not well-formed (push only) |
+| `--fail-fast` | Stop on the first conflict or XML validation failure; manifest is saved so the run can resume (push only) |
 | `--dry-run / -n` | Show what would happen without transferring anything |
 | `--delete` | Remove files on the destination that no longer exist on the source |
 | `--verbose / -v` | Also print unchanged (skipped) files |
@@ -253,6 +272,9 @@ exsh sync --dry-run ./reports mydata:reports
 
 # Push and delete server-side extras
 exsh sync --delete ./reports mydata:reports
+
+# Push but stop immediately if any XML file is malformed
+exsh sync --fail-fast ./reports mydata:reports
 ```
 
 ---

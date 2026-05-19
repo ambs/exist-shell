@@ -57,4 +57,18 @@ section_T05_put() {
     # T05.10 — eXist auto-creates intermediate collections; verified in T06
     assert_exit0 "T05.10 put to nested path auto-creates parent collections" \
         "${EXSH[@]}" put testcol:/missing/sub/doc.xml -f "${TMPDIR_E2E}/hello.xml"
+
+    # T05.11 — malformed XML is rejected
+    printf '<unclosed>' > "${TMPDIR_E2E}/bad.xml"
+    assert_output "not well-formed XML" \
+        "T05.11 put rejects malformed XML" \
+        "${EXSH[@]}" put testcol:/bad.xml -f "${TMPDIR_E2E}/bad.xml"
+
+    # T05.12 — --allow-malformed bypasses the check
+    assert_exit0 "T05.12 put --allow-malformed uploads malformed XML" \
+        "${EXSH[@]}" put testcol:/bad.xml -f "${TMPDIR_E2E}/bad.xml" --allow-malformed
+
+    # T05.13 — binary file is uploaded without XML validation
+    assert_exit0 "T05.13 put binary skips XML validation" \
+        "${EXSH[@]}" put testcol:/data.bin -f "${TMPDIR_E2E}/data.bin" --mime application/octet-stream
 }

@@ -114,3 +114,38 @@ def test_put_rejects_path_traversal(config_with_collection, client_mock, runner)
     result = runner.invoke(app, ["put", "myapp:/../other/doc.xml"])
     assert result.exit_code == 1
     assert "traversal" in result.output
+
+
+# --- XML well-formedness ---
+
+def test_put_rejects_malformed_xml(config_with_collection, client_mock, tmp_path, runner):
+    f = tmp_path / "bad.xml"
+    f.write_bytes(b"<unclosed>")
+    result = runner.invoke(app, ["put", "myapp:/bad.xml", "-f", str(f)])
+    assert result.exit_code == 1
+    assert "not well-formed XML" in result.output
+    client_mock.put_document.assert_not_called()
+
+
+def test_put_allow_malformed_uploads_despite_errors(config_with_collection, client_mock, tmp_path, runner):
+    f = tmp_path / "bad.xml"
+    f.write_bytes(b"<unclosed>")
+    result = runner.invoke(app, ["put", "myapp:/bad.xml", "-f", str(f), "--allow-malformed"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()
+
+
+def test_put_non_xml_mime_skips_validation(config_with_collection, client_mock, tmp_path, runner):
+    f = tmp_path / "data.bin"
+    f.write_bytes(b"\x00\x01\x02not xml")
+    result = runner.invoke(app, ["put", "myapp:/data.bin", "-f", str(f), "--mime", "application/octet-stream"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()
+
+
+def test_put_rejects_malformed_xml_from_stdin(config_with_collection, client_mock, runner):
+    result = runner.invoke(app, ["put", "myapp:/bad.xml"], input="<unclosed>")
+    assert result.exit_code == 1
+    assert "stdin" in result.output
+    assert "not well-formed XML" in result.output
+    client_mock.put_document.assert_not_called()

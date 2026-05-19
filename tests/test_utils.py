@@ -3,7 +3,45 @@
 import pytest
 from typer.testing import CliRunner
 
-from exist_shell.utils import parse_target, validate_path
+from exist_shell.utils import check_xml_wellformed, parse_target, validate_path
+
+
+# --- check_xml_wellformed ---
+
+def test_valid_xml_returns_none():
+    assert check_xml_wellformed(b"<root/>", "application/xml") is None
+
+
+def test_valid_xml_with_declaration_returns_none():
+    assert check_xml_wellformed(b'<?xml version="1.0"?><root/>', "application/xml") is None
+
+
+def test_malformed_xml_returns_error_string():
+    result = check_xml_wellformed(b"<root>", "application/xml")
+    assert result is not None
+    assert isinstance(result, str)
+
+
+def test_malformed_xml_text_xml_mime():
+    result = check_xml_wellformed(b"<unclosed", "text/xml")
+    assert result is not None
+
+
+def test_malformed_xml_plus_xml_mime():
+    result = check_xml_wellformed(b"<broken", "application/atom+xml")
+    assert result is not None
+
+
+def test_non_xml_mime_skips_check():
+    assert check_xml_wellformed(b"not xml at all", "image/png") is None
+
+
+def test_text_plain_skips_check():
+    assert check_xml_wellformed(b"<root>", "text/plain") is None
+
+
+def test_application_octet_stream_skips_check():
+    assert check_xml_wellformed(b"\x00\x01\x02", "application/octet-stream") is None
 
 
 # --- validate_path ---
