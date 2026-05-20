@@ -31,8 +31,13 @@ All changes must go through a pull request — never commit directly to `main`.
 
 1. Create a feature branch: `git checkout -b feature/<short-description>`
 2. Make changes, commit with a signed commit (`git commit -S`)
-3. Push the branch and open a PR via `gh pr create`
-4. Do not merge without the PR being reviewed and all CI checks passing
+3. Before opening a PR, always fetch and rebase onto the latest `main`:
+   ```bash
+   git fetch origin main
+   git rebase origin/main
+   ```
+4. Push the branch and open a PR via `gh pr create`
+5. Do not merge without the PR being reviewed and all CI checks passing
 
 ### Pull request descriptions
 
@@ -86,7 +91,8 @@ def my_method(self, path: str) -> list[str]:
 ```
 src/exist_shell/
   main.py        # Typer app, global callback, subcommand registration
-  client.py      # ExistClient — thin httpx wrapper over the eXist REST API
+  client/        # ExistClient — layered mixin package over the eXist REST API
+                 #   _base.py, _queries.py, _collections.py, _documents.py, _users.py
   completions.py # shell completion (hits server at tab time)
   cache.py       # TTL cache for completions
   config.py      # server/collection config persistence
