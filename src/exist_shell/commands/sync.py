@@ -255,7 +255,6 @@ def _push_file(
     remote_mtime: str,
     manifest: Manifest,
     force: bool,
-    allow_malformed: bool,
     dry_run: bool,
 ) -> SyncAction:
     """Decide and execute the push action for a single file.
@@ -275,7 +274,6 @@ def _push_file(
         remote_mtime: Current ``last_modified`` from the remote listing.
         manifest: Sync manifest (mutated in place on upload).
         force: If True, upload regardless of manifest state.
-        allow_malformed: If True, skip XML well-formedness validation.
         dry_run: If True, do not perform the upload.
 
     Returns:
@@ -298,7 +296,7 @@ def _push_file(
             ))
 
     def _xml_valid() -> bool:
-        return allow_malformed or not check_xml_wellformed(local_file.read_bytes(), mime)
+        return not check_xml_wellformed(local_file.read_bytes(), mime)
 
     entry = manifest.get(rel_path)
 
@@ -588,7 +586,7 @@ def _print_summary(counts: dict[SyncAction, int]) -> None:
 
 
 def _push(
-    source: Path, nick: str, path: str, force: bool, allow_malformed: bool, fail_fast: bool, dry_run: bool, delete: bool, checkpoint_every: int, verbose: bool
+    source: Path, nick: str, path: str, force: bool, fail_fast: bool, dry_run: bool, delete: bool, checkpoint_every: int, verbose: bool
 ) -> None:
     """Push a local directory tree to a remote collection.
 
@@ -597,7 +595,6 @@ def _push(
         nick: Collection nickname.
         path: Remote path within the collection.
         force: If True, upload all files regardless of manifest state.
-        allow_malformed: If True, skip XML well-formedness validation.
         fail_fast: If True, stop on the first conflict or XML validation failure (manifest is saved).
         dry_run: If True, print actions without performing them.
         delete: If True, remove remote files absent from the local tree.
@@ -625,13 +622,13 @@ def _push(
             for i, local_file in enumerate(local_files, 1):
                 rel_path = local_file.relative_to(source).as_posix()
                 remote_mtime = remote_index[rel_path].last_modified or "" if rel_path in remote_index else ""
-                action = _push_file(client, full_path, local_file, rel_path, remote_mtime, manifest, force, allow_malformed, dry_run)
+                action = _push_file(client, full_path, local_file, rel_path, remote_mtime, manifest, force, dry_run)
                 pct = int(i / total * 100) if total else 100
                 prefix = f"[{pct:3d}%] "
                 labels = {
                     SyncAction.UPLOADED: f"{prefix}↑ {rel_path}  ({'new' if rel_path not in remote_index else 'modified'})",
                     SyncAction.CONFLICT: f"{prefix}! {rel_path}  (conflict: modified on both sides, skipping)",
-                    SyncAction.INVALID: f"{prefix}! {rel_path}  (not well-formed XML, skipping — use --allow-malformed to upload anyway)",
+                    SyncAction.INVALID: f"{prefix}! {rel_path}  (not well-formed XML, skipping)",
                 }
                 if verbose:
                     labels[SyncAction.SKIPPED] = f"{prefix}= {rel_path}  (unchanged)"
@@ -739,7 +736,6 @@ def sync(
         autocompletion=collection_target_completer("collection", allow_local=True),
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Transfer all files, bypassing conflict detection."),
-    allow_malformed: bool = typer.Option(False, "--allow-malformed", help="Upload XML files even if they are not well-formed."),
     fail_fast: bool = typer.Option(False, "--fail-fast", help="Stop on the first conflict or XML validation failure (manifest is saved so the run can resume)."),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would be transferred without doing it."),
     delete: bool = typer.Option(False, "--delete", help="Remove destination files absent from the source."),
@@ -765,7 +761,7 @@ def sync(
             typer.echo(f"Error: '{source}' is not a directory.", err=True)
             raise typer.Exit(1)
         nick, path = parse_target(dest, path_required=False)
-        _push(source_path, nick, path, force, allow_malformed, fail_fast, dry_run, delete, checkpoint_every, verbose)
+        _push(source_path, nick, path, force, fail_fast, dry_run, delete, checkpoint_every, verbose)
     else:
         nick, path = parse_target(source, path_required=False)
         _pull(nick, path, Path(dest), force, dry_run, delete, checkpoint_every, verbose)

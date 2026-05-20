@@ -69,8 +69,11 @@ bootstrap() {
 }
 
 teardown() {
+    local _fail=$FAIL
     print_summary
     docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
     rm -rf "${TMPDIR_E2E:-}"
-    [[ $FAIL -eq 0 ]] && exit 0 || exit 1
+    if [[ $_fail -gt 0 ]]; then
+        exit 1
+    fi
 }

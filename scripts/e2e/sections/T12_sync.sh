@@ -188,7 +188,7 @@ section_T12_sync() {
     # T12.29 — malformed XML file is skipped during push
     printf '<unclosed>' > "${TMPDIR_E2E}/syncdir/bad.xml"
     _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot
-    assert_in_last "! bad.xml  (not well-formed XML" "T12.29 push skips malformed XML with ! prefix"
+    assert_in_last "! bad.xml  (not well-formed XML, skipping)" "T12.29 push skips malformed XML with ! prefix"
     assert_in_last "1 invalid xml" "T12.29 summary counts invalid xml"
     # Confirm the file was not uploaded
     local _bad_status
@@ -199,18 +199,14 @@ section_T12_sync() {
         fail "T12.29 bad.xml not present on server after skipped push (got HTTP ${_bad_status})"
     fi
 
-    # T12.30 — --allow-malformed uploads the malformed file
-    _run "${EXSH[@]}" sync --allow-malformed "${TMPDIR_E2E}/syncdir" testcol:/syncroot
-    assert_in_last "↑ bad.xml" "T12.30 push --allow-malformed uploads bad.xml"
-
-    # T12.31 — --fail-fast stops on first problem and exits 1
+    # T12.30 — --fail-fast stops on first problem and exits 1
     printf '<another_broken>' > "${TMPDIR_E2E}/syncdir/c_bad.xml"
     local _ff_output _ff_code=0
     _ff_output="$("${EXSH[@]}" sync --fail-fast "${TMPDIR_E2E}/syncdir" testcol:/syncroot 2>&1)" || _ff_code=$?
     if [[ ${_ff_code} -ne 0 ]]; then
-        ok "T12.31 sync --fail-fast exits non-zero on invalid XML"
+        ok "T12.30 sync --fail-fast exits non-zero on invalid XML"
     else
-        fail "T12.31 sync --fail-fast exits non-zero on invalid XML (expected exit 1, got 0)"
+        fail "T12.30 sync --fail-fast exits non-zero on invalid XML (expected exit 1, got 0)"
     fi
     # Clean up test files
     rm -f "${TMPDIR_E2E}/syncdir/bad.xml" "${TMPDIR_E2E}/syncdir/c_bad.xml"

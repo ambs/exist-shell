@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from exist_shell import __version__
-from exist_shell.commands import collection, server
+from exist_shell.commands import collection, server, user
 from exist_shell.config import app_state
 from exist_shell.commands.cat import cat
 from exist_shell.commands.exec import exec as exec_query
@@ -26,6 +26,7 @@ app = typer.Typer(
 
 app.add_typer(server.app, name="server", help="Manage servers.")
 app.add_typer(collection.app, name="collection", help="Manage collections.")
+app.add_typer(user.app, name="user", help="Manage users.")
 app.command("ls", help="List contents of a collection path.")(ls)
 app.command("cat", help="Print document content to stdout.")(cat)
 app.command("put", help="Upload a document to a collection path.")(put)

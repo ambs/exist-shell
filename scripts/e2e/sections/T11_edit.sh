@@ -49,12 +49,12 @@ section_T11_edit() {
     # First call: writes malformed XML. Second call (after user presses Enter): writes valid XML.
     local _call_count_file="${TMPDIR_E2E}/t11_calls"
     printf '0' > "${_call_count_file}"
-    printf '#!/usr/bin/env bash\n' \
-        'n=$(cat "%s")\n' \
-        'if [[ $n -eq 0 ]]; then printf "<broken>" > "$1"; else printf "<repaired/>\\n" > "$1"; fi\n' \
-        'printf "%s" $((n+1)) > "%s"\n' \
-        "${_call_count_file}" "${_call_count_file}" \
-        > "${TMPDIR_E2E}/edit_malformed.sh"
+    cat > "${TMPDIR_E2E}/edit_malformed.sh" << MALFORMED_EDITOR
+#!/usr/bin/env bash
+n=\$(cat "${_call_count_file}")
+if [[ \$n -eq 0 ]]; then printf '<broken>' > "\$1"; else printf '<hello>eXist</hello>\n' > "\$1"; fi
+printf '%s' \$((n+1)) > "${_call_count_file}"
+MALFORMED_EDITOR
     chmod +x "${TMPDIR_E2E}/edit_malformed.sh"
 
     local _edit_output
@@ -66,9 +66,4 @@ section_T11_edit() {
         fail "T11.9 edit warns on malformed XML and re-opens editor (exit=${_edit_code}, output=${_edit_output})"
     fi
 
-    # T11.10 — --allow-malformed uploads without validation
-    printf '#!/usr/bin/env bash\nprintf "<broken>" > "$1"\n' > "${TMPDIR_E2E}/always_broken.sh"
-    chmod +x "${TMPDIR_E2E}/always_broken.sh"
-    assert_exit0 "T11.10 edit --allow-malformed uploads malformed XML" \
-        env EDITOR="${TMPDIR_E2E}/always_broken.sh" "${EXSH[@]}" edit testcol:/hello.xml --allow-malformed
 }

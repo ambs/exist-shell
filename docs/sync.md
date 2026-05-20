@@ -3,7 +3,7 @@
 Synchronise a local directory tree with a remote eXist collection, transferring only files that have actually changed.
 
 ```
-exsh sync <source> <dest> [--force] [--allow-malformed] [--fail-fast] [--dry-run] [--delete] [--verbose] [--checkpoint-every N]
+exsh sync <source> <dest> [--force] [--fail-fast] [--dry-run] [--delete] [--verbose] [--checkpoint-every N]
 ```
 
 ## Direction
@@ -38,7 +38,7 @@ Both source and destination cannot be remote. For remote-to-remote copies, use [
 When pushing, `exsh` checks that each XML file (any file whose MIME type is `application/xml`, `text/xml`, or ends in `+xml`) is well-formed before uploading it. Files that fail the check are **skipped** and reported with a `✗` prefix:
 
 ```
-✗ reports/broken.xml  (not well-formed XML, skipping — use --allow-malformed to upload anyway)
+✗ reports/broken.xml  (not well-formed XML, skipping)
 ```
 
 The summary line counts skipped-invalid files separately:
@@ -49,10 +49,6 @@ The summary line counts skipped-invalid files separately:
 ```
 
 Non-XML files (images, binaries, JSON, etc.) are uploaded without any check.
-
-### `--allow-malformed`
-
-Skip XML well-formedness validation entirely and upload all files unconditionally (subject to normal conflict detection).
 
 ### `--fail-fast`
 
@@ -78,7 +74,6 @@ Use `--force` to override conflict detection and transfer the source uncondition
 | Flag | Description |
 |------|-------------|
 | `--force / -f` | Transfer every file, ignoring the manifest |
-| `--allow-malformed` | Skip XML well-formedness check; upload all XML files regardless (push only) |
 | `--fail-fast` | Stop on the first conflict or XML validation failure; manifest is saved (push only) |
 | `--dry-run / -n` | Print what would happen without moving any data |
 | `--delete` | Remove files and empty folders on the destination that no longer exist on the source |

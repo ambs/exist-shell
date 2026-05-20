@@ -52,17 +52,17 @@ def test_add_collection_duplicate_nick_raises(config_path, a_server):
 
 
 def test_password_not_exposed_in_repr():
-    server = Server(nick="s", host="h", password=SecretStr("topsecret"))
-    assert "topsecret" not in repr(server)
+    server = Server(nick="s", host="h", password=SecretStr("fake-value-123"))
+    assert "fake-value-123" not in repr(server)
 
 
 def test_password_round_trips_through_file(config_path):
-    server = Server(nick="s", host="localhost", password=SecretStr("mypass"))
+    server = Server(nick="s", host="localhost", password=SecretStr("test-pw"))
     config = Config.load()
     config.add_server(server)
 
     reloaded = Config.load()
-    assert reloaded.servers["s"].password.get_secret_value() == "mypass"
+    assert reloaded.servers["s"].password.get_secret_value() == "test-pw"
 
 
 @pytest.mark.parametrize("nick", ["foo", "my-db", "db_1", "A", "a1", "abc-def_123"])

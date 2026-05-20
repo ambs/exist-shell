@@ -127,13 +127,6 @@ def test_put_rejects_malformed_xml(config_with_collection, client_mock, tmp_path
     client_mock.put_document.assert_not_called()
 
 
-def test_put_allow_malformed_uploads_despite_errors(config_with_collection, client_mock, tmp_path, runner):
-    f = tmp_path / "bad.xml"
-    f.write_bytes(b"<unclosed>")
-    result = runner.invoke(app, ["put", "myapp:/bad.xml", "-f", str(f), "--allow-malformed"])
-    assert result.exit_code == 0
-    client_mock.put_document.assert_called_once()
-
 
 def test_put_non_xml_mime_skips_validation(config_with_collection, client_mock, tmp_path, runner):
     f = tmp_path / "data.bin"

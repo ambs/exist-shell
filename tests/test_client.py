@@ -423,3 +423,112 @@ def test_move_document_raises_connection_error_on_network_failure(httpx_mock, a_
     with ExistClient(a_server) as client:
         with pytest.raises(ExistConnectionError):
             client.move_document("/db/myapp/doc.xml", "/db/myapp/new.xml")
+
+
+# ---------------------------------------------------------------------------
+# list_users
+# ---------------------------------------------------------------------------
+
+_DB_POST_URL = "http://localhost:8080/exist/rest/db"
+
+
+def test_list_users_returns_user_entries(httpx_mock, a_server):
+    xml = '<users><user name="admin" groups="dba"/><user name="alice" groups="editors,users"/></users>'
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text=xml)
+    with ExistClient(a_server) as client:
+        users = client.list_users()
+    assert len(users) == 2
+    assert users[0].username == "admin"
+    assert users[0].groups == ["dba"]
+    assert users[1].username == "alice"
+    assert users[1].groups == ["editors", "users"]
+
+
+def test_list_users_returns_empty_list(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="<users/>")
+    with ExistClient(a_server) as client:
+        users = client.list_users()
+    assert users == []
+
+
+def test_list_users_handles_empty_groups(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text='<users><user name="guest" groups=""/></users>')
+    with ExistClient(a_server) as client:
+        users = client.list_users()
+    assert users[0].groups == []
+
+
+# ---------------------------------------------------------------------------
+# get_user
+# ---------------------------------------------------------------------------
+
+
+def test_get_user_returns_user_info(httpx_mock, a_server):
+    xml = '<user name="alice" fullname="Alice Smith" enabled="true" groups="editors,users"/>'
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text=xml)
+    with ExistClient(a_server) as client:
+        info = client.get_user("alice")
+    assert info.username == "alice"
+    assert info.full_name == "Alice Smith"
+    assert info.groups == ["editors", "users"]
+    assert info.enabled is True
+
+
+def test_get_user_handles_empty_full_name(httpx_mock, a_server):
+    xml = '<user name="bob" fullname="" enabled="false" groups="guest"/>'
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text=xml)
+    with ExistClient(a_server) as client:
+        info = client.get_user("bob")
+    assert info.full_name is None
+    assert info.enabled is False
+
+
+def test_get_user_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="User not found")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.get_user("nobody")
+
+
+# ---------------------------------------------------------------------------
+# create_user
+# ---------------------------------------------------------------------------
+
+
+def test_create_user_sends_query(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.create_user("alice", "s3cr3t", ["editors", "users"])
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:create-account" in body["_query"][0]
+    assert "alice" in body["_query"][0]
+
+
+def test_create_user_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="account exists")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.create_user("alice", "pw", ["guest"])
+
+
+# ---------------------------------------------------------------------------
+# delete_user
+# ---------------------------------------------------------------------------
+
+
+def test_delete_user_sends_query(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.delete_user("alice")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:remove-account" in body["_query"][0]
+    assert "alice" in body["_query"][0]
+
+
+def test_delete_user_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="account not found")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.delete_user("nobody")

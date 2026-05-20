@@ -567,14 +567,6 @@ def test_push_skips_malformed_xml(config_with_collection, client_mock, manifest_
     assert "1 invalid xml" in result.output
 
 
-def test_push_allow_malformed_uploads_invalid_xml(config_with_collection, client_mock, manifest_dir, local_dir, runner):
-    (local_dir / "bad.xml").write_bytes(b"<unclosed>")
-    client_mock.list_collection.return_value = []
-
-    result = runner.invoke(app, ["sync", "--allow-malformed", str(local_dir), "myapp:/"])
-    assert result.exit_code == 0
-    client_mock.put_document.assert_called_once()
-
 
 def test_push_non_xml_file_skips_validation(config_with_collection, client_mock, manifest_dir, local_dir, runner):
     (local_dir / "image.png").write_bytes(b"\x89PNG\r\n")

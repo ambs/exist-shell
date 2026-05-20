@@ -33,7 +33,6 @@ def edit(
         help="Collection and document path: <nick>:<path>.",
         autocompletion=collection_target_completer("resource"),
     ),
-    allow_malformed: bool = typer.Option(False, "--allow-malformed", help="Upload even if the edited document is not well-formed XML."),
 ) -> None:
     """Download a document, open it in $VISUAL/$EDITOR, and re-upload if changed."""
     nick, path = parse_target(target)
@@ -68,14 +67,13 @@ def edit(
                     raise typer.Exit(1)
                 return
 
-            if not allow_malformed:
-                if xml_error := check_xml_wellformed(new_content, result.mime_type):
-                    typer.echo(f"Warning: not well-formed XML: {xml_error}", err=True)
-                    typer.echo("Fix the error and save to continue, or quit without changes to abort.", err=True)
-                    typer.echo("Press Enter to re-open the editor...", err=True)
-                    sys.stdin.readline()
-                    last_seen = new_content
-                    continue
+            if xml_error := check_xml_wellformed(new_content, result.mime_type):
+                typer.echo(f"Warning: not well-formed XML: {xml_error}", err=True)
+                typer.echo("Fix the error and save to continue, or quit without changes to abort.", err=True)
+                typer.echo("Press Enter to re-open the editor...", err=True)
+                sys.stdin.readline()
+                last_seen = new_content
+                continue
 
             break
 
