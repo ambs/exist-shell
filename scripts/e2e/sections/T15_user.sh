@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# T15 — user ls / user add / user rm / user info
+# T15 — user ls / user add / user rm / user info / user passwd
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 section_T15_user() {
-    step "T15 — user ls / user add / user rm / user info"
+    step "T15 — user ls / user add / user rm / user info / user passwd"
 
     # T15.1 — user ls lists built-in accounts (admin and guest always exist)
     assert_output "admin" \
@@ -84,11 +84,40 @@ section_T15_user() {
         "T15.13 user rm with @server syntax" \
         "${EXSH[@]}" user rm e2eatuser@localhost --yes
 
-    # T15.14 — cleanup: remove e2euser
+    # T15.15 — user passwd --stdin changes password
+    local passwd_code=0
+    _LAST_OUTPUT="$(echo 'newpass456' | "${EXSH[@]}" user passwd e2euser --stdin --server localhost 2>&1)" || passwd_code=$?
+    if [[ $passwd_code -eq 0 ]]; then
+        ok "T15.15 user passwd --stdin succeeds"
+    else
+        fail "T15.15 user passwd --stdin (expected exit 0, got ${passwd_code})"
+    fi
+    assert_in_last "Password for 'e2euser' updated." \
+        "T15.15 user passwd --stdin reports success"
+
+    # T15.16 — user passwd interactive (pipe prompt + confirmation)
+    local passwd2_code=0
+    _LAST_OUTPUT="$(printf 'newpass789\nnewpass789\n' | "${EXSH[@]}" user passwd e2euser --server localhost 2>&1)" || passwd2_code=$?
+    if [[ $passwd2_code -eq 0 ]]; then
+        ok "T15.16 user passwd interactive succeeds"
+    else
+        fail "T15.16 user passwd interactive (expected exit 0, got ${passwd2_code})"
+    fi
+    assert_in_last "Password for 'e2euser' updated." \
+        "T15.16 user passwd interactive reports success"
+
+    # T15.17 — verify the new password actually works (server add does a real auth check)
+    assert_output "Server 'e2epwtest' added." \
+        "T15.17 new password works (server add auth check)" \
+        "${EXSH[@]}" server add localhost --user e2euser --password "newpass789" --nick e2epwtest
+    assert_exit0 "T15.17 cleanup: server rm e2epwtest" \
+        "${EXSH[@]}" server rm e2epwtest
+
+    # T15.18 — cleanup: remove e2euser
     assert_output "User 'e2euser' removed." \
-        "T15.14 user rm removes e2euser (cleanup)" \
+        "T15.18 user rm removes e2euser (cleanup)" \
         "${EXSH[@]}" user rm e2euser --yes --server localhost
     assert_output_absent "e2euser" \
-        "T15.14 user ls no longer shows e2euser" \
+        "T15.18 user ls no longer shows e2euser" \
         "${EXSH[@]}" user ls --server localhost
 }

@@ -420,3 +420,77 @@ def test_user_info_at_server_unknown_fails(config_with_server, client_mock, runn
     result = runner.invoke(app, ["user", "info", "alice@ghost"])
     assert result.exit_code == 1
     assert "not found" in result.output
+
+
+# ---------------------------------------------------------------------------
+# user passwd
+# ---------------------------------------------------------------------------
+
+
+def test_user_passwd_prompts_for_password(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "passwd", "alice"], input="newpw\nnewpw\n")
+    assert result.exit_code == 0
+    assert "alice" in result.output
+    client_mock.change_password.assert_called_once_with("alice", "newpw")
+
+
+def test_user_passwd_reads_from_stdin(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "passwd", "alice", "--stdin"], input="newpw\n")
+    assert result.exit_code == 0
+    assert "alice" in result.output
+    client_mock.change_password.assert_called_once_with("alice", "newpw")
+
+
+def test_user_passwd_no_servers_fails(config_path, runner):
+    result = runner.invoke(app, ["user", "passwd", "alice"], input="pw\npw\n")
+    assert result.exit_code == 1
+    assert "no servers configured" in result.output
+
+
+def test_user_passwd_unknown_server_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "passwd", "alice", "--server", "ghost"], input="pw\npw\n")
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_user_passwd_requires_server_when_multiple(config_with_two_servers, client_mock, runner):
+    result = runner.invoke(app, ["user", "passwd", "alice"], input="pw\npw\n")
+    assert result.exit_code == 1
+    assert "--server" in result.output
+
+
+def test_user_passwd_auth_error(config_with_server, client_mock, runner):
+    client_mock.change_password.side_effect = ExistAuthError("url")
+    result = runner.invoke(app, ["user", "passwd", "alice"], input="pw\npw\n")
+    assert result.exit_code == 1
+    assert "authentication failed" in result.output
+
+
+def test_user_passwd_connection_error(config_with_server, client_mock, runner):
+    client_mock.change_password.side_effect = ExistConnectionError("url", Exception("refused"))
+    result = runner.invoke(app, ["user", "passwd", "alice"], input="pw\npw\n")
+    assert result.exit_code == 1
+
+
+def test_user_passwd_query_error(config_with_server, client_mock, runner):
+    client_mock.change_password.side_effect = ExistQueryError("user not found")
+    result = runner.invoke(app, ["user", "passwd", "alice"], input="pw\npw\n")
+    assert result.exit_code == 1
+
+
+def test_user_passwd_at_server_selects_server(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "passwd", "alice@local"], input="pw\npw\n")
+    assert result.exit_code == 0
+    client_mock.change_password.assert_called_once_with("alice", "pw")
+
+
+def test_user_passwd_at_server_conflict_with_flag_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "passwd", "alice@local", "--server", "local"], input="pw\npw\n")
+    assert result.exit_code == 1
+    assert "conflicting" in result.output
+
+
+def test_user_passwd_empty_username_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "passwd", "@local"], input="pw\npw\n")
+    assert result.exit_code == 1
+    assert "username cannot be empty" in result.output

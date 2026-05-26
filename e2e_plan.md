@@ -27,7 +27,7 @@ After T12 it runs as a full regression suite. T13 wires it into GitHub Actions. 
 | T12 | [x]    | sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force, subdirectory tree, pull --dry-run, pull --delete, pull --force, errors, pull-conflict, --delete --dry-run) |
 | T14 | [x]    | exec (stdin, file, preprocessing, --no-fix, --list-validators, server error, error cases) |
 | T13 | [x]    | GitHub Actions workflow (.github/workflows/e2e.yml) |
-| T15 | [x]    | user ls / user add / user rm / user info |
+| T15 | [x]    | user ls / user add / user rm / user info / user passwd |
 
 Mark tasks `[x]` as they are completed.
 
