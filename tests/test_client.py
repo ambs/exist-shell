@@ -535,6 +535,28 @@ def test_delete_user_raises_query_error_on_500(httpx_mock, a_server):
 
 
 # ---------------------------------------------------------------------------
+# change_password
+# ---------------------------------------------------------------------------
+
+
+def test_change_password_sends_query(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.change_password("alice", "n3wp4ss")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:passwd" in body["_query"][0]
+    assert "alice" in body["_query"][0]
+
+
+def test_change_password_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="user not found")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.change_password("nobody", "pw")
+
+
+# ---------------------------------------------------------------------------
 # list_groups
 # ---------------------------------------------------------------------------
 
