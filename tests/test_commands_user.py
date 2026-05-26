@@ -293,3 +293,130 @@ def test_user_info_query_error(config_with_server, client_mock, runner):
     client_mock.get_user.side_effect = ExistQueryError("account not found")
     result = runner.invoke(app, ["user", "info", "alice"])
     assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# @server syntax — user ls
+# ---------------------------------------------------------------------------
+
+
+def test_user_ls_at_server_selects_server(config_with_server, client_mock, runner):
+    client_mock.list_users.return_value = []
+    result = runner.invoke(app, ["user", "ls", "@local"])
+    assert result.exit_code == 0
+    client_mock.list_users.assert_called_once()
+
+
+def test_user_ls_at_server_unknown_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "ls", "@ghost"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_user_ls_at_server_conflict_with_flag_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "ls", "@local", "--server", "local"])
+    assert result.exit_code == 1
+    assert "conflicting" in result.output
+
+
+def test_user_ls_at_server_missing_nick_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "ls", "@"])
+    assert result.exit_code == 1
+    assert "empty" in result.output
+
+
+def test_user_ls_at_server_no_at_prefix_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "ls", "notvalid"])
+    assert result.exit_code == 1
+    assert "@nick" in result.output
+
+
+# ---------------------------------------------------------------------------
+# @server syntax — user add
+# ---------------------------------------------------------------------------
+
+
+def test_user_add_at_server_selects_server(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "add", "alice@local", "--password", "pw"])
+    assert result.exit_code == 0
+    client_mock.create_user.assert_called_once_with("alice", "pw", ["guest"])
+
+
+def test_user_add_at_server_conflict_with_flag_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "add", "alice@local", "--server", "local", "--password", "pw"])
+    assert result.exit_code == 1
+    assert "conflicting" in result.output
+
+
+def test_user_add_empty_username_at_server_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "add", "@local", "--password", "pw"])
+    assert result.exit_code == 1
+    assert "username cannot be empty" in result.output
+
+
+def test_user_add_at_server_unknown_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "add", "alice@ghost", "--password", "pw"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+# ---------------------------------------------------------------------------
+# @server syntax — user rm
+# ---------------------------------------------------------------------------
+
+
+def test_user_rm_at_server_selects_server(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "rm", "alice@local", "--yes"])
+    assert result.exit_code == 0
+    client_mock.delete_user.assert_called_once_with("alice")
+
+
+def test_user_rm_at_server_conflict_with_flag_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "rm", "alice@local", "--server", "local", "--yes"])
+    assert result.exit_code == 1
+    assert "conflicting" in result.output
+
+
+def test_user_rm_empty_username_at_server_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "rm", "@local", "--yes"])
+    assert result.exit_code == 1
+    assert "username cannot be empty" in result.output
+
+
+def test_user_rm_at_server_unknown_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "rm", "alice@ghost", "--yes"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+# ---------------------------------------------------------------------------
+# @server syntax — user info
+# ---------------------------------------------------------------------------
+
+
+def test_user_info_at_server_selects_server(config_with_server, client_mock, runner):
+    from exist_shell.models import UserInfo
+    client_mock.get_user.return_value = UserInfo(
+        username="alice", full_name=None, groups=["guest"], enabled=True
+    )
+    result = runner.invoke(app, ["user", "info", "alice@local"])
+    assert result.exit_code == 0
+    client_mock.get_user.assert_called_once_with("alice")
+
+
+def test_user_info_at_server_conflict_with_flag_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "info", "alice@local", "--server", "local"])
+    assert result.exit_code == 1
+    assert "conflicting" in result.output
+
+
+def test_user_info_empty_username_at_server_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "info", "@local"])
+    assert result.exit_code == 1
+    assert "username cannot be empty" in result.output
+
+
+def test_user_info_at_server_unknown_fails(config_with_server, client_mock, runner):
+    result = runner.invoke(app, ["user", "info", "alice@ghost"])
+    assert result.exit_code == 1
+    assert "not found" in result.output

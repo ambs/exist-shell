@@ -72,3 +72,50 @@ def collection_target_completer(kind: Kind = "any", *, allow_local: bool = False
         return results
 
     return _complete
+
+
+def user_arg_completer(incomplete: str) -> list[str]:
+    """Complete ``user@server`` arguments by offering server-profile suffixes.
+
+    Handles three forms:
+
+    - No ``@`` present: returns nothing (usernames are open-ended).
+    - ``alice@``: returns ``alice@<nick>`` for each server whose nick starts
+      with the text after ``@``.
+    - ``alice@prod``: already resolved, returns nothing.
+
+    Args:
+        incomplete: The partially typed argument value.
+
+    Returns:
+        List of completion candidates.
+    """
+    try:
+        config = Config.load()
+    except Exception:
+        return []
+    if "@" in incomplete:
+        user_part, _, server_part = incomplete.rpartition("@")
+        return [f"{user_part}@{nick}" for nick in config.servers if nick.startswith(server_part)]
+    return []
+
+
+def server_at_completer(incomplete: str) -> list[str]:
+    """Complete a bare ``@server`` argument (used by commands like ``user ls``).
+
+    Args:
+        incomplete: The partially typed argument value (e.g. ``@`` or ``@pr``).
+
+    Returns:
+        List of ``@nick`` candidates whose nick starts with the text after ``@``.
+    """
+    try:
+        config = Config.load()
+    except Exception:
+        return []
+    if incomplete.startswith("@"):
+        prefix = incomplete[1:]
+        return [f"@{nick}" for nick in config.servers if nick.startswith(prefix)]
+    if not incomplete:
+        return [f"@{nick}" for nick in config.servers]
+    return []

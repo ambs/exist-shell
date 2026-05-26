@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import SecretStr
 
-from exist_shell.completions import collection_target_completer
+from exist_shell.completions import collection_target_completer, server_at_completer, user_arg_completer
 from exist_shell.config import Collection, Config, Server
 from exist_shell.models import CollectionEntry, ResourceEntry
 
@@ -241,3 +241,69 @@ def test_resource_entry_has_no_trailing_slash(cfg):
     with patch("exist_shell.completions.get_cached", return_value=items):
         result = complete("myapp:/")
     assert result == ["myapp:/readme.xml"]
+
+
+# ---------------------------------------------------------------------------
+# user_arg_completer
+# ---------------------------------------------------------------------------
+
+
+def test_user_arg_completer_no_at_returns_empty(cfg):
+    assert user_arg_completer("alice") == []
+
+
+def test_user_arg_completer_at_returns_all_servers(cfg):
+    results = user_arg_completer("alice@")
+    assert "alice@local" in results
+
+
+def test_user_arg_completer_at_filters_by_prefix(cfg):
+    Config.load().add_server(
+        Server(nick="prod", host="prod.example.com", password=SecretStr(""))
+    )
+    results = user_arg_completer("alice@lo")
+    assert "alice@local" in results
+    assert "alice@prod" not in results
+
+
+def test_user_arg_completer_exact_match_returns_candidate(cfg):
+    results = user_arg_completer("alice@local")
+    assert results == ["alice@local"]
+
+
+def test_user_arg_completer_config_error_returns_empty():
+    with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
+        assert user_arg_completer("alice@") == []
+
+
+# ---------------------------------------------------------------------------
+# server_at_completer
+# ---------------------------------------------------------------------------
+
+
+def test_server_at_completer_empty_returns_all(cfg):
+    results = server_at_completer("")
+    assert "@local" in results
+
+
+def test_server_at_completer_at_only_returns_all(cfg):
+    results = server_at_completer("@")
+    assert "@local" in results
+
+
+def test_server_at_completer_partial_filters(cfg):
+    Config.load().add_server(
+        Server(nick="prod", host="prod.example.com", password=SecretStr(""))
+    )
+    results = server_at_completer("@lo")
+    assert "@local" in results
+    assert "@prod" not in results
+
+
+def test_server_at_completer_no_at_prefix_returns_empty(cfg):
+    assert server_at_completer("local") == []
+
+
+def test_server_at_completer_config_error_returns_empty():
+    with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
+        assert server_at_completer("@") == []
