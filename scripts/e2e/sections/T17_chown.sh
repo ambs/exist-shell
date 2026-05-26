@@ -9,7 +9,7 @@ section_T17_chown() {
     assert_exit0 "T17 setup: create group e2echowngrp" \
         "${EXSH[@]}" group add e2echowngrp --server localhost
     assert_exit0 "T17 setup: create user e2echownuser in guest group" \
-        "${EXSH[@]}" user add e2echownuser --group guest --password "chownpass1" --server localhost
+        "${EXSH[@]}" user add e2echownuser --group guest --password "testpass123" --server localhost
     assert_exit0 "T17 setup: create collection chowntest" \
         "${EXSH[@]}" collection add localhost /chowntest --nick chowntest
     assert_exit0 "T17 setup: upload doc.xml" \
