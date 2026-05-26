@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import SecretStr
 
-from exist_shell.completions import collection_target_completer, server_at_completer, user_arg_completer
+from exist_shell.completions import collection_target_completer, server_at_completer, server_nick_completer, user_arg_completer
 from exist_shell.config import Collection, Config, Server
 from exist_shell.models import CollectionEntry, ResourceEntry
 
@@ -307,3 +307,25 @@ def test_server_at_completer_no_at_prefix_returns_empty(cfg):
 def test_server_at_completer_config_error_returns_empty():
     with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
         assert server_at_completer("@") == []
+
+
+# ---------------------------------------------------------------------------
+# server_nick_completer
+# ---------------------------------------------------------------------------
+
+
+def test_server_nick_completer_empty_returns_all(cfg):
+    assert server_nick_completer("") == ["local"]
+
+
+def test_server_nick_completer_matching_prefix(cfg):
+    assert server_nick_completer("lo") == ["local"]
+
+
+def test_server_nick_completer_non_matching_prefix(cfg):
+    assert server_nick_completer("xyz") == []
+
+
+def test_server_nick_completer_config_error_returns_empty():
+    with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
+        assert server_nick_completer("") == []

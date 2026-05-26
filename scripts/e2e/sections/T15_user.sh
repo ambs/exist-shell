@@ -64,11 +64,31 @@ section_T15_user() {
         fail "T15.9 user info for unknown account (expected exit != 0, got 0)"
     fi
 
-    # T15.10 — cleanup: remove e2euser
+    # T15.10 — user ls with @server syntax
+    assert_output "admin" \
+        "T15.10 user ls with @server syntax" \
+        "${EXSH[@]}" user ls @localhost
+
+    # T15.11 — user add with @server syntax
+    assert_output "User 'e2eatuser' created." \
+        "T15.11 user add with @server syntax" \
+        "${EXSH[@]}" user add e2eatuser@localhost --password "testpass123"
+
+    # T15.12 — user info with @server syntax
+    assert_output "e2eatuser" \
+        "T15.12 user info with @server syntax" \
+        "${EXSH[@]}" user info e2eatuser@localhost
+
+    # T15.13 — user rm with @server syntax
+    assert_output "User 'e2eatuser' removed." \
+        "T15.13 user rm with @server syntax" \
+        "${EXSH[@]}" user rm e2eatuser@localhost --yes
+
+    # T15.14 — cleanup: remove e2euser
     assert_output "User 'e2euser' removed." \
-        "T15.10 user rm removes e2euser (cleanup)" \
+        "T15.14 user rm removes e2euser (cleanup)" \
         "${EXSH[@]}" user rm e2euser --yes --server localhost
     assert_output_absent "e2euser" \
-        "T15.10 user ls no longer shows e2euser" \
+        "T15.14 user ls no longer shows e2euser" \
         "${EXSH[@]}" user ls --server localhost
 }

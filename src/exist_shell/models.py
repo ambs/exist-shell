@@ -38,6 +38,13 @@ class DocumentResult(NamedTuple):
     mime_type: str
 
 
+class GroupEntry(BaseModel):
+    """A group entry with name and member list."""
+
+    name: str
+    members: list[str]
+
+
 class UserEntry(BaseModel):
     """A user entry with username and groups."""
 

@@ -95,10 +95,13 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh collection new <name>[@<server>]` | Create a collection on the server and register it |
 | `exsh collection ls` | List registered collections |
 | `exsh collection rm <nick>` | Remove a collection from the config |
-| `exsh user ls` | List user accounts and their groups |
-| `exsh user add <username>` | Create a user account (prompts for password) |
-| `exsh user rm <username>` | Remove a user account |
-| `exsh user info <username>` | Show user account details |
+| `exsh user ls [@server]` | List user accounts and their groups |
+| `exsh user add <user[@server]>` | Create a user account (prompts for password) |
+| `exsh user rm <user[@server]>` | Remove a user account |
+| `exsh user info <user[@server]>` | Show user account details |
+| `exsh group ls [@server]` | List groups and their members |
+| `exsh group add <group[@server]>` | Create a group |
+| `exsh group rm <group[@server]>` | Remove a group |
 
 ### Examples
 

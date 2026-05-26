@@ -74,6 +74,22 @@ def collection_target_completer(kind: Kind = "any", *, allow_local: bool = False
     return _complete
 
 
+def server_nick_completer(incomplete: str) -> list[str]:
+    """Complete a ``--server`` option value from configured server nicks.
+
+    Args:
+        incomplete: The partially typed server nick.
+
+    Returns:
+        List of server nicks that start with ``incomplete``.
+    """
+    try:
+        config = Config.load()
+    except Exception:
+        return []
+    return [nick for nick in config.servers if nick.startswith(incomplete)]
+
+
 def user_arg_completer(incomplete: str) -> list[str]:
     """Complete ``user@server`` arguments by offering server-profile suffixes.
 
