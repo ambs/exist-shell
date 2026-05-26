@@ -1,4 +1,4 @@
-"""User management commands (ls, add, rm, info)."""
+"""Group management commands (ls, list, add, rm)."""
 
 import typer
 
@@ -8,7 +8,7 @@ from exist_shell.config import Config
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistQueryError
 from exist_shell.utils import parse_user_at_server
 
-app = typer.Typer(help="Manage eXist-db users.", no_args_is_help=True)
+app = typer.Typer(help="Manage eXist-db groups.", no_args_is_help=True)
 
 
 def _resolve_server(
@@ -20,7 +20,7 @@ def _resolve_server(
 
     Args:
         config: The loaded configuration.
-        inline_server: Server nick extracted from a ``user@server`` or ``@server``
+        inline_server: Server nick extracted from a ``group@server`` or ``@server``
             argument; ``None`` if no ``@`` suffix was present.
         flag_server: Server nick provided via the ``--server`` option; ``None``
             if the flag was omitted.
@@ -57,14 +57,14 @@ def _resolve_server(
 
 
 @app.command("ls")
-def user_ls(
+def group_ls(
     at_server: str | None = typer.Argument(None, metavar="@SERVER", help="Server in @nick form (e.g. @prod).", autocompletion=server_at_completer),
     server: str | None = typer.Option(None, "--server", help="Server nick to query.", autocompletion=server_nick_completer),
 ) -> None:
-    """List all user accounts and their group memberships.
+    """List all groups and their members.
 
     The server may be specified as a bare ``@nick`` positional argument
-    (e.g. ``user ls @prod``) or via ``--server``.  When omitted and only one
+    (e.g. ``group ls @prod``) or via ``--server``.  When omitted and only one
     server is configured it is selected automatically.
 
     Args:
@@ -87,7 +87,7 @@ def user_ls(
 
     try:
         with ExistClient(config.servers[resolved]) as client:
-            users = client.list_users()
+            groups = client.list_groups()
     except ExistAuthError:
         typer.echo(f"Error: authentication failed for server '{resolved}'.", err=True)
         raise typer.Exit(1)
@@ -95,50 +95,36 @@ def user_ls(
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
 
-    for u in users:
-        typer.echo(f"{u.username}\t{', '.join(u.groups)}")
+    for g in groups:
+        typer.echo(f"{g.name}\t{', '.join(g.members)}")
 
 
 @app.command("add")
-def user_add(
-    username: str = typer.Argument(help="Account name to create, optionally as user@server.", autocompletion=user_arg_completer),
-    group: str = typer.Option("guest", "--group", help="Comma-separated group names. The first is the primary group."),
-    password: str | None = typer.Option(None, "--password", help="Password (prompted if omitted)."),
+def group_add(
+    groupname: str = typer.Argument(help="Group name to create, optionally as group@server.", autocompletion=user_arg_completer),
     server: str | None = typer.Option(None, "--server", help="Server nick to target.", autocompletion=server_nick_completer),
 ) -> None:
-    """Create a new user account on the server.
+    """Create a new group on the server.
 
-    The username may include an inline server nick using ``user@server``
-    syntax (e.g. ``alice@prod``).  Prompts for a password when ``--password``
-    is not supplied so the credential is never written to the shell history.
+    The group name may include an inline server nick using ``group@server``
+    syntax (e.g. ``editors@prod``).
 
     Args:
-        username: The new account name, optionally suffixed with ``@server_nick``.
-        group: Comma-separated group names. The first becomes the primary group.
-            Defaults to ``guest``.
-        password: Plaintext password. Prompted interactively when omitted.
+        groupname: The new group name, optionally suffixed with ``@server_nick``.
         server: Server nick to target. Auto-selected when only one server is
             configured; required when multiple servers are configured.
     """
-    bare_username, inline_server = parse_user_at_server(username)
-    if not bare_username:
-        typer.echo("Error: username cannot be empty.", err=True)
+    bare_groupname, inline_server = parse_user_at_server(groupname)
+    if not bare_groupname:
+        typer.echo("Error: group name cannot be empty.", err=True)
         raise typer.Exit(1)
 
     config = Config.load()
     resolved = _resolve_server(config, inline_server, server)
 
-    groups = [g.strip() for g in group.split(",") if g.strip()]
-    if not groups:
-        typer.echo("Error: at least one group is required.", err=True)
-        raise typer.Exit(1)
-
-    if password is None:
-        password = typer.prompt(f"Password for '{bare_username}'", hide_input=True, confirmation_prompt=True)
-
     try:
         with ExistClient(config.servers[resolved]) as client:
-            client.create_user(bare_username, password, groups)
+            client.create_group(bare_groupname)
     except ExistAuthError:
         typer.echo(f"Error: authentication failed for server '{resolved}'.", err=True)
         raise typer.Exit(1)
@@ -149,41 +135,41 @@ def user_add(
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
 
-    typer.echo(f"User '{bare_username}' created.")
+    typer.echo(f"Group '{bare_groupname}' created.")
 
 
 @app.command("rm")
-def user_rm(
-    username: str = typer.Argument(help="Account name to remove, optionally as user@server.", autocompletion=user_arg_completer),
+def group_rm(
+    groupname: str = typer.Argument(help="Group name to remove, optionally as group@server.", autocompletion=user_arg_completer),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     server: str | None = typer.Option(None, "--server", help="Server nick to target.", autocompletion=server_nick_completer),
 ) -> None:
-    """Remove a user account from the server.
+    """Remove a group from the server.
 
-    The username may include an inline server nick using ``user@server``
-    syntax (e.g. ``alice@prod``).  Prompts for confirmation unless ``--yes``
+    The group name may include an inline server nick using ``group@server``
+    syntax (e.g. ``editors@prod``).  Prompts for confirmation unless ``--yes``
     is supplied.
 
     Args:
-        username: The account name to remove, optionally suffixed with ``@server_nick``.
+        groupname: The group name to remove, optionally suffixed with ``@server_nick``.
         yes: When True, skip the confirmation prompt.
         server: Server nick to target. Auto-selected when only one server is
             configured; required when multiple servers are configured.
     """
-    bare_username, inline_server = parse_user_at_server(username)
-    if not bare_username:
-        typer.echo("Error: username cannot be empty.", err=True)
+    bare_groupname, inline_server = parse_user_at_server(groupname)
+    if not bare_groupname:
+        typer.echo("Error: group name cannot be empty.", err=True)
         raise typer.Exit(1)
 
     config = Config.load()
     resolved = _resolve_server(config, inline_server, server)
 
     if not yes:
-        typer.confirm(f"Remove user '{bare_username}'?", abort=True)
+        typer.confirm(f"Remove group '{bare_groupname}'?", abort=True)
 
     try:
         with ExistClient(config.servers[resolved]) as client:
-            client.delete_user(bare_username)
+            client.delete_group(bare_groupname)
     except ExistAuthError:
         typer.echo(f"Error: authentication failed for server '{resolved}'.", err=True)
         raise typer.Exit(1)
@@ -194,47 +180,4 @@ def user_rm(
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
 
-    typer.echo(f"User '{bare_username}' removed.")
-
-
-@app.command("info")
-def user_info(
-    username: str = typer.Argument(help="Account name to inspect, optionally as user@server.", autocompletion=user_arg_completer),
-    server: str | None = typer.Option(None, "--server", help="Server nick to query.", autocompletion=server_nick_completer),
-) -> None:
-    """Show detailed information about a user account.
-
-    The username may include an inline server nick using ``user@server``
-    syntax (e.g. ``alice@prod``).
-
-    Args:
-        username: The account name to inspect, optionally suffixed with ``@server_nick``.
-        server: Server nick to query. Auto-selected when only one server is
-            configured; required when multiple servers are configured.
-    """
-    bare_username, inline_server = parse_user_at_server(username)
-    if not bare_username:
-        typer.echo("Error: username cannot be empty.", err=True)
-        raise typer.Exit(1)
-
-    config = Config.load()
-    resolved = _resolve_server(config, inline_server, server)
-
-    try:
-        with ExistClient(config.servers[resolved]) as client:
-            info = client.get_user(bare_username)
-    except ExistAuthError:
-        typer.echo(f"Error: authentication failed for server '{resolved}'.", err=True)
-        raise typer.Exit(1)
-    except ExistConnectionError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
-    except ExistQueryError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
-
-    typer.echo(f"Username: {info.username}")
-    if info.full_name:
-        typer.echo(f"Full name: {info.full_name}")
-    typer.echo(f"Groups:   {', '.join(info.groups)}")
-    typer.echo(f"Enabled:  {info.enabled}")
+    typer.echo(f"Group '{bare_groupname}' removed.")

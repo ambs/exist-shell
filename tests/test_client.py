@@ -532,3 +532,104 @@ def test_delete_user_raises_query_error_on_500(httpx_mock, a_server):
     with ExistClient(a_server) as client:
         with pytest.raises(ExistQueryError):
             client.delete_user("nobody")
+
+
+# ---------------------------------------------------------------------------
+# list_groups
+# ---------------------------------------------------------------------------
+
+
+def test_list_groups_returns_group_entries(httpx_mock, a_server):
+    xml = '<groups><group name="dba" members="admin"/><group name="editors" members="alice,bob"/></groups>'
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text=xml)
+    with ExistClient(a_server) as client:
+        groups = client.list_groups()
+    assert len(groups) == 2
+    assert groups[0].name == "dba"
+    assert groups[0].members == ["admin"]
+    assert groups[1].name == "editors"
+    assert groups[1].members == ["alice", "bob"]
+
+
+def test_list_groups_returns_empty_list(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="<groups/>")
+    with ExistClient(a_server) as client:
+        groups = client.list_groups()
+    assert groups == []
+
+
+def test_list_groups_handles_empty_members(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text='<groups><group name="empty" members=""/></groups>')
+    with ExistClient(a_server) as client:
+        groups = client.list_groups()
+    assert groups[0].members == []
+
+
+# ---------------------------------------------------------------------------
+# get_group_members
+# ---------------------------------------------------------------------------
+
+
+def test_get_group_members_returns_member_list(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="<members>alice,bob</members>")
+    with ExistClient(a_server) as client:
+        members = client.get_group_members("editors")
+    assert members == ["alice", "bob"]
+
+
+def test_get_group_members_returns_empty_for_no_members(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="<members></members>")
+    with ExistClient(a_server) as client:
+        members = client.get_group_members("empty")
+    assert members == []
+
+
+def test_get_group_members_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="Group not found")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.get_group_members("ghost")
+
+
+# ---------------------------------------------------------------------------
+# create_group
+# ---------------------------------------------------------------------------
+
+
+def test_create_group_sends_query(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.create_group("editors")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:create-group" in body["_query"][0]
+    assert "editors" in body["_query"][0]
+
+
+def test_create_group_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="group exists")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.create_group("editors")
+
+
+# ---------------------------------------------------------------------------
+# delete_group
+# ---------------------------------------------------------------------------
+
+
+def test_delete_group_sends_query(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.delete_group("editors")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:remove-group" in body["_query"][0]
+    assert "editors" in body["_query"][0]
+
+
+def test_delete_group_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="group not found")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.delete_group("ghost")
