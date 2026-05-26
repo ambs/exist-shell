@@ -11,13 +11,13 @@ section_T17_chown() {
     assert_exit0 "T17 setup: create user e2echownuser in guest group" \
         "${EXSH[@]}" user add e2echownuser --group guest --password "testpass123" --server localhost
     assert_exit0 "T17 setup: create collection chowntest" \
-        "${EXSH[@]}" collection add localhost /chowntest --nick chowntest
+        "${EXSH[@]}" collection new chowntest@localhost
     assert_exit0 "T17 setup: upload doc.xml" \
-        "${EXSH[@]}" put - chowntest:/doc.xml <<< '<root/>'
+        "${EXSH[@]}" put chowntest:/doc.xml -f /dev/stdin <<< '<root/>'
     assert_exit0 "T17 setup: create subcollection sub" \
         "${EXSH[@]}" mkdir chowntest:/sub
     assert_exit0 "T17 setup: upload sub/child.xml" \
-        "${EXSH[@]}" put - chowntest:/sub/child.xml <<< '<child/>'
+        "${EXSH[@]}" put chowntest:/sub/child.xml -f /dev/stdin <<< '<child/>'
 
     # T17.1 — chown owner only
     assert_output "updated" \
@@ -73,15 +73,9 @@ section_T17_chown() {
     assert_exit1 "T17.12 unknown collection nick exits non-zero" \
         "${EXSH[@]}" chown admin "ghost:/doc.xml"
 
-    # Cleanup
-    assert_exit0 "T17 cleanup: rm sub/child.xml" \
-        "${EXSH[@]}" rm chowntest:/sub/child.xml
-    assert_exit0 "T17 cleanup: rm doc.xml" \
-        "${EXSH[@]}" rm chowntest:/doc.xml
-    assert_exit0 "T17 cleanup: rm collection sub" \
-        "${EXSH[@]}" collection rm chowntest:/sub
-    assert_exit0 "T17 cleanup: collection rm chowntest" \
-        "${EXSH[@]}" collection rm chowntest:
+    # Cleanup: --delete removes the server collection and all its contents.
+    assert_exit0 "T17 cleanup: collection rm chowntest --delete" \
+        "${EXSH[@]}" collection rm chowntest --delete
     assert_exit0 "T17 cleanup: user rm e2echownuser" \
         "${EXSH[@]}" user rm e2echownuser --yes --server localhost
     assert_exit0 "T17 cleanup: group rm e2echowngrp" \
