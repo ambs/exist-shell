@@ -43,10 +43,13 @@ See [Installation](installation.md) and [Configuration](configuration.md) for fu
 | `exsh cat <nick>:<path>` | Print a document to stdout |
 | `exsh put <file> <nick>:<path>` | Upload a local file |
 | `exsh cp <src> <dst>` | Copy a document (local ↔ remote or remote ↔ remote) |
+| `exsh mv <src> <dst>` | Move or rename a document or collection |
 | `exsh edit <nick>:<path>` | Open a document in `$EDITOR`, re-upload if changed |
 | `exsh rm <nick>:<path>...` | Delete one or more documents |
 | `exsh mkdir <nick>:<path>` | Create a collection |
+| `exsh chown <spec> <nick>:<path>` | Change owner and/or group; `-R` for recursive |
 | `exsh sync <src> <dst>` | Sync a local folder and a remote collection |
+| `exsh exec <nick>[:<path>]` | Execute an XQuery script on the server |
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
 | `exsh server rm <nick>` | Remove a server |
@@ -55,3 +58,11 @@ See [Installation](installation.md) and [Configuration](configuration.md) for fu
 | `exsh collection new <name>[@<server>]` | Create and register a collection |
 | `exsh collection ls` | List registered collections |
 | `exsh collection rm <nick>` | Remove a collection from the config |
+| `exsh user ls` | List user accounts and their groups |
+| `exsh user add <user[@server]>` | Create a user account |
+| `exsh user rm <user[@server]>` | Remove a user account |
+| `exsh user info <user[@server]>` | Show user account details |
+| `exsh user passwd <user[@server]>` | Change a user's password |
+| `exsh group ls` | List groups and their members |
+| `exsh group add <group[@server]>` | Create a group |
+| `exsh group rm <group[@server]>` | Remove a group |

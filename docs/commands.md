@@ -447,3 +447,218 @@ exsh user info admin
 # Inspect a user on a specific server
 exsh user info alice --server prod
 ```
+
+---
+
+### user passwd
+
+Change a user's password on the server.
+
+```
+exsh user passwd <username[@server]> [--stdin] [--server NICK]
+```
+
+Prompts for the new password interactively (with confirmation) unless `--stdin` is supplied. The password is never accepted directly on the command line to avoid shell history exposure.
+
+#### Options
+
+| Flag | Description |
+|------|-------------|
+| `--stdin` | Read the new password from stdin — useful for scripting and pipelines. |
+| `--server NICK` | Server to target. Auto-selected when only one server is configured. |
+
+#### Examples
+
+```bash
+# Change password interactively (prompted with confirmation)
+exsh user passwd alice
+
+# Change password from stdin (for scripting)
+echo 'newpassword' | exsh user passwd alice --stdin
+
+# Using @server syntax
+exsh user passwd alice@prod --stdin
+```
+
+---
+
+## mv
+
+Move or rename a document or collection on the server.
+
+```
+exsh mv <source> <target>
+```
+
+Both `<source>` and `<target>` must be remote paths (`nick:path`). Local paths are not accepted — use `cp` + `rm` for local↔remote operations.
+
+If `<target>` ends with a trailing `/`, the source name is preserved and the item is moved *into* that collection. Without a trailing slash, the source is moved *and* renamed to the target path in one step.
+
+Moving a collection recursively copies all its contents to the destination, then deletes the source — the source is left intact if any upload fails.
+
+Cross-server moves are not supported; both paths must resolve to the same server. Use `cp` + `rm` for cross-server transfers.
+
+### Examples
+
+```bash
+# Rename a document
+exsh mv mydata:reports/old.xml mydata:reports/new.xml
+
+# Move a document into a subcollection (filename preserved)
+exsh mv mydata:reports/draft.xml mydata:archive/
+
+# Move and rename in one step
+exsh mv mydata:reports/draft.xml mydata:archive/final.xml
+
+# Rename a collection
+exsh mv mydata:drafts mydata:archive
+
+# Move a collection into another collection (trailing slash)
+exsh mv mydata:drafts "mydata:archive/"
+```
+
+---
+
+## group
+
+Manage groups on an eXist-db server.
+
+### group ls
+
+List all groups and their members.
+
+```
+exsh group ls [@server] [--server NICK]
+```
+
+Output has one line per group with two tab-separated columns: group name and comma-separated member list.
+
+The server may be specified as a positional `@nick` argument or via `--server`. When only one server is configured it is selected automatically.
+
+#### Options
+
+| Flag | Description |
+|------|-------------|
+| `--server NICK` | Server to query. Auto-selected when only one server is configured. |
+
+#### Examples
+
+```bash
+# List all groups on the only configured server
+exsh group ls
+
+# List groups on a specific server
+exsh group ls --server localhost
+
+# Using @server syntax
+exsh group ls @prod
+```
+
+---
+
+### group add
+
+Create a new group on the server.
+
+```
+exsh group add <groupname[@server]> [--server NICK]
+```
+
+#### Options
+
+| Flag | Description |
+|------|-------------|
+| `--server NICK` | Server to target. Auto-selected when only one server is configured. |
+
+#### Examples
+
+```bash
+# Create a group
+exsh group add editors
+
+# Create a group on a specific server
+exsh group add editors --server prod
+
+# Using @server syntax
+exsh group add editors@prod
+```
+
+---
+
+### group rm
+
+Remove a group from the server.
+
+```
+exsh group rm <groupname[@server]> [--yes] [--server NICK]
+```
+
+Prompts for confirmation unless `--yes` is supplied.
+
+#### Options
+
+| Flag | Description |
+|------|-------------|
+| `--yes / -y` | Skip the confirmation prompt. |
+| `--server NICK` | Server to target. Auto-selected when only one server is configured. |
+
+#### Examples
+
+```bash
+# Remove a group interactively
+exsh group rm editors
+
+# Remove without confirmation (e.g. in a script)
+exsh group rm editors --yes
+
+# Using @server syntax
+exsh group rm editors@prod --yes
+```
+
+---
+
+## chown
+
+Change the owner and/or group of a remote document or collection.
+
+```
+exsh chown <spec> <nick>:<path> [--recursive]
+```
+
+The `<spec>` argument follows Unix `chown` conventions:
+
+| Form | Effect |
+|------|--------|
+| `owner` | Change the owner only |
+| `:group` | Change the group only |
+| `owner:group` | Change both owner and group |
+
+At least one of owner or group must be specified. The named user and group are validated against the server before the change is applied — if either does not exist, the command exits with an error and no change is made.
+
+For tab completion, prefix the spec with a server nick to pin a specific server:
+`prod@alice:editors`. The prefix is used only for completion and is discarded before the ownership change is applied.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--recursive / -R` | Apply the ownership change to the collection and all its contents recursively. Only valid when the target is a collection. |
+
+### Examples
+
+```bash
+# Change owner only
+exsh chown alice mydata:reports/annual.xml
+
+# Change group only
+exsh chown :editors mydata:drafts/
+
+# Change both owner and group
+exsh chown alice:editors mydata:reports/annual.xml
+
+# Change the root collection itself (non-recursive)
+exsh chown admin mydata:
+
+# Recursively reassign an entire collection tree
+exsh chown -R alice mydata:reports
+```

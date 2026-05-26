@@ -39,6 +39,24 @@ class GroupMixin(QueryMixin):
             result.append(GroupEntry(name=el.get("name", ""), members=members))
         return result
 
+    def group_exists(self, groupname: str) -> bool:
+        """Check whether a group exists on the server.
+
+        Args:
+            groupname: The group name to check.
+
+        Returns:
+            True if the group exists, False otherwise.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistQueryError: If the query fails.
+        """
+        safe = xq_escape(groupname)
+        query = f'xquery version "3.1"; sm:group-exists("{safe}")'
+        return self.execute_query(query).strip() == "true"
+
     def get_group_members(self, groupname: str) -> list[str]:
         """Return the list of members belonging to a group.
 

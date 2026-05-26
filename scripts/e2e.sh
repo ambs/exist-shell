@@ -91,6 +91,7 @@ source "${SCRIPT_DIR}/e2e/sections/T13_mv.sh"
 source "${SCRIPT_DIR}/e2e/sections/T14_exec.sh"
 source "${SCRIPT_DIR}/e2e/sections/T15_user.sh"
 source "${SCRIPT_DIR}/e2e/sections/T16_group.sh"
+source "${SCRIPT_DIR}/e2e/sections/T17_chown.sh"
 
 # ---------------------------------------------------------------------------
 # Main
@@ -116,6 +117,7 @@ main() {
     section_T14_exec
     section_T15_user
     section_T16_group
+    section_T17_chown
 }
 
 main

@@ -80,6 +80,24 @@ class UserMixin(QueryMixin):
             enabled=(el.get("enabled", "true").lower() == "true"),
         )
 
+    def user_exists(self, username: str) -> bool:
+        """Check whether a user account exists on the server.
+
+        Args:
+            username: The account name to check.
+
+        Returns:
+            True if the account exists, False otherwise.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistQueryError: If the query fails.
+        """
+        safe = xq_escape(username)
+        query = f'xquery version "3.1"; sm:user-exists("{safe}")'
+        return self.execute_query(query).strip() == "true"
+
     def create_user(self, username: str, password: str, groups: list[str]) -> None:
         """Create a new user account.
 
