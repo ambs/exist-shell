@@ -3,7 +3,7 @@
 import pytest
 from typer.testing import CliRunner
 
-from exist_shell.utils import check_xml_wellformed, parse_target, validate_path, xq_escape
+from exist_shell.utils import check_xml_wellformed, parse_target, parse_user_at_server, validate_path, xq_escape
 
 
 # --- xq_escape ---
@@ -116,3 +116,26 @@ def test_parse_target_rejects_traversal(runner: CliRunner):
     from typer import Exit
     with pytest.raises((Exit, SystemExit)):
         parse_target("myapp:/../other")
+
+
+# --- parse_user_at_server ---
+
+
+def test_parse_user_at_server_no_at():
+    assert parse_user_at_server("alice") == ("alice", None)
+
+
+def test_parse_user_at_server_with_server():
+    assert parse_user_at_server("alice@prod") == ("alice", "prod")
+
+
+def test_parse_user_at_server_bare_at_server():
+    assert parse_user_at_server("@prod") == ("", "prod")
+
+
+def test_parse_user_at_server_at_only():
+    assert parse_user_at_server("@") == ("", None)
+
+
+def test_parse_user_at_server_multiple_at_uses_last():
+    assert parse_user_at_server("a@b@prod") == ("a@b", "prod")

@@ -39,6 +39,23 @@ def is_remote(target: str) -> bool:
     return ":" in target
 
 
+def parse_user_at_server(value: str) -> tuple[str, str | None]:
+    """Split a ``user@server`` argument into a (username, server_nick) pair.
+
+    Args:
+        value: Raw argument from the CLI, e.g. ``alice@prod``, ``alice``, or ``@prod``.
+
+    Returns:
+        A tuple ``(username, server_nick)`` where ``server_nick`` is ``None``
+        if no ``@`` suffix was present, and ``username`` is empty for bare
+        ``@server`` forms.
+    """
+    if "@" in value:
+        username, _, server = value.rpartition("@")
+        return username, server if server else None
+    return value, None
+
+
 def guess_mime(path: Path, default: str = "application/octet-stream") -> str:
     """Guess the MIME type of a file from its extension.
 
