@@ -1,4 +1,6 @@
-"""User management commands (ls, add, rm, info)."""
+"""User management commands (ls, add, rm, info, passwd)."""
+
+import sys
 
 import typer
 
@@ -238,3 +240,54 @@ def user_info(
         typer.echo(f"Full name: {info.full_name}")
     typer.echo(f"Groups:   {', '.join(info.groups)}")
     typer.echo(f"Enabled:  {info.enabled}")
+
+
+@app.command("passwd")
+def user_passwd(
+    username: str = typer.Argument(help="Account name, optionally as user@server.", autocompletion=user_arg_completer),
+    from_stdin: bool = typer.Option(False, "--stdin", help="Read new password from stdin (for scripting)."),
+    server: str | None = typer.Option(None, "--server", help="Server nick to target.", autocompletion=server_nick_completer),
+) -> None:
+    """Change a user's password on the server.
+
+    The username may include an inline server nick using ``user@server``
+    syntax (e.g. ``alice@prod``).  Prompts for the new password interactively
+    (with confirmation) unless ``--stdin`` is supplied, in which case the
+    password is read from standard input — suitable for piped automation.
+    The password is never accepted on the command line to avoid shell history
+    exposure.
+
+    Args:
+        username: The account name, optionally suffixed with ``@server_nick``.
+        from_stdin: When True, read the new password from stdin instead of
+            prompting interactively.
+        server: Server nick to target. Auto-selected when only one server is
+            configured; required when multiple servers are configured.
+    """
+    bare_username, inline_server = parse_user_at_server(username)
+    if not bare_username:
+        typer.echo("Error: username cannot be empty.", err=True)
+        raise typer.Exit(1)
+
+    config = Config.load()
+    resolved = _resolve_server(config, inline_server, server)
+
+    if from_stdin:
+        password = sys.stdin.readline().rstrip("\n")
+    else:
+        password = typer.prompt(f"New password for '{bare_username}'", hide_input=True, confirmation_prompt=True)
+
+    try:
+        with ExistClient(config.servers[resolved]) as client:
+            client.change_password(bare_username, password)
+    except ExistAuthError:
+        typer.echo(f"Error: authentication failed for server '{resolved}'.", err=True)
+        raise typer.Exit(1)
+    except ExistConnectionError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+    except ExistQueryError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Password for '{bare_username}' updated.")

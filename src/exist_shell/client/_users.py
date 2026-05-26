@@ -118,3 +118,23 @@ class UserMixin(QueryMixin):
         safe = xq_escape(username)
         query = f'xquery version "3.1"; sm:remove-account("{safe}")'
         self.execute_query(query)
+
+    def change_password(self, username: str, password: str) -> None:
+        """Change the password of an existing user account.
+
+        Args:
+            username: The account name.
+            password: The new plaintext password.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistQueryError: If the user does not exist or the query fails.
+        """
+        safe_user = xq_escape(username)
+        safe_pass = xq_escape(password)
+        query = (
+            'xquery version "3.1"; '
+            f'sm:passwd("{safe_user}", "{safe_pass}")'
+        )
+        self.execute_query(query)
