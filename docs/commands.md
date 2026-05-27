@@ -662,3 +662,82 @@ exsh chown admin mydata:
 # Recursively reassign an entire collection tree
 exsh chown -R alice mydata:reports
 ```
+
+---
+
+## chmod
+
+Change the POSIX permissions of a remote document or collection.
+
+```
+exsh chmod <mode> <nick>:<path> [--recursive]
+```
+
+The `<mode>` argument accepts both octal and symbolic Unix `chmod` notation:
+
+**Octal mode** — a 1–4 digit octal number, with or without a leading `0`:
+
+| Example | Effect |
+|---------|--------|
+| `0644` | Owner read/write; group and other read-only |
+| `0755` | Owner read/write/execute; group and other read/execute |
+| `644` | Same as `0644` |
+
+**Symbolic mode** — one or more comma-separated clauses of the form `[ugoa]*[+-=][rwxst]*`:
+
+| Who | Meaning |
+|-----|---------|
+| `u` | User (owner) |
+| `g` | Group |
+| `o` | Other |
+| `a` | All (equivalent to `ugo`; default when no who is given) |
+
+| Operator | Meaning |
+|----------|---------|
+| `+` | Add the specified permissions |
+| `-` | Remove the specified permissions |
+| `=` | Set permissions exactly (clears unspecified bits for the given who) |
+
+| Permission | Meaning |
+|------------|---------|
+| `r` | Read |
+| `w` | Write |
+| `x` | Execute |
+| `s` | Set-user-ID / set-group-ID bit |
+| `t` | Sticky bit |
+
+For symbolic modes the server is queried for the current permissions before applying the change. With `--recursive` each item in the tree is queried and updated independently.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--recursive / -R` | Apply the permission change to the collection and all its contents recursively. Only valid when the target is a collection. |
+
+### Examples
+
+```bash
+# Set a document to owner read/write, everyone else read-only
+exsh chmod 0644 mydata:reports/annual.xml
+
+# Set a collection to rwxr-xr-x
+exsh chmod 0755 mydata:reports
+
+# Add execute permission for the owner
+exsh chmod u+x mydata:scripts/run.xq
+
+# Remove write permission for group and other
+exsh chmod go-w mydata:reports/annual.xml
+
+# Set all to read/write (clears execute bits)
+exsh chmod a=rw mydata:reports/annual.xml
+
+# Multiple clauses in one call
+exsh chmod u+x,go-w mydata:scripts/run.xq
+
+# Recursively set a whole collection to 0644
+exsh chmod -R 0644 mydata:data
+
+# Recursively add user execute to a collection tree
+exsh chmod -R u+x mydata:scripts
+```

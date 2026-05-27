@@ -102,6 +102,8 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh group ls [@server]` | List groups and their members |
 | `exsh group add <group[@server]>` | Create a group |
 | `exsh group rm <group[@server]>` | Remove a group |
+| `exsh chown <spec> <nick>:<path>` | Change owner and/or group of a document or collection |
+| `exsh chmod <mode> <nick>:<path>` | Change POSIX permissions of a document or collection |
 
 ### Examples
 
@@ -156,6 +158,21 @@ exsh sync --dry-run ./reports mydata:reports
 
 # Push and remove files on the server that no longer exist locally
 exsh sync --delete ./reports mydata:reports
+
+# Change owner and group of a document
+exsh chown alice:editors mydata:reports/annual.xml
+
+# Recursively reassign a collection tree
+exsh chown -R alice mydata:reports
+
+# Set permissions with octal mode
+exsh chmod 0644 mydata:reports/annual.xml
+
+# Add execute permission for the owner
+exsh chmod u+x mydata:scripts/run.xq
+
+# Recursively set permissions for a collection
+exsh chmod -R 0644 mydata:data
 ```
 
 ## Sync
