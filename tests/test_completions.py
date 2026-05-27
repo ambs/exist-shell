@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import SecretStr
 
-from exist_shell.completions import collection_target_completer, server_at_completer, server_nick_completer, user_arg_completer
+from exist_shell.completions import chown_spec_completer, collection_target_completer, server_at_completer, server_nick_completer, user_arg_completer
 from exist_shell.config import Collection, Config, Server
-from exist_shell.models import CollectionEntry, ResourceEntry
+from exist_shell.models import CollectionEntry, GroupEntry, ResourceEntry, UserEntry
 
 
 _EXIST_NS = "http://exist.sourceforge.net/NS/exist"
@@ -329,3 +329,98 @@ def test_server_nick_completer_non_matching_prefix(cfg):
 def test_server_nick_completer_config_error_returns_empty():
     with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
         assert server_nick_completer("") == []
+
+
+# ---------------------------------------------------------------------------
+# chown_spec_completer
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _client_mock():
+    users = [UserEntry(username="alice", groups=[]), UserEntry(username="admin", groups=[])]
+    groups = [GroupEntry(name="editors", members=[]), GroupEntry(name="dba", members=[])]
+    client = MagicMock()
+    client.list_users.return_value = users
+    client.list_groups.return_value = groups
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=client)
+    ctx.__exit__ = MagicMock(return_value=False)
+    return ctx, client
+
+
+def test_chown_spec_completer_config_error_returns_empty():
+    with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
+        assert chown_spec_completer("") == []
+
+
+def test_chown_spec_completer_no_servers_returns_empty(config_path):
+    assert chown_spec_completer("") == []
+
+
+def test_chown_spec_completer_completes_users(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch("exist_shell.completions.ExistClient", return_value=ctx):
+        result = chown_spec_completer("")
+    assert "alice" in result
+    assert "admin" in result
+
+
+def test_chown_spec_completer_filters_users_by_prefix(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch("exist_shell.completions.ExistClient", return_value=ctx):
+        result = chown_spec_completer("al")
+    assert "alice" in result
+    assert "admin" not in result
+
+
+def test_chown_spec_completer_colon_completes_groups(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch("exist_shell.completions.ExistClient", return_value=ctx):
+        result = chown_spec_completer("alice:")
+    assert "alice:editors" in result
+    assert "alice:dba" in result
+
+
+def test_chown_spec_completer_colon_filters_groups_by_prefix(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch("exist_shell.completions.ExistClient", return_value=ctx):
+        result = chown_spec_completer("alice:ed")
+    assert "alice:editors" in result
+    assert "alice:dba" not in result
+
+
+def test_chown_spec_completer_server_prefix_resolves_server(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch("exist_shell.completions.ExistClient", return_value=ctx):
+        result = chown_spec_completer("local@")
+    assert "local@alice" in result
+    assert "local@admin" in result
+
+
+def test_chown_spec_completer_server_prefix_with_colon_completes_groups(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch("exist_shell.completions.ExistClient", return_value=ctx):
+        result = chown_spec_completer("local@alice:")
+    assert "local@alice:editors" in result
+
+
+def test_chown_spec_completer_unknown_server_prefix_offers_server_nicks(cfg):
+    result = chown_spec_completer("lo@")
+    assert "local@" in result
+
+
+def test_chown_spec_completer_multiple_servers_offers_server_nicks(cfg, _client_mock):
+    Config.load().add_server(
+        Server(nick="prod", host="prod.example.com", password=SecretStr(""))
+    )
+    ctx, _ = _client_mock
+    with patch("exist_shell.completions.ExistClient", return_value=ctx):
+        result = chown_spec_completer("")
+    assert "local@" in result
+    assert "prod@" in result
+
+
+def test_chown_spec_completer_client_exception_returns_empty(cfg):
+    with patch("exist_shell.completions.ExistClient", side_effect=OSError("refused")):
+        assert chown_spec_completer("") == []
