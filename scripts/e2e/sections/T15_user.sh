@@ -95,16 +95,18 @@ section_T15_user() {
     assert_in_last "Password for 'e2euser' updated." \
         "T15.15 user passwd --stdin reports success"
 
-    # T15.16 — user passwd interactive (pipe prompt + confirmation)
+    # T15.16 — user passwd without --stdin reads from stdin when stdin is not a TTY
+    # (typer.prompt with hide_input=True uses getpass which opens /dev/tty directly;
+    # auto-detecting a non-TTY stdin avoids hanging when called from a pipe)
     local passwd2_code=0
-    _LAST_OUTPUT="$(printf 'newpass789\nnewpass789\n' | "${EXSH[@]}" user passwd e2euser --server localhost 2>&1)" || passwd2_code=$?
+    _LAST_OUTPUT="$(echo 'newpass789' | "${EXSH[@]}" user passwd e2euser --server localhost 2>&1)" || passwd2_code=$?
     if [[ $passwd2_code -eq 0 ]]; then
-        ok "T15.16 user passwd interactive succeeds"
+        ok "T15.16 user passwd without --stdin reads pipe when stdin is not a TTY"
     else
-        fail "T15.16 user passwd interactive (expected exit 0, got ${passwd2_code})"
+        fail "T15.16 user passwd without --stdin (expected exit 0, got ${passwd2_code})"
     fi
     assert_in_last "Password for 'e2euser' updated." \
-        "T15.16 user passwd interactive reports success"
+        "T15.16 user passwd without --stdin reports success"
 
     # T15.17 — verify the new password actually works (server add does a real auth check)
     assert_output "Server 'e2epwtest' added." \

@@ -1,9 +1,10 @@
 """Tests for the user subcommands (ls, add, rm, info)."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+import exist_shell.commands.user as user_mod
 from exist_shell.config import Config, Server
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistQueryError
 from exist_shell.main import app
@@ -427,10 +428,25 @@ def test_user_info_at_server_unknown_fails(config_with_server, client_mock, runn
 # ---------------------------------------------------------------------------
 
 
-def test_user_passwd_prompts_for_password(config_with_server, client_mock, runner):
-    result = runner.invoke(app, ["user", "passwd", "alice"], input="newpw\nnewpw\n")
+def test_user_passwd_non_tty_stdin_reads_password(config_with_server, client_mock, runner):
+    # CliRunner provides a non-TTY stdin, so the auto-detection path is exercised.
+    result = runner.invoke(app, ["user", "passwd", "alice"], input="newpw\n")
     assert result.exit_code == 0
     assert "alice" in result.output
+    client_mock.change_password.assert_called_once_with("alice", "newpw")
+
+
+def test_user_passwd_tty_stdin_prompts_with_confirmation(config_with_server, client_mock, runner):
+    # CliRunner always replaces sys.stdin inside isolation(), so patching sys.stdin
+    # directly is unreliable.  Instead we patch _stdin_is_tty (the extracted helper)
+    # to return True, and mock typer.prompt so no real TTY input is needed.
+    with patch.object(user_mod, "_stdin_is_tty", return_value=True), \
+         patch.object(user_mod.typer, "prompt", return_value="newpw") as mock_prompt:
+        result = runner.invoke(app, ["user", "passwd", "alice"])
+    assert result.exit_code == 0
+    mock_prompt.assert_called_once_with(
+        "New password for 'alice'", hide_input=True, confirmation_prompt=True
+    )
     client_mock.change_password.assert_called_once_with("alice", "newpw")
 
 

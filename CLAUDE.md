@@ -86,6 +86,10 @@ def my_method(self, path: str) -> list[str]:
 - `ExistClient` is the single HTTP facade — all REST calls go through it. Commands receive a client via `typer.Context.obj`.
 - Shell completion for collection/document paths lives in `completions.py`.
 
+## Testing conventions
+
+- Always use `patch.object(module, 'attr')` instead of the string form `patch("module.path.attr")`. Only fall back to string-based `patch()` when `patch.object` is genuinely not applicable (e.g. patching a name in `builtins`).
+
 ## Architecture
 
 ```
