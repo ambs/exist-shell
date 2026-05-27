@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from exist_shell.cache import get_cached, set_cached
+from exist_shell.cache import get_cached, get_cached_groups, get_cached_users, set_cached, set_cached_groups, set_cached_users
 from exist_shell.client import ExistClient
 from exist_shell.config import Config
 from exist_shell.models import CollectionEntry
@@ -101,6 +101,7 @@ def chown_spec_completer(incomplete: str) -> list[str]:
 
     # --- resolve server and the "rest" to complete ----------------------------
     server = None
+    resolved_nick = ""
     prefix = ""   # "server@" to prepend to every candidate
     rest = incomplete
 
@@ -108,14 +109,16 @@ def chown_spec_completer(incomplete: str) -> list[str]:
         server_nick, _, rest = incomplete.partition("@")
         if server_nick in config.servers:
             server = config.servers[server_nick]
+            resolved_nick = server_nick
             prefix = f"{server_nick}@"
         else:
             # Still typing the server nick: offer matching "server@" completions.
             return [f"{s}@" for s in config.servers if s.startswith(server_nick)]
     else:
         # Pick the first configured server as a default.
-        for s in config.servers.values():
+        for nick, s in config.servers.items():
             server = s
+            resolved_nick = nick
             break
 
     if server is None:
@@ -123,27 +126,34 @@ def chown_spec_completer(incomplete: str) -> list[str]:
 
     # --- fetch users / groups and build candidates ----------------------------
     try:
-        with ExistClient(server) as client:
-            if ":" in rest:
-                user_part, _, partial_group = rest.partition(":")
-                groups = client.list_groups()
-                return [
-                    f"{prefix}{user_part}:{g.name}"
-                    for g in groups
-                    if g.name.startswith(partial_group)
-                ]
-            else:
-                users = client.list_users()
-                results = [
-                    f"{prefix}{u.username}"
-                    for u in users
-                    if u.username.startswith(rest)
-                ]
-                # When no server pin typed yet and multiple servers exist,
-                # also offer "server@" so the user can pick a specific server.
-                if not prefix and len(config.servers) > 1:
-                    results += [f"{s}@" for s in config.servers if s.startswith(rest)]
-                return results
+        if ":" in rest:
+            user_part, _, partial_group = rest.partition(":")
+            groups = get_cached_groups(resolved_nick)
+            if groups is None:
+                with ExistClient(server) as client:
+                    groups = client.list_groups()
+                set_cached_groups(resolved_nick, groups)
+            return [
+                f"{prefix}{user_part}:{g.name}"
+                for g in groups
+                if g.name.startswith(partial_group)
+            ]
+        else:
+            users = get_cached_users(resolved_nick)
+            if users is None:
+                with ExistClient(server) as client:
+                    users = client.list_users()
+                set_cached_users(resolved_nick, users)
+            results = [
+                f"{prefix}{u.username}"
+                for u in users
+                if u.username.startswith(rest)
+            ]
+            # When no server pin typed yet and multiple servers exist,
+            # also offer "server@" so the user can pick a specific server.
+            if not prefix and len(config.servers) > 1:
+                results += [f"{s}@" for s in config.servers if s.startswith(rest)]
+            return results
     except Exception:
         return []
 

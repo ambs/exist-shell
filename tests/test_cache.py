@@ -3,8 +3,8 @@ import time
 import pytest
 
 import exist_shell.cache as cache_module
-from exist_shell.cache import get_cached, invalidate, set_cached
-from exist_shell.models import CollectionEntry, ResourceEntry
+from exist_shell.cache import get_cached, get_cached_groups, get_cached_users, invalidate, set_cached, set_cached_groups, set_cached_users
+from exist_shell.models import CollectionEntry, GroupEntry, ResourceEntry, UserEntry
 
 
 @pytest.fixture(autouse=True)
@@ -63,3 +63,69 @@ def test_set_cached_empty_list():
     set_cached("myapp", "/", [])
     result = get_cached("myapp", "/")
     assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Users cache
+# ---------------------------------------------------------------------------
+
+
+def test_get_cached_users_miss_no_file():
+    assert get_cached_users("local") is None
+
+
+def test_set_and_get_cached_users_within_ttl():
+    users = [UserEntry(username="alice", groups=["editors"]), UserEntry(username="admin", groups=["dba"])]
+    set_cached_users("local", users)
+    result = get_cached_users("local")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0].username == "alice"
+    assert result[1].username == "admin"
+
+
+def test_get_cached_users_expired(monkeypatch):
+    set_cached_users("local", [UserEntry(username="alice", groups=[])])
+    now = time.time()
+    monkeypatch.setattr(cache_module.time, "time", lambda: now + cache_module.SERVER_CACHE_TTL + 1)
+    assert get_cached_users("local") is None
+
+
+def test_cached_users_different_servers_are_independent():
+    set_cached_users("local", [UserEntry(username="alice", groups=[])])
+    set_cached_users("prod", [UserEntry(username="bob", groups=[])])
+    assert get_cached_users("local")[0].username == "alice"  # type: ignore[index]
+    assert get_cached_users("prod")[0].username == "bob"  # type: ignore[index]
+
+
+# ---------------------------------------------------------------------------
+# Groups cache
+# ---------------------------------------------------------------------------
+
+
+def test_get_cached_groups_miss_no_file():
+    assert get_cached_groups("local") is None
+
+
+def test_set_and_get_cached_groups_within_ttl():
+    groups = [GroupEntry(name="editors", members=["alice"]), GroupEntry(name="dba", members=["admin"])]
+    set_cached_groups("local", groups)
+    result = get_cached_groups("local")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0].name == "editors"
+    assert result[1].name == "dba"
+
+
+def test_get_cached_groups_expired(monkeypatch):
+    set_cached_groups("local", [GroupEntry(name="editors", members=[])])
+    now = time.time()
+    monkeypatch.setattr(cache_module.time, "time", lambda: now + cache_module.SERVER_CACHE_TTL + 1)
+    assert get_cached_groups("local") is None
+
+
+def test_cached_groups_different_servers_are_independent():
+    set_cached_groups("local", [GroupEntry(name="editors", members=[])])
+    set_cached_groups("prod", [GroupEntry(name="ops", members=[])])
+    assert get_cached_groups("local")[0].name == "editors"  # type: ignore[index]
+    assert get_cached_groups("prod")[0].name == "ops"  # type: ignore[index]
