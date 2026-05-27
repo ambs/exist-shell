@@ -13,6 +13,11 @@ from exist_shell.utils import parse_user_at_server
 app = typer.Typer(help="Manage eXist-db users.", no_args_is_help=True)
 
 
+def _stdin_is_tty() -> bool:
+    """Return True when stdin is connected to a real terminal."""
+    return sys.stdin.isatty()
+
+
 def _resolve_server(
     config: Config,
     inline_server: str | None,
@@ -252,15 +257,17 @@ def user_passwd(
 
     The username may include an inline server nick using ``user@server``
     syntax (e.g. ``alice@prod``).  Prompts for the new password interactively
-    (with confirmation) unless ``--stdin`` is supplied, in which case the
-    password is read from standard input — suitable for piped automation.
-    The password is never accepted on the command line to avoid shell history
-    exposure.
+    (with confirmation) when running on a TTY.  When stdin is not a TTY (pipe
+    or redirect), or when ``--stdin`` is supplied explicitly, the password is
+    read as a single line from standard input without a confirmation prompt —
+    suitable for piped automation.  The password is never accepted on the
+    command line to avoid shell history exposure.
 
     Args:
         username: The account name, optionally suffixed with ``@server_nick``.
         from_stdin: When True, read the new password from stdin instead of
-            prompting interactively.
+            prompting interactively.  Also activated automatically when stdin
+            is not connected to a TTY.
         server: Server nick to target. Auto-selected when only one server is
             configured; required when multiple servers are configured.
     """
@@ -272,7 +279,7 @@ def user_passwd(
     config = Config.load()
     resolved = _resolve_server(config, inline_server, server)
 
-    if from_stdin:
+    if from_stdin or not _stdin_is_tty():
         password = sys.stdin.readline().rstrip("\n")
     else:
         password = typer.prompt(f"New password for '{bare_username}'", hide_input=True, confirmation_prompt=True)
