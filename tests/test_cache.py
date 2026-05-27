@@ -3,6 +3,7 @@ import time
 import pytest
 
 import exist_shell.cache as cache_module
+from exist_shell.cache import _get_cache_dir as _real_get_cache_dir
 from exist_shell.cache import get_cached, get_cached_groups, get_cached_users, invalidate, set_cached, set_cached_groups, set_cached_users
 from exist_shell.models import CollectionEntry, GroupEntry, ResourceEntry, UserEntry
 
@@ -129,3 +130,52 @@ def test_cached_groups_different_servers_are_independent():
     set_cached_groups("prod", [GroupEntry(name="ops", members=[])])
     assert get_cached_groups("local")[0].name == "editors"  # type: ignore[index]
     assert get_cached_groups("prod")[0].name == "ops"  # type: ignore[index]
+
+
+# ---------------------------------------------------------------------------
+# _get_cache_dir real implementation
+# ---------------------------------------------------------------------------
+
+
+def test_get_cache_dir_delegates_to_config(monkeypatch, tmp_path):
+    """_real_get_cache_dir bypasses the autouse mock and exercises line 21."""
+    from exist_shell.config import Config
+
+    fake_config = Config(cache_dir=tmp_path)
+    monkeypatch.setattr(cache_module, "Config", type("_FakeConfig", (), {"load": staticmethod(lambda: fake_config)}))
+    result = _real_get_cache_dir()
+    assert result == tmp_path / "completions"
+
+
+# ---------------------------------------------------------------------------
+# Silent error paths (except: pass branches)
+# ---------------------------------------------------------------------------
+
+
+def _raise_os_error() -> None:
+    raise OSError("simulated disk error")
+
+
+def test_set_cached_silences_write_error(monkeypatch):
+    """set_cached must not propagate exceptions (lines 85-86)."""
+    monkeypatch.setattr(cache_module, "_get_cache_dir", _raise_os_error)
+    # Should complete without raising
+    set_cached("myapp", "/", [CollectionEntry(name="x")])
+
+
+def test_set_cached_users_silences_write_error(monkeypatch):
+    """set_cached_users must not propagate exceptions (lines 135-136)."""
+    monkeypatch.setattr(cache_module, "_get_cache_dir", _raise_os_error)
+    set_cached_users("local", [UserEntry(username="alice", groups=[])])
+
+
+def test_set_cached_groups_silences_write_error(monkeypatch):
+    """set_cached_groups must not propagate exceptions (lines 172-173)."""
+    monkeypatch.setattr(cache_module, "_get_cache_dir", _raise_os_error)
+    set_cached_groups("local", [GroupEntry(name="editors", members=[])])
+
+
+def test_invalidate_silences_glob_error(monkeypatch):
+    """invalidate must not propagate exceptions (lines 185-186)."""
+    monkeypatch.setattr(cache_module, "_get_cache_dir", _raise_os_error)
+    invalidate("myapp")
