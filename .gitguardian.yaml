@@ -1,3 +1,5 @@
 paths-ignore:
   - "tests/**"
+  - "tests"
   - "scripts/e2e/**"
+  - "scripts/e2e"
