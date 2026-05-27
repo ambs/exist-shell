@@ -657,6 +657,182 @@ def test_group_exists_returns_false(httpx_mock, a_server):
         assert client.group_exists("ghost") is False
 
 
+# ---------------------------------------------------------------------------
+# _mode_str_to_int
+# ---------------------------------------------------------------------------
+
+from exist_shell.client._permissions import _int_to_mode_str, _mode_str_to_int
+
+
+def test_mode_str_to_int_rwxr_xr_x():
+    assert _mode_str_to_int("rwxr-xr-x") == 0o755
+
+
+def test_mode_str_to_int_rw_r__r__():
+    assert _mode_str_to_int("rw-r--r--") == 0o644
+
+
+def test_mode_str_to_int_all_dashes():
+    assert _mode_str_to_int("---------") == 0
+
+
+def test_mode_str_to_int_strips_type_prefix():
+    # 10-char string with leading 'd' (directory)
+    assert _mode_str_to_int("drwxr-xr-x") == 0o755
+
+
+def test_mode_str_to_int_short_string_returns_zero():
+    assert _mode_str_to_int("rwx") == 0
+
+
+def test_mode_str_to_int_setuid_with_execute():
+    # 's' in user position: setuid + execute
+    assert _mode_str_to_int("rwsr-xr-x") == 0o4755
+
+
+def test_mode_str_to_int_setuid_without_execute():
+    # 'S' in user position: setuid, no execute
+    assert _mode_str_to_int("rwSr-xr-x") == 0o4655
+
+
+def test_mode_str_to_int_setgid_with_execute():
+    # 's' in group position: setgid + execute
+    assert _mode_str_to_int("rwxr-sr-x") == 0o2755
+
+
+def test_mode_str_to_int_setgid_without_execute():
+    # 'S' in group position: setgid, no execute
+    # 0o2745 = setgid + user(rwx) + group(r--) + other(r-x)
+    assert _mode_str_to_int("rwxr-Sr-x") == 0o2745
+
+
+def test_mode_str_to_int_sticky_with_execute():
+    # 't' in other position: sticky + execute
+    assert _mode_str_to_int("rwxr-xr-t") == 0o1755
+
+
+def test_mode_str_to_int_sticky_without_execute():
+    # 'T' in other position: sticky, no execute
+    assert _mode_str_to_int("rwxr-xr-T") == 0o1754
+
+
+# ---------------------------------------------------------------------------
+# _int_to_mode_str
+# ---------------------------------------------------------------------------
+
+
+def test_int_to_mode_str_0755():
+    assert _int_to_mode_str(0o755) == "rwxr-xr-x"
+
+
+def test_int_to_mode_str_0644():
+    assert _int_to_mode_str(0o644) == "rw-r--r--"
+
+
+def test_int_to_mode_str_zero():
+    assert _int_to_mode_str(0) == "---------"
+
+
+def test_int_to_mode_str_setuid_with_execute():
+    assert _int_to_mode_str(0o4755) == "rwsr-xr-x"
+
+
+def test_int_to_mode_str_setuid_without_execute():
+    assert _int_to_mode_str(0o4655) == "rwSr-xr-x"
+
+
+def test_int_to_mode_str_setgid_with_execute():
+    assert _int_to_mode_str(0o2755) == "rwxr-sr-x"
+
+
+def test_int_to_mode_str_setgid_without_execute():
+    # 0o2745 = setgid + user(rwx) + group(r--) + other(r-x) → 'S' in group position
+    assert _int_to_mode_str(0o2745) == "rwxr-Sr-x"
+
+
+def test_int_to_mode_str_sticky_with_execute():
+    assert _int_to_mode_str(0o1755) == "rwxr-xr-t"
+
+
+def test_int_to_mode_str_sticky_without_execute():
+    assert _int_to_mode_str(0o1754) == "rwxr-xr-T"
+
+
+def test_mode_str_round_trips():
+    for mode in (0o755, 0o644, 0o000, 0o777, 0o4755, 0o2755, 0o1755):
+        assert _mode_str_to_int(_int_to_mode_str(mode)) == mode
+
+
+# ---------------------------------------------------------------------------
+# get_permissions
+# ---------------------------------------------------------------------------
+
+_SM_NS = "http://exist-db.org/xquery/securitymanager"
+
+
+def test_get_permissions_returns_integer_mode(httpx_mock, a_server):
+    xml = f'<sm:permission xmlns:sm="{_SM_NS}" owner="admin" group="dba" mode="rwxr-xr-x"/>'
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text=xml)
+    with ExistClient(a_server) as client:
+        assert client.get_permissions("/db/myapp/doc.xml") == 0o755
+
+
+def test_get_permissions_handles_missing_mode_attribute(httpx_mock, a_server):
+    # When the 'mode' attribute is absent, the default "---------" → 0
+    xml = f'<sm:permission xmlns:sm="{_SM_NS}" owner="admin" group="dba"/>'
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text=xml)
+    with ExistClient(a_server) as client:
+        assert client.get_permissions("/db/myapp/doc.xml") == 0
+
+
+def test_get_permissions_sends_get_permissions_query(httpx_mock, a_server):
+    xml = f'<sm:permission xmlns:sm="{_SM_NS}" owner="admin" group="dba" mode="rw-r--r--"/>'
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text=xml)
+    with ExistClient(a_server) as client:
+        client.get_permissions("/db/myapp/doc.xml")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:get-permissions" in body["_query"][0]
+
+
+def test_get_permissions_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="Not found")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.get_permissions("/db/myapp/missing.xml")
+
+
+# ---------------------------------------------------------------------------
+# chmod_resource
+# ---------------------------------------------------------------------------
+
+
+def test_chmod_resource_sends_chmod_query(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.chmod_resource("/db/myapp/doc.xml", 0o755)
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:chmod" in body["_query"][0]
+    assert "rwxr-xr-x" in body["_query"][0]
+
+
+def test_chmod_resource_encodes_mode_as_mode_string(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.chmod_resource("/db/myapp/doc.xml", 0o644)
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "rw-r--r--" in body["_query"][0]
+
+
+def test_chmod_resource_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="Permission denied")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.chmod_resource("/db/myapp/doc.xml", 0o644)
+
+
 def test_group_exists_raises_auth_error_on_401(httpx_mock, a_server):
     httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=401)
     with ExistClient(a_server) as client:
