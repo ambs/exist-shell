@@ -459,6 +459,30 @@ def test_list_users_handles_empty_groups(httpx_mock, a_server):
 
 
 # ---------------------------------------------------------------------------
+# user_exists
+# ---------------------------------------------------------------------------
+
+
+def test_user_exists_returns_true(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="true")
+    with ExistClient(a_server) as client:
+        assert client.user_exists("alice") is True
+
+
+def test_user_exists_returns_false(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="false")
+    with ExistClient(a_server) as client:
+        assert client.user_exists("nobody") is False
+
+
+def test_user_exists_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=401)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.user_exists("alice")
+
+
+# ---------------------------------------------------------------------------
 # get_user
 # ---------------------------------------------------------------------------
 
@@ -554,6 +578,90 @@ def test_change_password_raises_query_error_on_500(httpx_mock, a_server):
     with ExistClient(a_server) as client:
         with pytest.raises(ExistQueryError):
             client.change_password("nobody", "pw")
+
+
+# ---------------------------------------------------------------------------
+# chown_resource
+# ---------------------------------------------------------------------------
+
+
+def test_chown_resource_owner_only_sends_chown(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.chown_resource("/db/myapp/doc.xml", "alice", None)
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:chown" in body["_query"][0]
+    assert "sm:chgrp" not in body["_query"][0]
+    assert "sm:user-exists" in body["_query"][0]
+
+
+def test_chown_resource_group_only_sends_chgrp(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.chown_resource("/db/myapp/doc.xml", None, "editors")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:chgrp" in body["_query"][0]
+    assert "sm:chown" not in body["_query"][0]
+    assert "sm:group-exists" in body["_query"][0]
+
+
+def test_chown_resource_both_sends_chown_and_chgrp(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.chown_resource("/db/myapp/doc.xml", "alice", "editors")
+    from urllib.parse import parse_qs
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "sm:chown" in body["_query"][0]
+    assert "sm:chgrp" in body["_query"][0]
+    assert "sm:user-exists" in body["_query"][0]
+    assert "sm:group-exists" in body["_query"][0]
+
+
+def test_chown_resource_unknown_user_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="User not found: nobody")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError, match="User not found"):
+            client.chown_resource("/db/myapp/doc.xml", "nobody", None)
+
+
+def test_chown_resource_unknown_group_raises_query_error_on_500(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="Group not found: ghost")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError, match="Group not found"):
+            client.chown_resource("/db/myapp/doc.xml", None, "ghost")
+
+
+def test_chown_resource_raises_query_error_on_permission_denied(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=500, text="Permission denied")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.chown_resource("/db/myapp/doc.xml", "alice", None)
+
+
+# ---------------------------------------------------------------------------
+# group_exists
+# ---------------------------------------------------------------------------
+
+
+def test_group_exists_returns_true(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="true")
+    with ExistClient(a_server) as client:
+        assert client.group_exists("dba") is True
+
+
+def test_group_exists_returns_false(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", text="false")
+    with ExistClient(a_server) as client:
+        assert client.group_exists("ghost") is False
+
+
+def test_group_exists_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(url=_DB_POST_URL, method="POST", status_code=401)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.group_exists("dba")
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ from exist_shell import __version__
 from exist_shell.commands import collection, group, server, user
 from exist_shell.config import app_state
 from exist_shell.commands.cat import cat
+from exist_shell.commands.chown import chown
 from exist_shell.commands.exec import exec as exec_query
 from exist_shell.commands.cp import cp
 from exist_shell.commands.mkdir import mkdir
@@ -29,6 +30,7 @@ app.add_typer(collection.app, name="collection", help="Manage collections.")
 app.add_typer(user.app, name="user", help="Manage users.")
 app.add_typer(group.app, name="group", help="Manage groups.")
 app.command("ls", help="List contents of a collection path.")(ls)
+app.command("chown", help="Change the owner and/or group of a document or collection.")(chown)
 app.command("cat", help="Print document content to stdout.")(cat)
 app.command("put", help="Upload a document to a collection path.")(put)
 app.command("edit", help="Edit a document in $VISUAL/$EDITOR and re-upload if changed.")(edit)

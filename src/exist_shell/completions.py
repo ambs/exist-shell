@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from exist_shell.cache import get_cached, set_cached
+from exist_shell.cache import get_cached, get_cached_groups, get_cached_users, set_cached, set_cached_groups, set_cached_users
 from exist_shell.client import ExistClient
 from exist_shell.config import Config
 from exist_shell.models import CollectionEntry
@@ -72,6 +72,90 @@ def collection_target_completer(kind: Kind = "any", *, allow_local: bool = False
         return results
 
     return _complete
+
+
+def chown_spec_completer(incomplete: str) -> list[str]:
+    """Complete an ``owner_spec`` argument for the ``chown`` command.
+
+    Accepts an optional ``server@`` prefix to select which server to query for
+    user and group names.  All six forms are supported:
+
+    - ``user`` / ``:group`` / ``user:group`` — uses the first reachable server.
+    - ``server@user`` / ``server@:group`` / ``server@user:group`` — uses the
+      named server; the ``server@`` prefix is stripped by the command before
+      the ownership change is applied.
+
+    When no ``@`` is present and multiple servers are configured, server-nick
+    completions (``server@``) are also offered so the user can pin a server.
+
+    Args:
+        incomplete: The partially typed owner spec.
+
+    Returns:
+        List of completion candidates.
+    """
+    try:
+        config = Config.load()
+    except Exception:
+        return []
+
+    # --- resolve server and the "rest" to complete ----------------------------
+    server = None
+    resolved_nick = ""
+    prefix = ""   # "server@" to prepend to every candidate
+    rest = incomplete
+
+    if "@" in incomplete:
+        server_nick, _, rest = incomplete.partition("@")
+        if server_nick in config.servers:
+            server = config.servers[server_nick]
+            resolved_nick = server_nick
+            prefix = f"{server_nick}@"
+        else:
+            # Still typing the server nick: offer matching "server@" completions.
+            return [f"{s}@" for s in config.servers if s.startswith(server_nick)]
+    else:
+        # Pick the first configured server as a default.
+        for nick, s in config.servers.items():
+            server = s
+            resolved_nick = nick
+            break
+
+    if server is None:
+        return []
+
+    # --- fetch users / groups and build candidates ----------------------------
+    try:
+        if ":" in rest:
+            user_part, _, partial_group = rest.partition(":")
+            groups = get_cached_groups(resolved_nick)
+            if groups is None:
+                with ExistClient(server) as client:
+                    groups = client.list_groups()
+                set_cached_groups(resolved_nick, groups)
+            return [
+                f"{prefix}{user_part}:{g.name}"
+                for g in groups
+                if g.name.startswith(partial_group)
+            ]
+        else:
+            users = get_cached_users(resolved_nick)
+            if users is None:
+                with ExistClient(server) as client:
+                    users = client.list_users()
+                set_cached_users(resolved_nick, users)
+            results = [
+                f"{prefix}{u.username}"
+                for u in users
+                if u.username.startswith(rest)
+            ]
+            # When no server pin typed yet and multiple servers exist,
+            # also offer "server@" so the user can pick a specific server.
+            if not prefix and len(config.servers) > 1:
+                results += [f"{s}@" for s in config.servers if s.startswith(rest)]
+            return results
+    except Exception:
+        return []
 
 
 def server_nick_completer(incomplete: str) -> list[str]:

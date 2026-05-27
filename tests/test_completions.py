@@ -5,9 +5,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import SecretStr
 
-from exist_shell.completions import collection_target_completer, server_at_completer, server_nick_completer, user_arg_completer
+import exist_shell.completions as completions_module
+from exist_shell.completions import chown_spec_completer, collection_target_completer, server_at_completer, server_nick_completer, user_arg_completer
 from exist_shell.config import Collection, Config, Server
-from exist_shell.models import CollectionEntry, ResourceEntry
+from exist_shell.models import CollectionEntry, GroupEntry, ResourceEntry, UserEntry
 
 
 _EXIST_NS = "http://exist.sourceforge.net/NS/exist"
@@ -39,7 +40,7 @@ def items():
 
 def test_returns_empty_when_config_load_fails(config_path):
     complete = collection_target_completer()
-    with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
+    with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert complete("") == []
 
 
@@ -97,8 +98,8 @@ def test_unknown_nick_returns_empty(cfg):
 def test_cache_hit_returns_items_without_calling_client(cfg, items):
     complete = collection_target_completer()
     with (
-        patch("exist_shell.completions.get_cached", return_value=items) as mock_get,
-        patch("exist_shell.completions.ExistClient") as mock_client,
+        patch.object(completions_module, "get_cached", return_value=items) as mock_get,
+        patch.object(completions_module, "ExistClient") as mock_client,
     ):
         result = complete("myapp:/")
     mock_get.assert_called_once_with("myapp", "/")
@@ -121,9 +122,9 @@ def test_cache_miss_calls_client_and_sets_cache(cfg, items):
     client_context.__exit__ = MagicMock(return_value=False)
 
     with (
-        patch("exist_shell.completions.get_cached", return_value=None),
-        patch("exist_shell.completions.ExistClient", return_value=client_context),
-        patch("exist_shell.completions.set_cached") as mock_set,
+        patch.object(completions_module, "get_cached", return_value=None),
+        patch.object(completions_module, "ExistClient", return_value=client_context),
+        patch.object(completions_module, "set_cached") as mock_set,
     ):
         result = complete("myapp:/")
 
@@ -140,8 +141,8 @@ def test_cache_miss_calls_client_and_sets_cache(cfg, items):
 def test_listing_exception_returns_empty(cfg):
     complete = collection_target_completer()
     with (
-        patch("exist_shell.completions.get_cached", return_value=None),
-        patch("exist_shell.completions.ExistClient", side_effect=OSError("conn refused")),
+        patch.object(completions_module, "get_cached", return_value=None),
+        patch.object(completions_module, "ExistClient", side_effect=OSError("conn refused")),
     ):
         assert complete("myapp:/") == []
 
@@ -153,7 +154,7 @@ def test_listing_exception_returns_empty(cfg):
 
 def test_kind_collection_excludes_resources(cfg, items):
     complete = collection_target_completer(kind="collection")
-    with patch("exist_shell.completions.get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached", return_value=items):
         result = complete("myapp:/")
     assert any("subdir" in r for r in result)
     assert not any("doc.xml" in r for r in result)
@@ -161,7 +162,7 @@ def test_kind_collection_excludes_resources(cfg, items):
 
 def test_kind_resource_excludes_collections(cfg, items):
     complete = collection_target_completer(kind="resource")
-    with patch("exist_shell.completions.get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached", return_value=items):
         result = complete("myapp:/")
     assert any("doc.xml" in r for r in result)
     assert not any("subdir" in r for r in result)
@@ -169,7 +170,7 @@ def test_kind_resource_excludes_collections(cfg, items):
 
 def test_kind_any_includes_both(cfg, items):
     complete = collection_target_completer(kind="any")
-    with patch("exist_shell.completions.get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached", return_value=items):
         result = complete("myapp:/")
     assert any("subdir" in r for r in result)
     assert any("doc.xml" in r for r in result)
@@ -187,7 +188,7 @@ def test_prefix_filters_results(cfg):
         ResourceEntry(name="alpha.xml"),
     ]
     complete = collection_target_completer()
-    with patch("exist_shell.completions.get_cached", return_value=all_items):
+    with patch.object(completions_module, "get_cached", return_value=all_items):
         result = complete("myapp:/al")
     names = [r.split(":", 1)[1] for r in result]
     assert "/alpha/" in names
@@ -210,9 +211,9 @@ def test_partial_path_without_leading_slash_is_normalised(cfg, items):
     client_context.__exit__ = MagicMock(return_value=False)
 
     with (
-        patch("exist_shell.completions.get_cached", return_value=None),
-        patch("exist_shell.completions.ExistClient", return_value=client_context),
-        patch("exist_shell.completions.set_cached"),
+        patch.object(completions_module, "get_cached", return_value=None),
+        patch.object(completions_module, "ExistClient", return_value=client_context),
+        patch.object(completions_module, "set_cached"),
     ):
         result = complete("myapp:sub")
 
@@ -230,7 +231,7 @@ def test_partial_path_without_leading_slash_is_normalised(cfg, items):
 def test_collection_entry_has_trailing_slash(cfg):
     items = [CollectionEntry(name="books")]
     complete = collection_target_completer()
-    with patch("exist_shell.completions.get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached", return_value=items):
         result = complete("myapp:/")
     assert result == ["myapp:/books/"]
 
@@ -238,7 +239,7 @@ def test_collection_entry_has_trailing_slash(cfg):
 def test_resource_entry_has_no_trailing_slash(cfg):
     items = [ResourceEntry(name="readme.xml")]
     complete = collection_target_completer()
-    with patch("exist_shell.completions.get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached", return_value=items):
         result = complete("myapp:/")
     assert result == ["myapp:/readme.xml"]
 
@@ -272,7 +273,7 @@ def test_user_arg_completer_exact_match_returns_candidate(cfg):
 
 
 def test_user_arg_completer_config_error_returns_empty():
-    with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
+    with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert user_arg_completer("alice@") == []
 
 
@@ -305,7 +306,7 @@ def test_server_at_completer_no_at_prefix_returns_empty(cfg):
 
 
 def test_server_at_completer_config_error_returns_empty():
-    with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
+    with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert server_at_completer("@") == []
 
 
@@ -327,5 +328,135 @@ def test_server_nick_completer_non_matching_prefix(cfg):
 
 
 def test_server_nick_completer_config_error_returns_empty():
-    with patch("exist_shell.completions.Config.load", side_effect=RuntimeError("boom")):
+    with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert server_nick_completer("") == []
+
+
+# ---------------------------------------------------------------------------
+# chown_spec_completer
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _client_mock():
+    users = [UserEntry(username="alice", groups=[]), UserEntry(username="admin", groups=[])]
+    groups = [GroupEntry(name="editors", members=[]), GroupEntry(name="dba", members=[])]
+    client = MagicMock()
+    client.list_users.return_value = users
+    client.list_groups.return_value = groups
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=client)
+    ctx.__exit__ = MagicMock(return_value=False)
+    return ctx, client
+
+
+def test_chown_spec_completer_config_error_returns_empty():
+    with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
+        assert chown_spec_completer("") == []
+
+
+def test_chown_spec_completer_no_servers_returns_empty(config_path):
+    assert chown_spec_completer("") == []
+
+
+def test_chown_spec_completer_completes_users(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch.object(completions_module, "get_cached_users", return_value=None), \
+         patch.object(completions_module, "set_cached_users"), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("")
+    assert "alice" in result
+    assert "admin" in result
+
+
+def test_chown_spec_completer_users_cache_hit(cfg, _client_mock):
+    ctx, client = _client_mock
+    cached = [UserEntry(username="alice", groups=[]), UserEntry(username="admin", groups=[])]
+    with patch.object(completions_module, "get_cached_users", return_value=cached), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("")
+    client.list_users.assert_not_called()
+    assert "alice" in result
+
+
+def test_chown_spec_completer_filters_users_by_prefix(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch.object(completions_module, "get_cached_users", return_value=None), \
+         patch.object(completions_module, "set_cached_users"), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("al")
+    assert "alice" in result
+    assert "admin" not in result
+
+
+def test_chown_spec_completer_colon_completes_groups(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch.object(completions_module, "get_cached_groups", return_value=None), \
+         patch.object(completions_module, "set_cached_groups"), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("alice:")
+    assert "alice:editors" in result
+    assert "alice:dba" in result
+
+
+def test_chown_spec_completer_groups_cache_hit(cfg, _client_mock):
+    ctx, client = _client_mock
+    cached = [GroupEntry(name="editors", members=[]), GroupEntry(name="dba", members=[])]
+    with patch.object(completions_module, "get_cached_groups", return_value=cached), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("alice:")
+    client.list_groups.assert_not_called()
+    assert "alice:editors" in result
+
+
+def test_chown_spec_completer_colon_filters_groups_by_prefix(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch.object(completions_module, "get_cached_groups", return_value=None), \
+         patch.object(completions_module, "set_cached_groups"), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("alice:ed")
+    assert "alice:editors" in result
+    assert "alice:dba" not in result
+
+
+def test_chown_spec_completer_server_prefix_resolves_server(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch.object(completions_module, "get_cached_users", return_value=None), \
+         patch.object(completions_module, "set_cached_users"), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("local@")
+    assert "local@alice" in result
+    assert "local@admin" in result
+
+
+def test_chown_spec_completer_server_prefix_with_colon_completes_groups(cfg, _client_mock):
+    ctx, _ = _client_mock
+    with patch.object(completions_module, "get_cached_groups", return_value=None), \
+         patch.object(completions_module, "set_cached_groups"), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("local@alice:")
+    assert "local@alice:editors" in result
+
+
+def test_chown_spec_completer_unknown_server_prefix_offers_server_nicks(cfg):
+    result = chown_spec_completer("lo@")
+    assert "local@" in result
+
+
+def test_chown_spec_completer_multiple_servers_offers_server_nicks(cfg, _client_mock):
+    Config.load().add_server(
+        Server(nick="prod", host="prod.example.com", password=SecretStr(""))
+    )
+    ctx, _ = _client_mock
+    with patch.object(completions_module, "get_cached_users", return_value=None), \
+         patch.object(completions_module, "set_cached_users"), \
+         patch.object(completions_module, "ExistClient", return_value=ctx):
+        result = chown_spec_completer("")
+    assert "local@" in result
+    assert "prod@" in result
+
+
+def test_chown_spec_completer_client_exception_returns_empty(cfg):
+    with patch.object(completions_module, "get_cached_users", return_value=None), \
+         patch.object(completions_module, "ExistClient", side_effect=OSError("refused")):
+        assert chown_spec_completer("") == []
