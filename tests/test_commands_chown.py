@@ -88,7 +88,7 @@ def test_chown_owner_and_group(config_with_collection, client_mock, runner):
 
 
 def test_chown_server_prefix_stripped(config_with_collection, client_mock, runner):
-    result = runner.invoke(app, ["chown", "prod@alice:editors", "myapp:/doc.xml"])
+    result = runner.invoke(app, ["chown", "local@alice:editors", "myapp:/doc.xml"])
     assert result.exit_code == 0
     client_mock.chown_resource.assert_called_once_with("/db/myapp/doc.xml", "alice", "editors")
 
@@ -160,6 +160,14 @@ def test_chown_unknown_collection_fails(config_with_collection, client_mock, run
     result = runner.invoke(app, ["chown", "alice", "ghost:/doc.xml"])
     assert result.exit_code == 1
     assert "collection 'ghost' not found" in result.output
+
+
+def test_chown_server_prefix_mismatch_fails(config_with_collection, client_mock, runner):
+    result = runner.invoke(app, ["chown", "other@alice", "myapp:/doc.xml"])
+    assert result.exit_code == 1
+    assert "other" in result.output
+    assert "local" in result.output
+    client_mock.chown_resource.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

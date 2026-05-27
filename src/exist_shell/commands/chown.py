@@ -73,7 +73,13 @@ def chown(
         help="Apply recursively to all contents of a collection.",
     ),
 ) -> None:
-    """Change the owner and/or group of a document or collection on the server."""
+    """Change the owner and/or group of a document or collection on the server.
+
+    Raises:
+        typer.Exit: If the ``server@`` prefix in the owner spec names a different
+            server than the one the target collection is registered against.
+    """
+    spec_server_nick = owner_spec.partition("@")[0] if "@" in owner_spec else None
     owner, group = _parse_spec(owner_spec)
     if owner is None and group is None:
         typer.echo(
@@ -85,6 +91,14 @@ def chown(
 
     nick, path = parse_target(target, path_required=False)
     collection, server, full_path = resolve_collection(nick, path)
+
+    if spec_server_nick and spec_server_nick != collection.server_nick:
+        typer.echo(
+            f"Error: owner spec targets server '{spec_server_nick}' but "
+            f"collection '{nick}' belongs to server '{collection.server_nick}'.",
+            err=True,
+        )
+        raise typer.Exit(1)
 
     try:
         with handle_exist_errors(path, nick, collection.server_nick):
