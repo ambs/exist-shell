@@ -2,6 +2,7 @@
 
 ## unreleased
 
+## 0.1.0 - 2026-06-23
 
 ### Commands
 
@@ -29,6 +30,7 @@
 | `group add <group[@server]>` | Create a group |
 | `group rm <group[@server]>` | Remove a group |
 | `chown <spec> <path>` | Change owner and/or group of a document or collection; `--recursive / -R` for collections; spec forms: `owner`, `:group`, `owner:group` |
+| `chmod <mode> <path>` | Change POSIX permissions of a document or collection; `--recursive / -R` for collections; accepts octal (`0755`) or symbolic (`u+x`, `go-w`, `a=rw`) modes |
 
 ### Infrastructure
 
