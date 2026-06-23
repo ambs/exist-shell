@@ -7,10 +7,16 @@
 
 ## Install as a tool
 
-The recommended way is to install `exsh` as a uv tool so it is available system-wide:
+The recommended way is to install `exsh` from PyPI as a uv tool so it is available system-wide:
 
 ```bash
-uv tool install git+https://github.com/ambs/exist-shell
+uv tool install exist-shell
+```
+
+Or with `pipx`:
+
+```bash
+pipx install exist-shell
 ```
 
 Verify the installation:
@@ -18,6 +24,14 @@ Verify the installation:
 ```bash
 exsh --version
 ```
+
+## Run without installing
+
+```bash
+uvx --from exist-shell exsh --version
+```
+
+`uvx` runs the command in a temporary, cached environment without installing it permanently — useful for trying out `exsh` or running a one-off command.
 
 ## Upgrade
 
@@ -29,6 +43,14 @@ uv tool upgrade exist-shell
 
 ```bash
 uv tool uninstall exist-shell
+```
+
+## Install from git
+
+To install an unreleased commit instead of the latest PyPI release:
+
+```bash
+uv tool install git+https://github.com/ambs/exist-shell
 ```
 
 ## Install from a local clone

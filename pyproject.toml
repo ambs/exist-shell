@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "exist-shell"
-version = "0.1.1"
+version = "0.1.2"
 description = "Command-line tool to interact with eXist-db via REST"
 readme = "README.md"
 license = "MIT"

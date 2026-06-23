@@ -19,7 +19,13 @@ A command-line tool to interact with an [eXist-db](https://exist-db.org) server 
 Install system-wide with `uv tool`:
 
 ```bash
-uv tool install git+https://github.com/ambs/exist-shell
+uv tool install exist-shell
+```
+
+Or with `pipx`:
+
+```bash
+pipx install exist-shell
 ```
 
 This places `exsh` on your `PATH`. Verify with:
@@ -32,6 +38,22 @@ To uninstall:
 
 ```bash
 uv tool uninstall exist-shell
+```
+
+### Run without installing
+
+```bash
+uvx --from exist-shell exsh --version
+```
+
+`uvx` fetches the package into a temporary, cached environment and runs it — handy for one-off use or trying out a new release.
+
+### Install from git
+
+To track an unreleased commit instead of a PyPI release:
+
+```bash
+uv tool install git+https://github.com/ambs/exist-shell
 ```
 
 ## Configuration

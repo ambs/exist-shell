@@ -5,6 +5,14 @@
 ## Installation
 
 ```bash
+pip install exist-shell
+# or with uv
+uv add exist-shell
+```
+
+To track an unreleased commit instead of a PyPI release:
+
+```bash
 pip install git+https://github.com/ambs/exist-shell
 # or with uv
 uv add git+https://github.com/ambs/exist-shell
