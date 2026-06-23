@@ -2,6 +2,13 @@
 
 ## unreleased
 
+## 0.1.1 - 2026-06-23
+
+### Fixes
+
+- Complete PyPI project metadata: `readme`, `license` (MIT), `authors`, `classifiers`, `project.urls`, and `keywords` were all missing, leaving the 0.1.0 PyPI listing with no description, license, or links
+- Add `LICENSE` file (MIT)
+
 ## 0.1.0 - 2026-06-23
 
 ### Commands

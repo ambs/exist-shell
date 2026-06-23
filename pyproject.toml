@@ -4,8 +4,26 @@ build-backend = "hatchling.build"
 
 [project]
 name = "exist-shell"
-version = "0.1.0"
+version = "0.1.1"
 description = "Command-line tool to interact with eXist-db via REST"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Alberto Simões", email = "ambs@zbr.pt" },
+]
+keywords = ["exist-db", "xml", "xquery", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Utilities",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.26.7",
@@ -14,6 +32,13 @@ dependencies = [
     "tomlkit>=0.15.0",
     "platformdirs>=4.10.0; sys_platform == 'win32'",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ambs/exist-shell"
+Repository = "https://github.com/ambs/exist-shell"
+Documentation = "https://ambs.github.io/exist-shell/"
+Issues = "https://github.com/ambs/exist-shell/issues"
+Changelog = "https://github.com/ambs/exist-shell/blob/main/CHANGELOG.md"
 
 [project.scripts]
 exsh = "exist_shell.main:app"
