@@ -21,7 +21,7 @@
 
 ```bash
 # 1. Install
-uv tool install git+https://github.com/ambs/exist-shell
+uv tool install exist-shell
 
 # 2. Register your server
 exsh server add localhost --port 8080 --user admin

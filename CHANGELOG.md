@@ -2,6 +2,12 @@
 
 ## unreleased
 
+## 0.1.2 - 2026-06-23
+
+### Documentation
+
+- Document installing `exsh` from PyPI (`uv tool install`, `pipx install`, `uvx --from`); the existing `git+https://...` instructions are kept as an alternative for tracking unreleased commits
+
 ## 0.1.1 - 2026-06-23
 
 ### Fixes
