@@ -14,7 +14,7 @@ jobs:
     outputs:
       flags: ${{ steps.list.outputs.flags }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - name: Build image matrix from --list-images
         id: list
         run: |
@@ -31,7 +31,7 @@ jobs:
         flag: ${{ fromJson(needs.matrix.outputs.flags) }}
       fail-fast: false
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - run: sudo apt-get install -y libxml2-utils
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
