@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-import os
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, TypedDict
@@ -221,46 +221,65 @@ def _load_manifest(nick: str, remote_path: str, checkpoint_every: int) -> Manife
         return Manifest({}, checkpoint_every)
 
 
-def _walk_remote(client: ExistClient, base_path: str) -> RemoteTree:
-    """Recursively list all resources and subcollections under a remote path.
+def _walk_remote(client: ExistClient, base_path: str, max_workers: int = 4) -> RemoteTree:
+    """List all resources and subcollections under a remote path.
+
+    Uses a parallel BFS: all subcollections at a given depth are fetched
+    concurrently. Results within each level are consumed in submission order
+    so that mocked ``side_effect`` sequences in tests remain deterministic.
 
     Args:
         client: Active ExistClient.
         base_path: Full eXist path to walk (e.g. ``/db/myapp/reports``).
+        max_workers: Number of concurrent listing requests.
 
     Returns:
         RemoteTree with resources and subcollections relative to ``base_path``.
     """
-    items = client.list_collection(base_path)
     resources: list[RemoteResource] = []
     subcollections: list[str] = []
-    for item in items:
-        if isinstance(item, CollectionEntry):
-            subcollections.append(item.name)
-            subtree = _walk_remote(client, f"{base_path}/{item.name}")
-            resources.extend(
-                RemoteResource(f"{item.name}/{r.rel_path}", r.entry) for r in subtree.resources
-            )
-            subcollections.extend(f"{item.name}/{c}" for c in subtree.subcollections)
-        else:
-            resources.append(RemoteResource(item.name, item))
+    level: list[tuple[str, str]] = [("", base_path)]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        while level:
+            futures = [(rel, executor.submit(client.list_collection, full)) for rel, full in level]
+            level = []
+            try:
+                for rel_prefix, future in futures:
+                    for item in future.result():
+                        if isinstance(item, CollectionEntry):
+                            rel_name = f"{rel_prefix}/{item.name}" if rel_prefix else item.name
+                            subcollections.append(rel_name)
+                            level.append((rel_name, f"{base_path}/{rel_name}"))
+                        else:
+                            rel_name = f"{rel_prefix}/{item.name}" if rel_prefix else item.name
+                            resources.append(RemoteResource(rel_name, item))
+            except KeyboardInterrupt:
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise
+
     return RemoteTree(resources, subcollections)
 
 
-def _push_file(
+def _push_file_task(
     client: ExistClient,
     full_path: str,
     local_file: Path,
     rel_path: str,
     remote_mtime: str,
-    manifest: Manifest,
+    entry: ManifestEntry,
+    in_manifest: bool,
     force: bool,
     dry_run: bool,
-) -> SyncAction:
+) -> tuple[SyncAction, ManifestEntry | None]:
     """Decide and execute the push action for a single file.
 
-    Stores an empty ``remote_last_modified`` after upload; callers must
-    re-list the remote collection afterwards to record the server-assigned mtime.
+    Reads the local file at most once regardless of which code path is taken.
+    Returns the action and the manifest entry to store; the caller applies the
+    update. Never mutates the manifest directly.
+
+    Stores an empty ``remote_last_modified`` after upload; callers must re-list
+    the remote collection afterwards to record the server-assigned mtime.
 
     Uses a stat-based fast path: if both the local file's mtime/size and the
     remote mtime match the manifest, the file is skipped without reading or
@@ -272,40 +291,31 @@ def _push_file(
         local_file: Local file to upload.
         rel_path: Relative path of the file within the sync tree.
         remote_mtime: Current ``last_modified`` from the remote listing.
-        manifest: Sync manifest (mutated in place on upload).
+        entry: Manifest entry for this file (empty dict if not previously synced).
+        in_manifest: True if this file has an existing manifest entry.
         force: If True, upload regardless of manifest state.
         dry_run: If True, do not perform the upload.
 
     Returns:
-        The SyncAction taken.
+        Tuple of (action, new_manifest_entry). new_manifest_entry is None when
+        no manifest update is warranted.
     """
     mime = guess_mime(local_file, "application/xml")
 
-    def _upload(local_hash: str, stat: os.stat_result) -> None:
-        if not dry_run:
-            client.put_document(
-                f"{full_path}/{rel_path}",
-                local_file.read_bytes(),
-                mime,
-            )
-            manifest.set(rel_path, ManifestEntry(
-                local_sha256=local_hash,
-                remote_last_modified="",
-                local_mtime_ns=stat.st_mtime_ns,
-                local_size=stat.st_size,
-            ))
-
-    def _xml_valid() -> bool:
-        return not check_xml_wellformed(local_file.read_bytes(), mime)
-
-    entry = manifest.get(rel_path)
-
-    if force or rel_path not in manifest:
-        if not _xml_valid():
-            return SyncAction.INVALID
+    if force or not in_manifest:
+        data = local_file.read_bytes()
+        if check_xml_wellformed(data, mime):
+            return SyncAction.INVALID, None
         stat = local_file.stat()
-        _upload(_sha256(local_file), stat)
-        return SyncAction.UPLOADED
+        local_hash = hashlib.sha256(data).hexdigest()
+        if not dry_run:
+            client.put_document(f"{full_path}/{rel_path}", data, mime)
+        return SyncAction.UPLOADED, ManifestEntry(
+            local_sha256=local_hash,
+            remote_last_modified="",
+            local_mtime_ns=stat.st_mtime_ns,
+            local_size=stat.st_size,
+        )
 
     remote_changed = remote_mtime != entry.get("remote_last_modified", "")
     stat = local_file.stat()
@@ -315,39 +325,48 @@ def _push_file(
     )
 
     if not stat_changed and not remote_changed:
-        return SyncAction.SKIPPED
+        return SyncAction.SKIPPED, None
 
-    local_hash = _sha256(local_file)
+    data = local_file.read_bytes()
+    local_hash = hashlib.sha256(data).hexdigest()
     local_changed = local_hash != entry.get("local_sha256", "")
 
     if local_changed and remote_changed:
-        return SyncAction.CONFLICT
+        return SyncAction.CONFLICT, None
 
     if local_changed:
-        if not _xml_valid():
-            return SyncAction.INVALID
-        _upload(local_hash, stat)
-        return SyncAction.UPLOADED
+        if check_xml_wellformed(data, mime):
+            return SyncAction.INVALID, None
+        if not dry_run:
+            client.put_document(f"{full_path}/{rel_path}", data, mime)
+        return SyncAction.UPLOADED, ManifestEntry(
+            local_sha256=local_hash,
+            remote_last_modified="",
+            local_mtime_ns=stat.st_mtime_ns,
+            local_size=stat.st_size,
+        )
 
     # stat changed but content identical (e.g. file was touched) — refresh stat only
-    if not dry_run:
-        manifest.set(rel_path, ManifestEntry(
-            **{**entry, "local_mtime_ns": stat.st_mtime_ns, "local_size": stat.st_size}
-        ))
-    return SyncAction.SKIPPED
+    return SyncAction.SKIPPED, ManifestEntry(
+        **{**entry, "local_mtime_ns": stat.st_mtime_ns, "local_size": stat.st_size}
+    )
 
 
-def _pull_file(
+def _pull_file_task(
     client: ExistClient,
     full_path: str,
     dest: Path,
     rel_path: str,
     remote_mtime: str,
-    manifest: Manifest,
+    entry: ManifestEntry,
+    in_manifest: bool,
     force: bool,
     dry_run: bool,
-) -> SyncAction:
+) -> tuple[SyncAction, ManifestEntry | None]:
     """Decide and execute the pull action for a single file.
+
+    Returns the action and the manifest entry to store; the caller applies the
+    update. Never mutates the manifest directly.
 
     Args:
         client: Active ExistClient.
@@ -355,48 +374,46 @@ def _pull_file(
         dest: Local directory to pull into.
         rel_path: Relative path of the file within the sync tree.
         remote_mtime: Current ``last_modified`` from the remote listing.
-        manifest: Sync manifest (mutated in place on download).
+        entry: Manifest entry for this file (empty dict if not previously synced).
+        in_manifest: True if this file has an existing manifest entry.
         force: If True, download regardless of manifest state.
         dry_run: If True, do not perform the download.
 
     Returns:
-        The SyncAction taken.
+        Tuple of (action, new_manifest_entry). new_manifest_entry is None when
+        dry_run is True or no manifest update is warranted.
     """
     local_file = dest / rel_path
 
-    def _download() -> None:
-        if not dry_run:
-            result = client.get_document(f"{full_path}/{rel_path}")
-            local_file.parent.mkdir(parents=True, exist_ok=True)
-            local_file.write_bytes(result.content)
-            stat = local_file.stat()
-            manifest.set(rel_path, ManifestEntry(
-                local_sha256=_sha256(local_file),
-                remote_last_modified=remote_mtime,
-                local_mtime_ns=stat.st_mtime_ns,
-                local_size=stat.st_size,
-            ))
+    def _download() -> ManifestEntry | None:
+        if dry_run:
+            return None
+        result = client.get_document(f"{full_path}/{rel_path}")
+        local_file.parent.mkdir(parents=True, exist_ok=True)
+        local_file.write_bytes(result.content)
+        stat = local_file.stat()
+        return ManifestEntry(
+            local_sha256=_sha256(local_file),
+            remote_last_modified=remote_mtime,
+            local_mtime_ns=stat.st_mtime_ns,
+            local_size=stat.st_size,
+        )
 
-    entry = manifest.get(rel_path)
-
-    if force or rel_path not in manifest:
-        _download()
-        return SyncAction.DOWNLOADED
+    if force or not in_manifest:
+        return SyncAction.DOWNLOADED, _download()
 
     remote_changed = remote_mtime != entry.get("remote_last_modified", "")
 
     if not remote_changed:
         if not local_file.exists():
-            _download()
-            return SyncAction.DOWNLOADED
-        return SyncAction.SKIPPED
+            return SyncAction.DOWNLOADED, _download()
+        return SyncAction.SKIPPED, None
 
     local_hash = _sha256(local_file) if local_file.exists() else ""
     if local_hash != entry.get("local_sha256", ""):
-        return SyncAction.CONFLICT
+        return SyncAction.CONFLICT, None
 
-    _download()
-    return SyncAction.DOWNLOADED
+    return SyncAction.DOWNLOADED, _download()
 
 
 def _ensure_remote_dirs(
@@ -504,6 +521,7 @@ def _delete_empty_remote_dirs(
     full_path: str,
     source: Path,
     dry_run: bool,
+    max_workers: int = 4,
 ) -> int:
     """Delete remote subcollections that are empty and have no local counterpart.
 
@@ -516,11 +534,12 @@ def _delete_empty_remote_dirs(
         full_path: Full eXist base path of the collection.
         source: Local source directory (used to check for local counterparts).
         dry_run: If True, log but do not delete.
+        max_workers: Number of concurrent listing requests for the re-walk.
 
     Returns:
         Number of collections deleted (or that would be deleted).
     """
-    tree = _walk_remote(client, full_path)
+    tree = _walk_remote(client, full_path, max_workers=max_workers)
     resource_paths = {r.rel_path for r in tree.resources}
     by_depth = sorted(tree.subcollections, key=lambda c: c.count("/"), reverse=True)
     count = 0
@@ -585,8 +604,298 @@ def _print_summary(counts: dict[SyncAction, int]) -> None:
     typer.echo(", ".join(parts) if parts else "nothing to do")
 
 
+def _push_label(
+    action: SyncAction,
+    rel_path: str,
+    pct: int,
+    remote_index: dict[str, ResourceEntry],
+    verbose: bool,
+) -> str:
+    """Format the progress line for a push action, or return empty string to suppress output.
+
+    Args:
+        action: The sync action taken.
+        rel_path: Relative path of the file.
+        pct: Completion percentage (0–100).
+        remote_index: Map of remote rel_path → ResourceEntry, used to classify new vs modified.
+        verbose: If True, include SKIPPED lines.
+
+    Returns:
+        Formatted progress string, or empty string if the action should not be printed.
+    """
+    prefix = f"[{pct:3d}%] "
+    labels: dict[SyncAction, str] = {
+        SyncAction.UPLOADED: f"{prefix}↑ {rel_path}  ({'new' if rel_path not in remote_index else 'modified'})",
+        SyncAction.CONFLICT: f"{prefix}! {rel_path}  (conflict: modified on both sides, skipping)",
+        SyncAction.INVALID: f"{prefix}! {rel_path}  (not well-formed XML, skipping)",
+    }
+    if verbose:
+        labels[SyncAction.SKIPPED] = f"{prefix}= {rel_path}  (unchanged)"
+    return labels.get(action, "")
+
+
+def _pull_label(
+    action: SyncAction,
+    rel_path: str,
+    pct: int,
+    is_new: bool,
+    verbose: bool,
+) -> str:
+    """Format the progress line for a pull action, or return empty string to suppress output.
+
+    Args:
+        action: The sync action taken.
+        rel_path: Relative path of the file.
+        pct: Completion percentage (0–100).
+        is_new: True if the file was not previously in the manifest.
+        verbose: If True, include SKIPPED lines.
+
+    Returns:
+        Formatted progress string, or empty string if the action should not be printed.
+    """
+    prefix = f"[{pct:3d}%] "
+    labels: dict[SyncAction, str] = {
+        SyncAction.DOWNLOADED: f"{prefix}↓ {rel_path}  ({'new' if is_new else 'modified'})",
+        SyncAction.CONFLICT: f"{prefix}! {rel_path}  (conflict: modified on both sides, skipping)",
+    }
+    if verbose:
+        labels[SyncAction.SKIPPED] = f"{prefix}= {rel_path}  (unchanged)"
+    return labels.get(action, "")
+
+
+def _run_push_sequential(
+    client: ExistClient,
+    full_path: str,
+    local_files: list[Path],
+    source: Path,
+    remote_index: dict[str, ResourceEntry],
+    manifest: Manifest,
+    force: bool,
+    dry_run: bool,
+    verbose: bool,
+    nick: str,
+    path: str,
+) -> tuple[dict[SyncAction, int], bool]:
+    """Run the push file loop sequentially, stopping on the first failure.
+
+    Used when ``--fail-fast`` is active to guarantee that no file after the
+    first conflict or invalid XML is ever transferred.
+
+    Args:
+        client: Active ExistClient.
+        full_path: Full eXist collection path.
+        local_files: Sorted list of local files to process.
+        source: Local root directory (used to compute relative paths).
+        remote_index: Map of remote rel_path → ResourceEntry.
+        manifest: Sync manifest (mutated in place as files are processed).
+        force: If True, upload regardless of manifest state.
+        dry_run: If True, print actions without uploading.
+        verbose: If True, print unchanged files.
+        nick: Collection nickname (for manifest checkpoints).
+        path: Remote collection path (for manifest checkpoints).
+
+    Returns:
+        Tuple of (counts, fail_fast_triggered).
+    """
+    counts: dict[SyncAction, int] = {}
+    total = len(local_files)
+    for i, local_file in enumerate(local_files, 1):
+        rel_path = local_file.relative_to(source).as_posix()
+        remote_mtime = remote_index[rel_path].last_modified or "" if rel_path in remote_index else ""
+        action, new_entry = _push_file_task(
+            client, full_path, local_file, rel_path, remote_mtime,
+            manifest.get(rel_path), rel_path in manifest, force, dry_run,
+        )
+        pct = int(i / total * 100) if total else 100
+        label = _push_label(action, rel_path, pct, remote_index, verbose)
+        if label:
+            typer.echo(label)
+        counts[action] = counts.get(action, 0) + 1
+        if not dry_run and new_entry is not None:
+            manifest.set(rel_path, new_entry)
+        manifest.maybe_save(nick, path)
+        if action in {SyncAction.INVALID, SyncAction.CONFLICT}:
+            return counts, True
+    return counts, False
+
+
+def _run_push_parallel(
+    client: ExistClient,
+    full_path: str,
+    local_files: list[Path],
+    source: Path,
+    remote_index: dict[str, ResourceEntry],
+    manifest: Manifest,
+    force: bool,
+    dry_run: bool,
+    verbose: bool,
+    nick: str,
+    path: str,
+    jobs: int,
+) -> dict[SyncAction, int]:
+    """Run the push file loop with concurrent uploads.
+
+    All files are submitted to the thread pool upfront. Manifest mutations and
+    progress output happen only in the main thread as each future completes,
+    so no locking is required.
+
+    Args:
+        client: Active ExistClient.
+        full_path: Full eXist collection path.
+        local_files: Sorted list of local files to process.
+        source: Local root directory (used to compute relative paths).
+        remote_index: Map of remote rel_path → ResourceEntry.
+        manifest: Sync manifest (mutated in place as files are processed).
+        force: If True, upload regardless of manifest state.
+        dry_run: If True, print actions without uploading.
+        verbose: If True, print unchanged files.
+        nick: Collection nickname (for manifest checkpoints).
+        path: Remote collection path (for manifest checkpoints).
+        jobs: Number of parallel upload workers.
+
+    Returns:
+        Action counts.
+    """
+    counts: dict[SyncAction, int] = {}
+    total = len(local_files)
+    tasks = [(lf, lf.relative_to(source).as_posix()) for lf in local_files]
+
+    with ThreadPoolExecutor(max_workers=jobs) as executor:
+        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[Path, str]] = {
+            executor.submit(
+                _push_file_task,
+                client, full_path, lf, rp,
+                remote_index[rp].last_modified or "" if rp in remote_index else "",
+                manifest.get(rp), rp in manifest, force, dry_run,
+            ): (lf, rp)
+            for lf, rp in tasks
+        }
+        completed = 0
+        try:
+            for future in as_completed(futures):
+                _, rel_path = futures[future]
+                action, new_entry = future.result()
+                completed += 1
+                pct = int(completed / total * 100) if total else 100
+                label = _push_label(action, rel_path, pct, remote_index, verbose)
+                if label:
+                    typer.echo(label)
+                counts[action] = counts.get(action, 0) + 1
+                if not dry_run and new_entry is not None:
+                    manifest.set(rel_path, new_entry)
+                manifest.maybe_save(nick, path)
+        except KeyboardInterrupt:
+            executor.shutdown(wait=False, cancel_futures=True)
+            raise
+
+    return counts
+
+
+def _refresh_remote_mtimes(
+    client: ExistClient, full_path: str, manifest: Manifest, jobs: int
+) -> None:
+    """Re-list the remote collection and record server-assigned mtimes in the manifest.
+
+    Called after uploads because eXist assigns the mtime at write time; we
+    cannot know it until we re-fetch the collection listing.
+
+    Args:
+        client: Active ExistClient.
+        full_path: Full eXist collection path.
+        manifest: Manifest to update in place.
+        jobs: Parallel workers for the re-walk.
+    """
+    updated_tree = _walk_remote(client, full_path, max_workers=jobs)
+    for resource in updated_tree.resources:
+        if resource.rel_path in manifest:
+            manifest.get(resource.rel_path)["remote_last_modified"] = (
+                resource.entry.last_modified or ""
+            )
+
+
+def _run_pull_parallel(
+    client: ExistClient,
+    full_path: str,
+    dest: Path,
+    resources: list[RemoteResource],
+    manifest: Manifest,
+    force: bool,
+    dry_run: bool,
+    verbose: bool,
+    nick: str,
+    path: str,
+    jobs: int,
+) -> dict[SyncAction, int]:
+    """Run the pull file loop with concurrent downloads.
+
+    All files are submitted to the thread pool upfront. Manifest mutations and
+    progress output happen only in the main thread as each future completes,
+    so no locking is required.
+
+    Args:
+        client: Active ExistClient.
+        full_path: Full eXist collection path.
+        dest: Local directory to pull into.
+        resources: Remote resources to download.
+        manifest: Sync manifest (mutated in place as files are processed).
+        force: If True, download regardless of manifest state.
+        dry_run: If True, print actions without downloading.
+        verbose: If True, print unchanged files.
+        nick: Collection nickname (for manifest checkpoints).
+        path: Remote collection path (for manifest checkpoints).
+        jobs: Number of parallel download workers.
+
+    Returns:
+        Action counts.
+    """
+    counts: dict[SyncAction, int] = {}
+    total = len(resources)
+    tasks = [
+        (resource.rel_path, resource.entry.last_modified or "", resource.rel_path not in manifest)
+        for resource in resources
+    ]
+
+    with ThreadPoolExecutor(max_workers=jobs) as executor:
+        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, bool]] = {
+            executor.submit(
+                _pull_file_task,
+                client, full_path, dest, rp, rm,
+                manifest.get(rp), rp in manifest, force, dry_run,
+            ): (rp, is_new)
+            for rp, rm, is_new in tasks
+        }
+        completed = 0
+        try:
+            for future in as_completed(futures):
+                rel_path, is_new = futures[future]
+                action, new_entry = future.result()
+                completed += 1
+                pct = int(completed / total * 100) if total else 100
+                label = _pull_label(action, rel_path, pct, is_new, verbose)
+                if label:
+                    typer.echo(label)
+                counts[action] = counts.get(action, 0) + 1
+                if new_entry is not None:
+                    manifest.set(rel_path, new_entry)
+                manifest.maybe_save(nick, path)
+        except KeyboardInterrupt:
+            executor.shutdown(wait=False, cancel_futures=True)
+            raise
+
+    return counts
+
+
 def _push(
-    source: Path, nick: str, path: str, force: bool, fail_fast: bool, dry_run: bool, delete: bool, checkpoint_every: int, verbose: bool
+    source: Path,
+    nick: str,
+    path: str,
+    force: bool,
+    fail_fast: bool,
+    dry_run: bool,
+    delete: bool,
+    checkpoint_every: int,
+    verbose: bool,
+    jobs: int,
 ) -> None:
     """Push a local directory tree to a remote collection.
 
@@ -595,68 +904,60 @@ def _push(
         nick: Collection nickname.
         path: Remote path within the collection.
         force: If True, upload all files regardless of manifest state.
-        fail_fast: If True, stop on the first conflict or XML validation failure (manifest is saved).
+        fail_fast: If True, stop on the first conflict or XML validation failure
+            (manifest is saved). Runs sequentially to guarantee no file after
+            the first failure is transferred.
         dry_run: If True, print actions without performing them.
         delete: If True, remove remote files absent from the local tree.
-        checkpoint_every: Save the manifest after every N mutations (uploads/deletes).
+        checkpoint_every: Save the manifest after every N mutations.
         verbose: If True, also print unchanged (skipped) files.
+        jobs: Number of parallel upload workers.
     """
     collection, server, full_path = resolve_collection(nick, path)
     manifest = _load_manifest(nick, path, checkpoint_every)
     counts: dict[SyncAction, int] = {}
+    fail_fast_triggered = False
 
-    with handle_exist_errors(path, nick, collection.server_nick):
-        with ExistClient(server) as client:
-            tree = _walk_remote(client, full_path)
-            remote_index = {r.rel_path: r.entry for r in tree.resources}
+    try:
+        with handle_exist_errors(path, nick, collection.server_nick):
+            with ExistClient(server) as client:
+                tree = _walk_remote(client, full_path, max_workers=jobs)
+                remote_index = {r.rel_path: r.entry for r in tree.resources}
 
-            all_paths = list(source.rglob("*"))
-            local_files = sorted(p for p in all_paths if p.is_file())
-            local_dirs = {p.relative_to(source).as_posix() for p in all_paths if p.is_dir()}
-            local_file_rels = {p.relative_to(source).as_posix() for p in local_files}
+                all_paths = list(source.rglob("*"))
+                local_files = sorted(p for p in all_paths if p.is_file())
+                local_dirs = {p.relative_to(source).as_posix() for p in all_paths if p.is_dir()}
+                local_file_rels = {p.relative_to(source).as_posix() for p in local_files}
 
-            _ensure_remote_dirs(client, full_path, local_dirs, tree.subcollections, dry_run)
+                _ensure_remote_dirs(client, full_path, local_dirs, tree.subcollections, dry_run)
 
-            total = len(local_files)
-            fail_fast_triggered = False
-            for i, local_file in enumerate(local_files, 1):
-                rel_path = local_file.relative_to(source).as_posix()
-                remote_mtime = remote_index[rel_path].last_modified or "" if rel_path in remote_index else ""
-                action = _push_file(client, full_path, local_file, rel_path, remote_mtime, manifest, force, dry_run)
-                pct = int(i / total * 100) if total else 100
-                prefix = f"[{pct:3d}%] "
-                labels = {
-                    SyncAction.UPLOADED: f"{prefix}↑ {rel_path}  ({'new' if rel_path not in remote_index else 'modified'})",
-                    SyncAction.CONFLICT: f"{prefix}! {rel_path}  (conflict: modified on both sides, skipping)",
-                    SyncAction.INVALID: f"{prefix}! {rel_path}  (not well-formed XML, skipping)",
-                }
-                if verbose:
-                    labels[SyncAction.SKIPPED] = f"{prefix}= {rel_path}  (unchanged)"
-                label = labels.get(action, "")
-                if label:
-                    typer.echo(label)
-                counts[action] = counts.get(action, 0) + 1
-                manifest.maybe_save(nick, path)
-                if action in {SyncAction.INVALID, SyncAction.CONFLICT} and fail_fast:
-                    fail_fast_triggered = True
-                    break
+                if fail_fast:
+                    counts, fail_fast_triggered = _run_push_sequential(
+                        client, full_path, local_files, source, remote_index,
+                        manifest, force, dry_run, verbose, nick, path,
+                    )
+                else:
+                    counts = _run_push_parallel(
+                        client, full_path, local_files, source, remote_index,
+                        manifest, force, dry_run, verbose, nick, path, jobs,
+                    )
 
-            if not fail_fast_triggered and delete:
-                counts[SyncAction.DELETED] = _delete_remote_extras(
-                    client, full_path, local_file_rels, tree.resources, manifest, dry_run
-                )
-                counts[SyncAction.DELETED] += _delete_empty_remote_dirs(
-                    client, full_path, source, dry_run
-                )
+                if not fail_fast_triggered and delete:
+                    deleted = _delete_remote_extras(
+                        client, full_path, local_file_rels, tree.resources, manifest, dry_run
+                    )
+                    deleted += _delete_empty_remote_dirs(
+                        client, full_path, source, dry_run, max_workers=jobs
+                    )
+                    counts[SyncAction.DELETED] = deleted
 
-            # Re-list to capture server-assigned mtimes after uploads
-            if not dry_run and counts.get(SyncAction.UPLOADED, 0):
-                updated_tree = _walk_remote(client, full_path)
-                for resource in updated_tree.resources:
-                    if resource.rel_path in manifest:
-                        manifest.get(resource.rel_path)["remote_last_modified"] = (
-                            resource.entry.last_modified or ""
-                        )
+                if not dry_run and counts.get(SyncAction.UPLOADED, 0):
+                    _refresh_remote_mtimes(client, full_path, manifest, jobs)
+    except KeyboardInterrupt:
+        if not dry_run:
+            manifest.save(nick, path)
+        typer.echo("\nInterrupted.", err=True)
+        raise typer.Exit(130)
 
     if not dry_run:
         manifest.save(nick, path)
@@ -669,7 +970,15 @@ def _push(
 
 
 def _pull(
-    nick: str, path: str, dest: Path, force: bool, dry_run: bool, delete: bool, checkpoint_every: int, verbose: bool
+    nick: str,
+    path: str,
+    dest: Path,
+    force: bool,
+    dry_run: bool,
+    delete: bool,
+    checkpoint_every: int,
+    verbose: bool,
+    jobs: int,
 ) -> None:
     """Pull a remote collection into a local directory.
 
@@ -680,45 +989,34 @@ def _pull(
         force: If True, download all files regardless of manifest state.
         dry_run: If True, print actions without performing them.
         delete: If True, remove local files absent from the remote collection.
-        checkpoint_every: Save the manifest after every N mutations (downloads/deletes).
+        checkpoint_every: Save the manifest after every N mutations.
         verbose: If True, also print unchanged (skipped) files.
+        jobs: Number of parallel download workers.
     """
     collection, server, full_path = resolve_collection(nick, path)
     manifest = _load_manifest(nick, path, checkpoint_every)
     counts: dict[SyncAction, int] = {}
 
-    with handle_exist_errors(path, nick, collection.server_nick):
-        with ExistClient(server) as client:
-            tree = _walk_remote(client, full_path)
+    try:
+        with handle_exist_errors(path, nick, collection.server_nick):
+            with ExistClient(server) as client:
+                tree = _walk_remote(client, full_path, max_workers=jobs)
+                _ensure_local_dirs(dest, tree.subcollections, dry_run)
 
-            _ensure_local_dirs(dest, tree.subcollections, dry_run)
-
-            total = len(tree.resources)
-            for i, resource in enumerate(tree.resources, 1):
-                remote_mtime = resource.entry.last_modified or ""
-                is_new = resource.rel_path not in manifest
-                action = _pull_file(
-                    client, full_path, dest, resource.rel_path, remote_mtime, manifest, force, dry_run
+                counts = _run_pull_parallel(
+                    client, full_path, dest, tree.resources,
+                    manifest, force, dry_run, verbose, nick, path, jobs,
                 )
-                pct = int(i / total * 100) if total else 100
-                prefix = f"[{pct:3d}%] "
-                labels = {
-                    SyncAction.DOWNLOADED: f"{prefix}↓ {resource.rel_path}  ({'new' if is_new else 'modified'})",
-                    SyncAction.CONFLICT: f"{prefix}! {resource.rel_path}  (conflict: modified on both sides, skipping)",
-                }
-                if verbose:
-                    labels[SyncAction.SKIPPED] = f"{prefix}= {resource.rel_path}  (unchanged)"
-                label = labels.get(action, "")
-                if label:
-                    typer.echo(label)
-                counts[action] = counts.get(action, 0) + 1
-                manifest.maybe_save(nick, path)
 
-            if delete:
-                counts[SyncAction.DELETED] = _delete_local_extras(
-                    dest, tree.resources, manifest, dry_run
-                )
-                counts[SyncAction.DELETED] += _delete_empty_local_dirs(dest, dry_run)
+                if delete:
+                    deleted = _delete_local_extras(dest, tree.resources, manifest, dry_run)
+                    deleted += _delete_empty_local_dirs(dest, dry_run)
+                    counts[SyncAction.DELETED] = counts.get(SyncAction.DELETED, 0) + deleted
+    except KeyboardInterrupt:
+        if not dry_run:
+            manifest.save(nick, path)
+        typer.echo("\nInterrupted.", err=True)
+        raise typer.Exit(130)
 
     if not dry_run:
         manifest.save(nick, path)
@@ -740,6 +1038,7 @@ def sync(
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would be transferred without doing it."),
     delete: bool = typer.Option(False, "--delete", help="Remove destination files absent from the source."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show unchanged (skipped) files in addition to transfers."),
+    jobs: int = typer.Option(4, "--jobs", "-j", help="Number of parallel transfer workers."),
     checkpoint_every: int = typer.Option(
         100, "--checkpoint-every", help="Save the sync manifest every N files so a failed run can resume."
     ),
@@ -761,7 +1060,7 @@ def sync(
             typer.echo(f"Error: '{source}' is not a directory.", err=True)
             raise typer.Exit(1)
         nick, path = parse_target(dest, path_required=False)
-        _push(source_path, nick, path, force, fail_fast, dry_run, delete, checkpoint_every, verbose)
+        _push(source_path, nick, path, force, fail_fast, dry_run, delete, checkpoint_every, verbose, jobs)
     else:
         nick, path = parse_target(source, path_required=False)
-        _pull(nick, path, Path(dest), force, dry_run, delete, checkpoint_every, verbose)
+        _pull(nick, path, Path(dest), force, dry_run, delete, checkpoint_every, verbose, jobs)

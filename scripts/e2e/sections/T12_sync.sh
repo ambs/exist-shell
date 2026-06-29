@@ -211,6 +211,12 @@ section_T12_sync() {
     # Clean up test files
     rm -f "${TMPDIR_E2E}/syncdir/bad.xml" "${TMPDIR_E2E}/syncdir/c_bad.xml"
 
+    # T12.31 — --jobs flag: upload a new file with a custom worker count
+    printf '<d/>' > "${TMPDIR_E2E}/syncdir/d.xml"
+    _run "${EXSH[@]}" sync --jobs 2 "${TMPDIR_E2E}/syncdir" testcol:/syncroot
+    assert_in_last "↑ d.xml  (new)" "T12.31 sync --jobs 2 uploads new file with custom workers"
+    rm -f "${TMPDIR_E2E}/syncdir/d.xml"
+
     # T12.28 — push --delete --dry-run: remote extra file logged as deleted but not removed
     curl -sf -u "${ADMIN_AUTH}" -X PUT \
         -H "Content-Type: application/xml" \

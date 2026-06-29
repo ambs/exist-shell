@@ -634,3 +634,500 @@ def test_push_fail_fast_stops_on_conflict(config_with_collection, client_mock, m
     assert result.exit_code == 1
     assert "conflict" in result.output
     client_mock.put_document.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Interrupt handling
+# ---------------------------------------------------------------------------
+
+def test_push_keyboard_interrupt_exits_cleanly(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    import exist_shell.commands.sync as sync_mod
+
+    (local_dir / "doc.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+    monkeypatch.setattr(sync_mod, "_push_file_task", MagicMock(side_effect=KeyboardInterrupt))
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 130
+    assert "Interrupted." in result.output
+
+
+def test_pull_keyboard_interrupt_exits_cleanly(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    import exist_shell.commands.sync as sync_mod
+
+    client_mock.list_collection.return_value = [_resource("doc.xml")]
+    monkeypatch.setattr(sync_mod, "_pull_file_task", MagicMock(side_effect=KeyboardInterrupt))
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 130
+    assert "Interrupted." in result.output
+
+
+def test_push_keyboard_interrupt_during_listing_exits_cleanly(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    client_mock.list_collection.side_effect = KeyboardInterrupt
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 130
+    assert "Interrupted." in result.output
+
+
+def test_pull_keyboard_interrupt_during_listing_exits_cleanly(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    client_mock.list_collection.side_effect = KeyboardInterrupt
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 130
+    assert "Interrupted." in result.output
+
+
+def test_push_keyboard_interrupt_saves_manifest(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    import exist_shell.commands.sync as sync_mod
+
+    (local_dir / "doc.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+    monkeypatch.setattr(sync_mod, "_push_file_task", MagicMock(side_effect=KeyboardInterrupt))
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 130
+    assert any(manifest_dir.rglob("*.json"))
+
+
+def test_pull_keyboard_interrupt_saves_manifest(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    import exist_shell.commands.sync as sync_mod
+
+    client_mock.list_collection.return_value = [_resource("doc.xml")]
+    monkeypatch.setattr(sync_mod, "_pull_file_task", MagicMock(side_effect=KeyboardInterrupt))
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 130
+    assert any(manifest_dir.rglob("*.json"))
+
+
+def test_push_keyboard_interrupt_dry_run_skips_manifest_save(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    import exist_shell.commands.sync as sync_mod
+
+    (local_dir / "doc.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+    monkeypatch.setattr(sync_mod, "_push_file_task", MagicMock(side_effect=KeyboardInterrupt))
+
+    result = runner.invoke(app, ["sync", "--dry-run", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 130
+    assert not manifest_dir.exists() or not any(manifest_dir.rglob("*.json"))
+
+
+# ---------------------------------------------------------------------------
+# Parallelism (--jobs)
+# ---------------------------------------------------------------------------
+
+def test_push_jobs_flag_accepted(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    (local_dir / "doc.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", "--jobs", "2", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()
+
+
+def test_pull_jobs_flag_accepted(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    client_mock.list_collection.return_value = [_resource("doc.xml")]
+    client_mock.get_document.return_value = DocumentResult(b"<x/>", "application/xml")
+
+    result = runner.invoke(app, ["sync", "--jobs", "2", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 0
+    client_mock.get_document.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Parallel concurrency
+# ---------------------------------------------------------------------------
+
+def test_push_parallel_runs_tasks_concurrently(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """All uploads execute simultaneously: a barrier with JOBS parties proves it."""
+    import threading
+
+    JOBS = 4
+    barrier = threading.Barrier(JOBS, timeout=5)
+    for i in range(JOBS):
+        (local_dir / f"doc{i}.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+
+    def gated_upload(*_args: object, **_kwargs: object) -> None:
+        barrier.wait()
+
+    client_mock.put_document.side_effect = gated_upload
+
+    result = runner.invoke(app, ["sync", "--jobs", str(JOBS), str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    assert client_mock.put_document.call_count == JOBS
+
+
+def test_pull_parallel_runs_tasks_concurrently(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """All downloads execute simultaneously: a barrier with JOBS parties proves it."""
+    import threading
+
+    JOBS = 4
+    barrier = threading.Barrier(JOBS, timeout=5)
+    client_mock.list_collection.return_value = [_resource(f"doc{i}.xml") for i in range(JOBS)]
+
+    def gated_download(*_args: object, **_kwargs: object) -> DocumentResult:
+        barrier.wait()
+        return DocumentResult(b"<x/>", "application/xml")
+
+    client_mock.get_document.side_effect = gated_download
+
+    result = runner.invoke(app, ["sync", "--jobs", str(JOBS), "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 0
+    assert client_mock.get_document.call_count == JOBS
+
+
+# ---------------------------------------------------------------------------
+# Missing statement coverage
+# ---------------------------------------------------------------------------
+
+def test_push_corrupt_manifest_falls_back_to_empty(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    manifest_dir.mkdir(parents=True)
+    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
+    (manifest_dir / f"myapp@{manifest_key}.json").write_text("THIS IS NOT JSON")
+    (local_dir / "doc.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()
+    assert "↑ doc.xml  (new)" in result.output
+
+
+def test_push_skips_locally_modified_malformed_xml(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """File in manifest whose local content changed to malformed XML must be rejected."""
+    mtime = "2025-01-01T00:00:00.000"
+    local_file = local_dir / "doc.xml"
+    local_file.write_bytes(b"<unclosed>")
+
+    manifest_dir.mkdir(parents=True)
+    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
+    (manifest_dir / f"myapp@{manifest_key}.json").write_text(json.dumps({
+        "doc.xml": {
+            "local_sha256": _sha256(b"<valid/>"),
+            "remote_last_modified": mtime,
+            "local_mtime_ns": local_file.stat().st_mtime_ns - 1,
+            "local_size": len(b"<valid/>"),
+        }
+    }))
+    client_mock.list_collection.return_value = [_resource("doc.xml", mtime)]
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    client_mock.put_document.assert_not_called()
+    assert "! doc.xml  (not well-formed XML" in result.output
+
+
+def test_push_delete_skips_remote_collection_with_local_counterpart(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Push --delete does not remove a remote empty collection when a local dir matches it."""
+    from exist_shell.models import CollectionEntry
+
+    (local_dir / "reports").mkdir()
+    reports_col = CollectionEntry(name="reports")
+    client_mock.list_collection.side_effect = [
+        [reports_col],   # initial walk: base
+        [],              # initial walk: reports/
+        [reports_col],   # _delete_empty_remote_dirs re-walk: base
+        [],              # _delete_empty_remote_dirs re-walk: reports/
+    ]
+
+    result = runner.invoke(app, ["sync", "--delete", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    client_mock.delete_collection.assert_not_called()
+
+
+def test_push_delete_skips_remote_collection_with_remaining_resources(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Push --delete leaves a remote collection intact when the re-walk still shows resources inside."""
+    from exist_shell.models import CollectionEntry
+
+    reports_col = CollectionEntry(name="reports")
+    client_mock.list_collection.side_effect = [
+        [reports_col],                       # initial walk: base
+        [_resource("server_only.xml")],      # initial walk: reports/
+        [reports_col],                       # re-walk: base
+        [_resource("server_only.xml")],      # re-walk: reports/ (reflects pre-delete mock state)
+    ]
+
+    result = runner.invoke(app, ["sync", "--delete", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    client_mock.delete_document.assert_called_once()  # the file was deleted
+    client_mock.delete_collection.assert_not_called()  # the collection was not deleted
+
+
+# ---------------------------------------------------------------------------
+# Dry-run variants
+# ---------------------------------------------------------------------------
+
+def test_push_dry_run_shows_modified_file_without_uploading(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Dry-run push of a locally modified valid file prints the label but skips the upload."""
+    mtime = "2025-01-01T00:00:00.000"
+    local_file = local_dir / "doc.xml"
+    local_file.write_bytes(b"<new/>")
+
+    manifest_dir.mkdir(parents=True)
+    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
+    (manifest_dir / f"myapp@{manifest_key}.json").write_text(json.dumps({
+        "doc.xml": {
+            "local_sha256": _sha256(b"<old/>"),
+            "remote_last_modified": mtime,
+            "local_mtime_ns": local_file.stat().st_mtime_ns - 1,
+            "local_size": len(b"<old/>"),
+        }
+    }))
+    client_mock.list_collection.return_value = [_resource("doc.xml", mtime)]
+
+    result = runner.invoke(app, ["sync", "--dry-run", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    client_mock.put_document.assert_not_called()
+    assert "↑ doc.xml  (modified)" in result.output
+
+
+def test_push_dry_run_new_subdir_logged_not_created(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Dry-run push logs a new collection but does not call create_collection."""
+    subdir = local_dir / "reports"
+    subdir.mkdir()
+    (subdir / "doc.xml").write_bytes(b"<r/>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", "--dry-run", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    client_mock.create_collection.assert_not_called()
+    assert "+ reports/  (new collection)" in result.output
+
+
+def test_push_skips_creating_collection_already_on_remote(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Push does not call create_collection for a directory that already exists on the remote."""
+    from exist_shell.models import CollectionEntry
+
+    subdir = local_dir / "reports"
+    subdir.mkdir()
+    (subdir / "doc.xml").write_bytes(b"<r/>")
+    reports_col = CollectionEntry(name="reports")
+    client_mock.list_collection.side_effect = [
+        [reports_col],           # initial walk: base → reports/ already present
+        [],                      # initial walk: reports/
+        [reports_col],           # _refresh_remote_mtimes re-walk: base
+        [_resource("doc.xml")],  # _refresh_remote_mtimes re-walk: reports/
+    ]
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    client_mock.create_collection.assert_not_called()
+    client_mock.put_document.assert_called_once()
+
+
+def test_pull_dry_run_new_subdir_logged_not_created(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Dry-run pull logs a new local directory but does not create it."""
+    from exist_shell.models import CollectionEntry
+
+    col = CollectionEntry(name="reports")
+    client_mock.list_collection.side_effect = [[col], []]
+
+    result = runner.invoke(app, ["sync", "--dry-run", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 0
+    assert not (local_dir / "reports").exists()
+    assert "+ reports/  (new directory)" in result.output
+
+
+def test_pull_skips_creating_dir_already_existing_locally(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Pull does not print '+ dir/' for subcollections whose local directory already exists."""
+    from exist_shell.models import CollectionEntry
+
+    (local_dir / "reports").mkdir()
+    col = CollectionEntry(name="reports")
+    client_mock.list_collection.side_effect = [[col], [_resource("doc.xml")]]
+    client_mock.get_document.return_value = DocumentResult(b"<x/>", "application/xml")
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 0
+    assert "+ reports/  (new directory)" not in result.output
+    assert (local_dir / "reports" / "doc.xml").exists()
+
+
+def test_push_fail_fast_skipped_file_emits_no_label(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """--fail-fast sequential path emits no output for an unchanged file without --verbose."""
+    mtime = "2025-01-01T00:00:00.000"
+    local_file = local_dir / "doc.xml"
+    local_file.write_bytes(b"<root/>")
+    stat = local_file.stat()
+
+    manifest_dir.mkdir(parents=True)
+    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
+    (manifest_dir / f"myapp@{manifest_key}.json").write_text(json.dumps({
+        "doc.xml": {
+            "local_sha256": _sha256(b"<root/>"),
+            "remote_last_modified": mtime,
+            "local_mtime_ns": stat.st_mtime_ns,
+            "local_size": stat.st_size,
+        }
+    }))
+    client_mock.list_collection.return_value = [_resource("doc.xml", mtime)]
+
+    result = runner.invoke(app, ["sync", "--fail-fast", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    assert "doc.xml" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# Delete — false branches (kept files, dry-run, non-empty dirs)
+# ---------------------------------------------------------------------------
+
+def test_push_delete_keeps_remote_files_with_local_counterparts(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Push --delete removes only remote extras; files that have local counterparts are kept."""
+    (local_dir / "a.xml").write_bytes(b"<a/>")
+    client_mock.list_collection.side_effect = [
+        [_resource("a.xml"), _resource("stale.xml")],   # initial walk
+        [_resource("a.xml"), _resource("stale.xml")],   # _delete_empty_remote_dirs re-walk
+        [_resource("a.xml"), _resource("stale.xml")],   # _refresh_remote_mtimes re-walk
+    ]
+
+    result = runner.invoke(app, ["sync", "--delete", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 0
+    assert client_mock.delete_document.call_count == 1
+    assert "✗ stale.xml  (deleted)" in result.output
+
+
+def test_push_delete_dry_run_logs_remote_extras_without_deleting(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Push --delete --dry-run logs remote extras and empty collections but calls no destructive APIs."""
+    from exist_shell.models import CollectionEntry
+
+    archive_col = CollectionEntry(name="archive")
+    client_mock.list_collection.side_effect = [
+        [archive_col, _resource("old.xml")],   # initial walk: base
+        [],                                     # initial walk: archive/
+        [archive_col, _resource("old.xml")],   # re-walk: base
+        [],                                     # re-walk: archive/
+    ]
+
+    result = runner.invoke(
+        app, ["sync", "--delete", "--dry-run", str(local_dir), "myapp:/"]
+    )
+
+    assert result.exit_code == 0
+    client_mock.delete_document.assert_not_called()
+    client_mock.delete_collection.assert_not_called()
+    assert "✗ old.xml  (deleted)" in result.output
+    assert "✗ archive/  (empty collection deleted)" in result.output
+
+
+def test_pull_delete_keeps_files_and_dirs_with_remote_counterparts(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Pull --delete does not remove local files or dirs that have a remote counterpart."""
+    from exist_shell.models import CollectionEntry
+
+    (local_dir / "reports").mkdir()
+    (local_dir / "reports" / "a.xml").write_bytes(b"<a/>")
+    col = CollectionEntry(name="reports")
+    client_mock.list_collection.side_effect = [[col], [_resource("a.xml")]]
+    client_mock.get_document.return_value = DocumentResult(b"<a/>", "application/xml")
+
+    result = runner.invoke(app, ["sync", "--delete", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 0
+    assert (local_dir / "reports" / "a.xml").exists()
+    assert (local_dir / "reports").is_dir()
+
+
+def test_pull_delete_dry_run_logs_local_extras_without_deleting(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Pull --delete --dry-run logs local extras and empty dirs but leaves everything on disk."""
+    empty_subdir = local_dir / "archive"
+    empty_subdir.mkdir()
+    (local_dir / "stale.xml").write_bytes(b"<old/>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(
+        app, ["sync", "--delete", "--dry-run", "myapp:/", str(local_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert (local_dir / "stale.xml").exists()
+    assert empty_subdir.exists()
+    assert "✗ stale.xml  (deleted)" in result.output
+    assert "✗ archive/  (empty directory deleted)" in result.output
+
+
+def test_pull_keyboard_interrupt_dry_run_skips_manifest_save(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
+):
+    import exist_shell.commands.sync as sync_mod
+
+    client_mock.list_collection.return_value = [_resource("doc.xml")]
+    monkeypatch.setattr(sync_mod, "_pull_file_task", MagicMock(side_effect=KeyboardInterrupt))
+
+    result = runner.invoke(app, ["sync", "--dry-run", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 130
+    assert not manifest_dir.exists() or not any(manifest_dir.rglob("*.json"))
