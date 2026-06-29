@@ -2,6 +2,11 @@
 
 ## unreleased
 
+### Enhancements
+
+- **Parallel sync (`--jobs N`)**: uploads, downloads, and remote directory listings now run concurrently. The `--jobs N` flag (default: 4) controls the number of parallel workers. Use `--jobs 1` to restore fully sequential behaviour.
+- **Clean Ctrl+C handling**: interrupting a sync now exits with code 130, saves the manifest (so the next run can resume), and prints a single `Interrupted.` message instead of a Python traceback.
+
 ## 0.1.2 - 2026-06-23
 
 ### Documentation
