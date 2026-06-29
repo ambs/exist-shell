@@ -3,7 +3,7 @@
 Synchronise a local directory tree with a remote eXist collection, transferring only files that have actually changed.
 
 ```
-exsh sync <source> <dest> [--force] [--fail-fast] [--dry-run] [--delete] [--verbose] [--checkpoint-every N]
+exsh sync <source> <dest> [--force] [--fail-fast] [--dry-run] [--delete] [--verbose] [--jobs N] [--checkpoint-every N]
 ```
 
 ## Direction
@@ -78,6 +78,7 @@ Use `--force` to override conflict detection and transfer the source uncondition
 | `--dry-run / -n` | Print what would happen without moving any data |
 | `--delete` | Remove files and empty folders on the destination that no longer exist on the source |
 | `--verbose / -v` | Also print unchanged (skipped) files |
+| `--jobs N / -j N` | Number of parallel transfer workers (default: 4); set to 1 for sequential |
 | `--checkpoint-every N` | Flush the manifest to disk every N files (default: 100) |
 
 ## Output
@@ -125,6 +126,29 @@ exsh sync --delete ./reports mydata:reports
 # Force a full push (re-upload everything regardless of state)
 exsh sync --force ./reports mydata:reports
 ```
+
+## Parallelism
+
+By default `exsh sync` runs up to **4 transfers concurrently** — both for file uploads/downloads and for the initial remote directory listing (BFS walk). This significantly reduces wall-clock time when syncing collections with many small files over a high-latency connection.
+
+```bash
+# Use 8 workers for a large collection
+exsh sync --jobs 8 ./data myserver:data
+
+# Restore sequential behaviour (one file at a time)
+exsh sync --jobs 1 ./data myserver:data
+```
+
+`--fail-fast` always runs sequentially regardless of `--jobs`, to guarantee that no file after the first failure is transferred.
+
+### Interrupting a sync
+
+Pressing **Ctrl+C** during a sync:
+
+- Cancels any pending (not yet started) transfers immediately.
+- Waits for at most `--jobs` in-flight transfers to finish (they cannot be interrupted mid-request).
+- Saves the manifest so the next run resumes from where it stopped.
+- Exits with code **130** (the POSIX convention for Ctrl+C).
 
 ## Large collections and resumability
 
