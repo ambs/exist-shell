@@ -5,6 +5,7 @@ import json
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from enum import Enum
 from pathlib import Path
+from collections.abc import Callable
 from typing import NamedTuple, TypedDict
 
 import typer
@@ -719,6 +720,53 @@ def _run_push_sequential(
     return counts, False
 
 
+def _drain_futures(
+    executor: ThreadPoolExecutor,
+    futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int], str]]],
+    manifest: Manifest,
+    nick: str,
+    path: str,
+    total: int,
+    dry_run: bool,
+) -> dict[SyncAction, int]:
+    """Drain a futures dict produced by a parallel sync loop.
+
+    Iterates completed futures in arrival order, prints progress labels, updates
+    action counts and the manifest, and handles KeyboardInterrupt cleanly.
+
+    Args:
+        executor: The active ThreadPoolExecutor owning the futures.
+        futures: Map of future → (rel_path, label_fn) where label_fn(action, pct) → str.
+        manifest: Sync manifest (mutated in place as futures complete).
+        nick: Collection nickname (for manifest checkpoints).
+        path: Remote collection path (for manifest checkpoints).
+        total: Total number of tasks, used to compute the completion percentage.
+        dry_run: If True, skip manifest writes.
+
+    Returns:
+        Action counts keyed by SyncAction.
+    """
+    counts: dict[SyncAction, int] = {}
+    completed = 0
+    try:
+        for future in as_completed(futures):
+            rel_path, label_fn = futures[future]
+            action, new_entry = future.result()
+            completed += 1
+            pct = int(completed / total * 100) if total else 100
+            label = label_fn(action, pct)
+            if label:
+                typer.echo(label)
+            counts[action] = counts.get(action, 0) + 1
+            if not dry_run and new_entry is not None:
+                manifest.set(rel_path, new_entry)
+            manifest.maybe_save(nick, path)
+    except KeyboardInterrupt:
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise
+    return counts
+
+
 def _run_push_parallel(
     client: ExistClient,
     full_path: str,
@@ -756,39 +804,19 @@ def _run_push_parallel(
     Returns:
         Action counts.
     """
-    counts: dict[SyncAction, int] = {}
     total = len(local_files)
     tasks = [(lf, lf.relative_to(source).as_posix()) for lf in local_files]
-
     with ThreadPoolExecutor(max_workers=jobs) as executor:
-        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[Path, str]] = {
+        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int], str]]] = {
             executor.submit(
                 _push_file_task,
                 client, full_path, lf, rp,
                 remote_index[rp].last_modified or "" if rp in remote_index else "",
                 manifest.get(rp), rp in manifest, force, dry_run,
-            ): (lf, rp)
+            ): (rp, lambda a, p, _rp=rp: _push_label(a, _rp, p, remote_index, verbose))
             for lf, rp in tasks
         }
-        completed = 0
-        try:
-            for future in as_completed(futures):
-                _, rel_path = futures[future]
-                action, new_entry = future.result()
-                completed += 1
-                pct = int(completed / total * 100) if total else 100
-                label = _push_label(action, rel_path, pct, remote_index, verbose)
-                if label:
-                    typer.echo(label)
-                counts[action] = counts.get(action, 0) + 1
-                if not dry_run and new_entry is not None:
-                    manifest.set(rel_path, new_entry)
-                manifest.maybe_save(nick, path)
-        except KeyboardInterrupt:
-            executor.shutdown(wait=False, cancel_futures=True)
-            raise
-
-    return counts
+        return _drain_futures(executor, futures, manifest, nick, path, total, dry_run)
 
 
 def _refresh_remote_mtimes(
@@ -848,41 +876,20 @@ def _run_pull_parallel(
     Returns:
         Action counts.
     """
-    counts: dict[SyncAction, int] = {}
     total = len(resources)
-    tasks = [
-        (resource.rel_path, resource.entry.last_modified or "", resource.rel_path not in manifest)
-        for resource in resources
-    ]
-
     with ThreadPoolExecutor(max_workers=jobs) as executor:
-        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, bool]] = {
+        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int], str]]] = {
             executor.submit(
                 _pull_file_task,
-                client, full_path, dest, rp, rm,
-                manifest.get(rp), rp in manifest, force, dry_run,
-            ): (rp, is_new)
-            for rp, rm, is_new in tasks
+                client, full_path, dest, resource.rel_path, resource.entry.last_modified or "",
+                manifest.get(resource.rel_path), resource.rel_path in manifest, force, dry_run,
+            ): (
+                resource.rel_path,
+                lambda a, p, _rp=resource.rel_path, _new=(resource.rel_path not in manifest): _pull_label(a, _rp, p, _new, verbose),
+            )
+            for resource in resources
         }
-        completed = 0
-        try:
-            for future in as_completed(futures):
-                rel_path, is_new = futures[future]
-                action, new_entry = future.result()
-                completed += 1
-                pct = int(completed / total * 100) if total else 100
-                label = _pull_label(action, rel_path, pct, is_new, verbose)
-                if label:
-                    typer.echo(label)
-                counts[action] = counts.get(action, 0) + 1
-                if new_entry is not None:
-                    manifest.set(rel_path, new_entry)
-                manifest.maybe_save(nick, path)
-        except KeyboardInterrupt:
-            executor.shutdown(wait=False, cancel_futures=True)
-            raise
-
-    return counts
+        return _drain_futures(executor, futures, manifest, nick, path, total, dry_run)
 
 
 def _push(
