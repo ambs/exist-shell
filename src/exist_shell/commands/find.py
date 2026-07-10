@@ -7,6 +7,8 @@ from exist_shell.completions import collection_target_completer
 from exist_shell.exceptions import ExistQueryError
 from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
 
+_QUERY_TIMEOUT = 120.0
+
 
 def find(
     target: str = typer.Argument(
@@ -29,7 +31,7 @@ def find(
 
     try:
         with handle_exist_errors(path, nick, collection.server_nick):
-            with ExistClient(server) as client:
+            with ExistClient(server, timeout=_QUERY_TIMEOUT) as client:
                 matches = client.find_documents(full_path, query)
                 if not matches:
                     return
