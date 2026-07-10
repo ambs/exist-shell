@@ -328,6 +328,44 @@ exsh exec --list-validators
 
 ---
 
+## find
+
+Locate documents whose content matches an XPath predicate, and optionally delete every match in one step.
+
+```
+exsh find <nick>[:<path>] --query <xpath> [--remove] [--yes]
+```
+
+The predicate given to `--query` is evaluated recursively under the target collection (equivalent to `collection(...)//(QUERY)`), and each matching document is printed as a `<nick>:<path>` target — the same format `rm` and every other command accepts, so `find` output can be piped straight into `rm`.
+
+Without `--remove`, `find` only lists matches — this is inherently a dry run. With `--remove`, matches are deleted as they're printed; unless `--yes` is also given, `find` first prompts for confirmation showing the number of matching documents.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--query / -q XPATH` | XPath expression to match, evaluated recursively under the target (required). |
+| `--remove` | Delete matching documents instead of just listing them. |
+| `--yes / -y` | Skip the confirmation prompt when used with `--remove`. |
+
+### Examples
+
+```bash
+# List documents containing a matching element anywhere in their tree
+exsh find mydata:reports --query 'foo[@type="draft"]'
+
+# Match on an attribute nested deeper in the document
+exsh find mydata:/ --query 'section/foo[@type="draft"]'
+
+# Delete every match, with a confirmation prompt showing the match count
+exsh find mydata:reports --query 'foo[@type="draft"]' --remove
+
+# Delete every match, skipping the confirmation prompt
+exsh find mydata:reports --query 'foo[@type="draft"]' --remove --yes
+```
+
+---
+
 ## user
 
 Manage user accounts on an eXist-db server.

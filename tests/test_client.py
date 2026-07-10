@@ -338,6 +338,66 @@ def test_execute_query_raises_connection_error_on_network_failure(httpx_mock, a_
 
 
 # ---------------------------------------------------------------------------
+# find_documents
+# ---------------------------------------------------------------------------
+
+def test_find_documents_sends_predicate_and_escaped_path(httpx_mock, a_server):
+    from urllib.parse import parse_qs
+
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.find_documents('/db/myapp/re"ports', 'foo[@type="draft"]')
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    sent_query = body["_query"][0]
+    assert 'foo[@type="draft"]' in sent_query
+    assert '/db/myapp/re""ports' in sent_query
+
+
+def test_find_documents_parses_multiple_matches(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        text="/db/myapp/a.xml\n/db/myapp/b.xml",
+    )
+    with ExistClient(a_server) as client:
+        matches = client.find_documents("/db/myapp", 'foo[@type="draft"]')
+    assert matches == ["/db/myapp/a.xml", "/db/myapp/b.xml"]
+
+
+def test_find_documents_returns_empty_list_when_no_matches(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        matches = client.find_documents("/db/myapp", 'foo[@type="draft"]')
+    assert matches == []
+
+
+def test_find_documents_raises_query_error_on_400(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        status_code=400,
+        text="Unexpected token",
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.find_documents("/db/myapp", "invalid !!!")
+
+
+def test_find_documents_raises_auth_error_on_401(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", status_code=401)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.find_documents("/db/myapp", 'foo[@type="draft"]')
+
+
+def test_find_documents_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.find_documents("/db/myapp", 'foo[@type="draft"]')
+
+
+# ---------------------------------------------------------------------------
 # is_collection
 # ---------------------------------------------------------------------------
 
