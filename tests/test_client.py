@@ -337,6 +337,15 @@ def test_execute_query_raises_connection_error_on_network_failure(httpx_mock, a_
             client.execute_query("1 + 1")
 
 
+def test_execute_query_read_timeout_message_differs_from_connect_timeout(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ReadTimeout("timed out"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError) as exc_info:
+            client.execute_query("1 + 1")
+    assert "did not respond in time" in str(exc_info.value)
+    assert "Cannot connect" not in str(exc_info.value)
+
+
 # ---------------------------------------------------------------------------
 # is_collection
 # ---------------------------------------------------------------------------

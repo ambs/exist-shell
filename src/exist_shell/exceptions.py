@@ -1,5 +1,7 @@
 """Custom exceptions for eXist-db REST API errors."""
 
+import httpx
+
 
 class ExistError(Exception):
     """Base exception for eXist-db REST API errors.
@@ -24,7 +26,11 @@ class ExistConnectionError(ExistError):
 
     def __init__(self, url: str, cause: Exception) -> None:
         """Initialize with the target URL and the underlying cause."""
-        super().__init__(f"Cannot connect to {url}: {cause}")
+        if isinstance(cause, httpx.TimeoutException) and not isinstance(cause, httpx.ConnectTimeout):
+            message = f"Server at {url} did not respond in time: {cause}"
+        else:
+            message = f"Cannot connect to {url}: {cause}"
+        super().__init__(message)
         self.url = url
         self.cause = cause
 
