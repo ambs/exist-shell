@@ -12,7 +12,7 @@ from exist_shell.main import app
 def client_mock(monkeypatch):
     """Mock ExistClient used by the find command."""
     mock = MagicMock()
-    monkeypatch.setattr("exist_shell.commands.find.ExistClient", lambda _: mock)
+    monkeypatch.setattr("exist_shell.commands.find.ExistClient", lambda *args, **kwargs: mock)
     return mock.__enter__.return_value
 
 
