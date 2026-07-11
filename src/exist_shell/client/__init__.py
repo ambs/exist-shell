@@ -12,7 +12,11 @@ class ExistClient(CollectionMixin, DocumentMixin, UserMixin, GroupMixin, Permiss
 
     Args:
         server: The server configuration to connect to.
-        timeout: Request timeout in seconds.
+        connect_timeout: Seconds to wait for the connection to be
+            established (and for a connection to free up in the pool).
+        read_timeout: Seconds to wait for the server's response body once
+            connected.
+        write_timeout: Seconds to wait while sending the request body.
     """
 
 
