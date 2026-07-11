@@ -14,15 +14,33 @@ class ExistClientBase:
 
     Args:
         server: The server configuration to connect to.
-        timeout: Request timeout in seconds.
+        connect_timeout: Seconds to wait for the connection to be
+            established (and for a connection to free up in the pool).
+            Kept short so an unreachable host fails fast.
+        read_timeout: Seconds to wait for the server's response body once
+            connected. Kept longer to accommodate slow-but-legitimate
+            queries.
+        write_timeout: Seconds to wait while sending the request body
+            (e.g. uploading a document).
     """
 
-    def __init__(self, server: Server, timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        server: Server,
+        connect_timeout: float = 10.0,
+        read_timeout: float = 30.0,
+        write_timeout: float = 10.0,
+    ) -> None:
         """Initialize the client and open an HTTP connection."""
         self._base = f"http://{server.host}:{server.port}/exist"
         self._http = httpx.Client(
             auth=(server.user, server.password.get_secret_value()),
-            timeout=timeout,
+            timeout=httpx.Timeout(
+                connect_timeout,
+                read=read_timeout,
+                write=write_timeout,
+                pool=connect_timeout,
+            ),
         )
 
     def _url(self, path: str) -> str:

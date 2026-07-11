@@ -6,6 +6,24 @@ from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNo
 from exist_shell.models import CollectionEntry, DocumentResult, ResourceEntry
 
 
+def test_default_timeouts_split_connect_from_read(a_server):
+    with ExistClient(a_server) as client:
+        timeout = client._http.timeout
+    assert timeout.connect == 10.0
+    assert timeout.read == 30.0
+    assert timeout.write == 10.0
+    assert timeout.pool == 10.0
+
+
+def test_custom_timeouts_are_applied_independently(a_server):
+    with ExistClient(a_server, connect_timeout=5.0, read_timeout=60.0, write_timeout=15.0) as client:
+        timeout = client._http.timeout
+    assert timeout.connect == 5.0
+    assert timeout.read == 60.0
+    assert timeout.write == 15.0
+    assert timeout.pool == 5.0
+
+
 def test_check_connection_succeeds_on_200(httpx_mock, a_server):
     httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", status_code=200)
     with ExistClient(a_server) as client:
@@ -335,6 +353,15 @@ def test_execute_query_raises_connection_error_on_network_failure(httpx_mock, a_
     with ExistClient(a_server) as client:
         with pytest.raises(ExistConnectionError):
             client.execute_query("1 + 1")
+
+
+def test_execute_query_read_timeout_message_differs_from_connect_timeout(httpx_mock, a_server):
+    httpx_mock.add_exception(httpx.ReadTimeout("timed out"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError) as exc_info:
+            client.execute_query("1 + 1")
+    assert "did not respond in time" in str(exc_info.value)
+    assert "Cannot connect" not in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------
