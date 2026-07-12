@@ -26,7 +26,9 @@ class ExistConnectionError(ExistError):
 
     def __init__(self, url: str, cause: Exception) -> None:
         """Initialize with the target URL and the underlying cause."""
-        if isinstance(cause, httpx.TimeoutException) and not isinstance(cause, httpx.ConnectTimeout):
+        if isinstance(cause, httpx.ConnectTimeout):
+            message = f"Timed out connecting to {url}: {cause}"
+        elif isinstance(cause, httpx.TimeoutException):
             message = f"Server at {url} did not respond in time: {cause}"
         else:
             message = f"Cannot connect to {url}: {cause}"
