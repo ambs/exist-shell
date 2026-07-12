@@ -328,6 +328,52 @@ exsh exec --list-validators
 
 ---
 
+## find
+
+Locate documents whose content matches an XPath expression, and optionally delete every match in one step.
+
+```
+exsh find <nick>[:<path>] --query <xpath> [--remove] [--yes]
+```
+
+The expression given to `--query` is evaluated recursively under the target collection (equivalent to `collection(...)//(QUERY)`), and each matching document is printed as a `<nick>:<path>` target — the same format `rm` and every other command accepts. Because `rm` takes its targets as arguments (not from standard input), pipe `find` output through `xargs` to feed it into `rm`:
+
+```bash
+exsh find mydata:reports --query 'foo[@type="draft"]' | xargs -r exsh rm
+```
+
+Deleting matches directly with `--remove` is usually simpler; the pipe form is useful when you want to filter the list first.
+
+Without `--remove`, `find` only lists matches — this is inherently a dry run. With `--remove`, matches are deleted as they're printed; unless `--yes` is also given, `find` first prompts for confirmation showing the number of matching documents. If a document reported by the search has already disappeared by the time it is deleted, `find` warns and continues, then exits non-zero.
+
+> **Security note:** the `--query` expression is embedded into a server-side XQuery without validation or sandboxing, so it can execute arbitrary XQuery with your configured server credentials (the same trust model as `exsh exec`). Only pass expressions from a trusted source.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--query / -q XPATH` | XPath expression to match, evaluated recursively under the target (required). |
+| `--remove` | Delete matching documents instead of just listing them. |
+| `--yes / -y` | Skip the confirmation prompt when used with `--remove`. |
+
+### Examples
+
+```bash
+# List documents containing a matching element anywhere in their tree
+exsh find mydata:reports --query 'foo[@type="draft"]'
+
+# Match on an attribute nested deeper in the document
+exsh find mydata:/ --query 'section/foo[@type="draft"]'
+
+# Delete every match, with a confirmation prompt showing the match count
+exsh find mydata:reports --query 'foo[@type="draft"]' --remove
+
+# Delete every match, skipping the confirmation prompt
+exsh find mydata:reports --query 'foo[@type="draft"]' --remove --yes
+```
+
+---
+
 ## user
 
 Manage user accounts on an eXist-db server.

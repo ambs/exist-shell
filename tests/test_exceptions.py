@@ -3,9 +3,9 @@ import httpx
 from exist_shell.exceptions import ExistConnectionError
 
 
-def test_connect_timeout_message_says_cannot_connect():
+def test_connect_timeout_message_says_timed_out_connecting():
     err = ExistConnectionError("http://host/exist/rest/db", httpx.ConnectTimeout("timed out"))
-    assert str(err) == "Cannot connect to http://host/exist/rest/db: timed out"
+    assert str(err) == "Timed out connecting to http://host/exist/rest/db: timed out"
 
 
 def test_connect_error_message_says_cannot_connect():

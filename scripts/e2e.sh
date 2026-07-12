@@ -93,6 +93,7 @@ source "${SCRIPT_DIR}/e2e/sections/T15_user.sh"
 source "${SCRIPT_DIR}/e2e/sections/T16_group.sh"
 source "${SCRIPT_DIR}/e2e/sections/T17_chown.sh"
 source "${SCRIPT_DIR}/e2e/sections/T18_chmod.sh"
+source "${SCRIPT_DIR}/e2e/sections/T19_find.sh"
 
 # ---------------------------------------------------------------------------
 # Main
@@ -120,6 +121,7 @@ main() {
     section_T16_group
     section_T17_chown
     section_T18_chmod
+    section_T19_find
 }
 
 main
