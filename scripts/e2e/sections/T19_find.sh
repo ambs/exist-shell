@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# T19 — find (XPath predicate search, with --remove)
+# T19 — find (XPath expression search, with --remove)
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 section_T19_find() {
@@ -47,9 +47,15 @@ section_T19_find() {
         "T19.6 find unknown nick fails" \
         "${EXSH[@]}" find ghost:/ --query 'foo[@type="draft"]'
 
-    # T19.7 — malformed predicate surfaces the server's XQuery error
+    # T19.6b — known collection but a path that does not exist reports "not found"
+    #          (rather than silently returning zero matches)
+    assert_output "not found" \
+        "T19.6b find nonexistent path fails" \
+        "${EXSH[@]}" find testcol:/no_such_subcollection --query 'foo[@type="draft"]'
+
+    # T19.7 — malformed expression surfaces the server's XQuery error
     assert_output "XQuery error" \
-        "T19.7 find malformed predicate rejected by server" \
+        "T19.7 find malformed expression rejected by server" \
         "${EXSH[@]}" find testcol:/ --query 'this is not valid !!!'
 
     # T19.8 — missing --query option

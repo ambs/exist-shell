@@ -37,12 +37,16 @@ class QueryMixin(ExistClientBase):
         r.raise_for_status()
         return r.text
 
-    def find_documents(self, path: str, predicate: str) -> list[str]:
-        """Find documents under a collection whose content matches an XPath predicate.
+    def find_documents(self, path: str, expression: str) -> list[str]:
+        """Find documents under a collection whose content matches an XPath expression.
+
+        The expression is embedded into the generated XQuery without validation
+        or escaping, so it can execute arbitrary XQuery. Callers are responsible
+        for only passing expressions from a trusted source.
 
         Args:
             path: Full eXist collection path starting with /db/ to search under.
-            predicate: XPath expression evaluated recursively under ``path``
+            expression: XPath expression evaluated recursively under ``path``
                 (e.g. ``foo[@type="draft"]``).
 
         Returns:
@@ -52,13 +56,13 @@ class QueryMixin(ExistClientBase):
         Raises:
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
-            ExistQueryError: If the predicate is invalid or the query fails.
+            ExistQueryError: If the expression is invalid or the query fails.
         """
         safe_path = xq_escape(path)
         query = (
             'xquery version "3.1"; '
             "string-join("
-            f'for $hit in collection("{safe_path}")//({predicate}) '
+            f'for $hit in collection("{safe_path}")//({expression}) '
             "let $doc-uri := document-uri(root($hit)) "
             "group by $doc-uri "
             "order by $doc-uri "

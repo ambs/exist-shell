@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistQueryError
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistQueryError
 from exist_shell.main import app
 
 
@@ -92,3 +92,25 @@ def test_find_missing_query_option_fails(config_with_collection, client_mock, ru
     result = runner.invoke(app, ["find", "myapp:/"])
     assert result.exit_code != 0
     client_mock.find_documents.assert_not_called()
+
+
+def test_find_nonexistent_path_reports_not_found(config_with_collection, client_mock, runner):
+    """A target collection that does not exist fails loudly instead of reporting no matches."""
+    client_mock.is_collection.return_value = False
+    result = runner.invoke(app, ["find", "myapp:/typo", "--query", 'foo[@type="draft"]'])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+    client_mock.is_collection.assert_called_once_with("/db/myapp/typo")
+    client_mock.find_documents.assert_not_called()
+
+
+def test_find_remove_skips_vanished_document(config_with_collection, client_mock, runner):
+    """A match deleted between search and removal is skipped with a warning; deletion continues."""
+    client_mock.find_documents.return_value = ["/db/myapp/a.xml", "/db/myapp/b.xml"]
+    client_mock.delete_document.side_effect = [ExistNotFoundError("/db/myapp/a.xml"), None]
+    result = runner.invoke(app, ["find", "myapp:/", "--query", "foo", "--remove", "--yes"])
+    assert result.exit_code == 1
+    assert "already gone" in result.output
+    assert "myapp:/a.xml" not in result.output  # vanished doc is not reported as removed
+    assert "myapp:/b.xml" in result.output  # the surviving match is still deleted and printed
+    assert client_mock.delete_document.call_count == 2

@@ -330,15 +330,23 @@ exsh exec --list-validators
 
 ## find
 
-Locate documents whose content matches an XPath predicate, and optionally delete every match in one step.
+Locate documents whose content matches an XPath expression, and optionally delete every match in one step.
 
 ```
 exsh find <nick>[:<path>] --query <xpath> [--remove] [--yes]
 ```
 
-The predicate given to `--query` is evaluated recursively under the target collection (equivalent to `collection(...)//(QUERY)`), and each matching document is printed as a `<nick>:<path>` target — the same format `rm` and every other command accepts, so `find` output can be piped straight into `rm`.
+The expression given to `--query` is evaluated recursively under the target collection (equivalent to `collection(...)//(QUERY)`), and each matching document is printed as a `<nick>:<path>` target — the same format `rm` and every other command accepts. Because `rm` takes its targets as arguments (not from standard input), pipe `find` output through `xargs` to feed it into `rm`:
 
-Without `--remove`, `find` only lists matches — this is inherently a dry run. With `--remove`, matches are deleted as they're printed; unless `--yes` is also given, `find` first prompts for confirmation showing the number of matching documents.
+```bash
+exsh find mydata:reports --query 'foo[@type="draft"]' | xargs -r exsh rm
+```
+
+Deleting matches directly with `--remove` is usually simpler; the pipe form is useful when you want to filter the list first.
+
+Without `--remove`, `find` only lists matches — this is inherently a dry run. With `--remove`, matches are deleted as they're printed; unless `--yes` is also given, `find` first prompts for confirmation showing the number of matching documents. If a document reported by the search has already disappeared by the time it is deleted, `find` warns and continues, then exits non-zero.
+
+> **Security note:** the `--query` expression is embedded into a server-side XQuery without validation or sandboxing, so it can execute arbitrary XQuery with your configured server credentials (the same trust model as `exsh exec`). Only pass expressions from a trusted source.
 
 ### Options
 

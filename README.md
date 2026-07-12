@@ -109,7 +109,7 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh sync <local> <nick>[:<path>]` | Push a local folder to a remote collection |
 | `exsh sync <nick>[:<path>] <local>` | Pull a remote collection to a local folder |
 | `exsh exec <nick>[:<path>]` | Execute an XQuery script on a server |
-| `exsh find <nick>[:<path>] --query <xpath>` | Find documents matching an XPath predicate, with optional `--remove` |
+| `exsh find <nick>[:<path>] --query <xpath>` | Find documents matching an XPath expression, with optional `--remove` |
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
 | `exsh server rm <nick>` | Remove a server (and its collections) |
