@@ -53,8 +53,8 @@ def collection_target_completer(kind: Kind = "any", *, allow_local: bool = False
         try:
             items = get_cached(nick, dir_path)
             if items is None:
-                with ExistClient(server) as client:
-                    items = client.list_collection(full_dir)
+                with ExistClient(server, connect_timeout=2.0, read_timeout=4.0) as client:
+                    items = client.list_child_names(full_dir)
                 set_cached(nick, dir_path, items)
         except Exception:
             return []
