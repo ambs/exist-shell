@@ -116,21 +116,23 @@ def test_cache_hit_returns_items_without_calling_client(cfg, items):
 def test_cache_miss_calls_client_and_sets_cache(cfg, items):
     complete = collection_target_completer()
     client_instance = MagicMock()
-    client_instance.list_collection.return_value = items
+    client_instance.list_child_names.return_value = items
     client_context = MagicMock()
     client_context.__enter__ = MagicMock(return_value=client_instance)
     client_context.__exit__ = MagicMock(return_value=False)
 
     with (
         patch.object(completions_module, "get_cached", return_value=None),
-        patch.object(completions_module, "ExistClient", return_value=client_context),
+        patch.object(completions_module, "ExistClient", return_value=client_context) as mock_client,
         patch.object(completions_module, "set_cached") as mock_set,
     ):
         result = complete("myapp:/")
 
-    client_instance.list_collection.assert_called_once_with("/db/myapp/")
+    client_instance.list_child_names.assert_called_once_with("/db/myapp/")
     mock_set.assert_called_once_with("myapp", "/", items)
     assert "myapp:/subdir/" in result
+    _, kwargs = mock_client.call_args
+    assert kwargs == {"connect_timeout": 2.0, "read_timeout": 4.0}
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +207,7 @@ def test_partial_path_without_leading_slash_is_normalised(cfg, items):
     """An incomplete like 'myapp:sub' (no leading slash) must still resolve."""
     complete = collection_target_completer()
     client_instance = MagicMock()
-    client_instance.list_collection.return_value = items
+    client_instance.list_child_names.return_value = items
     client_context = MagicMock()
     client_context.__enter__ = MagicMock(return_value=client_instance)
     client_context.__exit__ = MagicMock(return_value=False)
@@ -219,7 +221,7 @@ def test_partial_path_without_leading_slash_is_normalised(cfg, items):
 
     # dir_path becomes "/" and prefix becomes "sub"; client is called with full_dir
     assert isinstance(result, list)
-    called_path = client_instance.list_collection.call_args[0][0]
+    called_path = client_instance.list_child_names.call_args[0][0]
     assert called_path.startswith("/db/myapp/")
 
 

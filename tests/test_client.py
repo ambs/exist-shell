@@ -108,6 +108,57 @@ def test_list_collection_raises_connection_error_on_network_failure(httpx_mock, 
             client.list_collection("/db/myapp")
 
 
+# ---------------------------------------------------------------------------
+# list_child_names
+# ---------------------------------------------------------------------------
+
+
+def test_list_child_names_parses_mixed_response(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="c:subdir\nr:file.xml")
+    with ExistClient(a_server) as client:
+        items = client.list_child_names("/db/myapp")
+    assert len(items) == 2
+    assert isinstance(items[0], CollectionEntry)
+    assert items[0].name == "subdir"
+    assert items[0].owner is None
+    assert isinstance(items[1], ResourceEntry)
+    assert items[1].name == "file.xml"
+    assert items[1].size is None
+
+
+def test_list_child_names_empty_response_returns_empty_list(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        items = client.list_child_names("/db/myapp")
+    assert items == []
+
+
+def test_list_child_names_ignores_trailing_newline(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="c:subdir\n")
+    with ExistClient(a_server) as client:
+        items = client.list_child_names("/db/myapp")
+    assert len(items) == 1
+    assert items[0].name == "subdir"
+
+
+def test_list_child_names_sends_escaped_path(httpx_mock, a_server):
+    from urllib.parse import parse_qs
+
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.list_child_names('/db/myapp/re"ports')
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    sent_query = body["_query"][0]
+    assert '/db/myapp/re""ports' in sent_query
+
+
+def test_list_child_names_raises_query_error_on_400(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", status_code=400, text="bad query")
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.list_child_names("/db/myapp")
+
+
 def test_put_document_succeeds_on_201(httpx_mock, a_server):
     httpx_mock.add_response(url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="PUT", status_code=201)
     with ExistClient(a_server) as client:

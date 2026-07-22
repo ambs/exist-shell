@@ -7,6 +7,7 @@ import httpx
 from exist_shell.client._queries import QueryMixin
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistQueryError
 from exist_shell.models import CollectionEntry, CollectionItem, ResourceEntry
+from exist_shell.utils import xq_escape
 
 _EXIST_NS = "http://exist.sourceforge.net/NS/exist"
 
@@ -83,6 +84,43 @@ class CollectionMixin(QueryMixin):
                     size=int(el.get("size", 0)) or None,
                     mime_type=el.get("mime-type"),
                 ))
+        return items
+
+    def list_child_names(self, path: str) -> list[CollectionItem]:
+        """List child collection and resource names only, skipping metadata.
+
+        Args:
+            path: Full eXist path starting with /db/ (e.g. /db/myapp/sub).
+
+        Returns:
+            Ordered list of CollectionEntry and ResourceEntry objects with only
+            `name` populated — used where full metadata is unneeded (e.g. shell
+            completion).
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistQueryError: If the query fails.
+        """
+        safe_path = xq_escape(path)
+        query = (
+            'xquery version "3.1"; '
+            f'let $c := "{safe_path}" '
+            "return string-join(("
+            'for $sub in xmldb:get-child-collections($c) return "c:" || $sub, '
+            'for $res in xmldb:get-child-resources($c) return "r:" || $res'
+            '), "&#10;")'
+        )
+        raw = self.execute_query(query)
+        items: list[CollectionItem] = []
+        for line in raw.splitlines():
+            if not line.strip():
+                continue
+            marker, name = line[:2], line[2:]
+            if marker == "c:":
+                items.append(CollectionEntry(name=name))
+            elif marker == "r:":
+                items.append(ResourceEntry(name=name))
         return items
 
     def create_collection(self, path: str) -> None:
