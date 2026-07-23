@@ -16,15 +16,18 @@ def xq_escape(value: str) -> str:
     """Escape a string for safe embedding in an XQuery double-quoted string literal.
 
     Doubles every ``"`` character so the value can be placed directly
-    between XQuery double-quote delimiters without ending the literal early.
+    between XQuery double-quote delimiters without ending the literal early,
+    and escapes ``&`` to ``&amp;`` since XQuery string literals parse entity
+    references — a raw ``&`` not starting a valid entity/character reference
+    is a query parse error.
 
     Args:
         value: The raw string to embed in an XQuery double-quoted string.
 
     Returns:
-        The string with every double-quote character doubled.
+        The string with every ``&`` and double-quote character escaped.
     """
-    return value.replace('"', '""')
+    return value.replace("&", "&amp;").replace('"', '""')
 
 
 def is_remote(target: str) -> bool:

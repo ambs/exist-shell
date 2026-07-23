@@ -4,6 +4,8 @@
 
 ### Enhancements
 
+- **Faster, correct bash tab-completion for `nick:path` targets**: the generated bash completion script now handles the `:` word-break correctly (no more `dlp:dlp:...` insertions), completing a collection no longer needs an extra backspace before continuing into it, and completion listings are filtered and capped server-side and cached per prefix so progressive typing reuses a single fetch. Re-run `exsh --install-completion bash` after upgrading to pick up the new script.
+- **Exit code 130 on Ctrl+C** for the whole CLI (previously sync-only), including during shell completion itself, which Typer/click don't handle on their own.
 - **Parallel sync (`--jobs N`)**: uploads, downloads, and remote directory listings now run concurrently. The `--jobs N` flag (default: 4) controls the number of parallel workers. Use `--jobs 1` to restore fully sequential behaviour.
 - **Clean Ctrl+C handling**: interrupting a sync now exits with code 130, saves the manifest (so the next run can resume), and prints a single `Interrupted.` message instead of a Python traceback.
 - **`exsh find`**: locate documents by XPath expression anywhere in their content (`exsh find <nick>[:<path>] --query 'foo[@type="draft"]'`), with `--remove`/`--yes` to delete every match in one step.

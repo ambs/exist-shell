@@ -41,7 +41,7 @@ Issues = "https://github.com/ambs/exist-shell/issues"
 Changelog = "https://github.com/ambs/exist-shell/blob/main/CHANGELOG.md"
 
 [project.scripts]
-exsh = "exist_shell.main:app"
+exsh = "exist_shell.main:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/exist_shell"]

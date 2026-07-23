@@ -10,6 +10,7 @@ from exist_shell.models import CollectionEntry, CollectionItem, ResourceEntry
 from exist_shell.utils import xq_escape
 
 _EXIST_NS = "http://exist.sourceforge.net/NS/exist"
+DEFAULT_CHILD_NAMES_LIMIT = 200
 
 
 class CollectionMixin(QueryMixin):
@@ -86,11 +87,23 @@ class CollectionMixin(QueryMixin):
                 ))
         return items
 
-    def list_child_names(self, path: str) -> list[CollectionItem]:
+    def list_child_names(
+        self, path: str, prefix: str = "", limit: int = DEFAULT_CHILD_NAMES_LIMIT
+    ) -> list[CollectionItem]:
         """List child collection and resource names only, skipping metadata.
 
         Args:
             path: Full eXist path starting with /db/ (e.g. /db/myapp/sub).
+            prefix: When set, only names starting with this string are
+                returned. Filtering happens server-side so collections with
+                very large child counts don't need their full listing
+                serialized and transferred just to be filtered locally.
+            limit: Maximum number of names to return. Caps unbounded
+                listings (e.g. an empty prefix against a collection with
+                tens of thousands of children) so a single tab press can't
+                fetch, cache, and pipe an entire collection's worth of names
+                into the shell. Callers should treat a result whose length
+                equals `limit` as potentially truncated.
 
         Returns:
             Ordered list of CollectionEntry and ResourceEntry objects with only
@@ -103,13 +116,16 @@ class CollectionMixin(QueryMixin):
             ExistQueryError: If the query fails.
         """
         safe_path = xq_escape(path)
+        safe_prefix = xq_escape(prefix)
         query = (
             'xquery version "3.1"; '
             f'let $c := "{safe_path}" '
-            "return string-join(("
-            'for $sub in xmldb:get-child-collections($c) return "c:" || $sub, '
-            'for $res in xmldb:get-child-resources($c) return "r:" || $res'
-            '), "&#10;")'
+            f'let $p := "{safe_prefix}" '
+            "let $all := ("
+            'for $sub in xmldb:get-child-collections($c)[starts-with(., $p)] return "c:" || $sub, '
+            'for $res in xmldb:get-child-resources($c)[starts-with(., $p)] return "r:" || $res'
+            ") "
+            f'return string-join(subsequence($all, 1, {int(limit)}), "&#10;")'
         )
         raw = self.execute_query(query)
         items: list[CollectionItem] = []
