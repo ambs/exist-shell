@@ -239,6 +239,8 @@ exsh --install-completion zsh
 exsh --install-completion fish
 ```
 
+Upgrading? Re-run `exsh --install-completion bash` to pick up fixes to the generated script — it's written once to `~/.bash_completions/` (or equivalent) and isn't updated automatically.
+
 ## Development
 
 ```bash

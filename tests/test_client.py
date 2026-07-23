@@ -159,6 +159,60 @@ def test_list_child_names_raises_query_error_on_400(httpx_mock, a_server):
             client.list_child_names("/db/myapp")
 
 
+def test_list_child_names_sends_prefix_filter(httpx_mock, a_server):
+    from urllib.parse import parse_qs
+
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.list_child_names("/db/myapp", prefix="cav")
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    sent_query = body["_query"][0]
+    assert 'let $p := "cav"' in sent_query
+    assert "starts-with" in sent_query
+
+
+def test_list_child_names_defaults_to_empty_prefix(httpx_mock, a_server):
+    from urllib.parse import parse_qs
+
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.list_child_names("/db/myapp")
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    sent_query = body["_query"][0]
+    assert 'let $p := ""' in sent_query
+
+
+def test_list_child_names_sends_default_limit(httpx_mock, a_server):
+    from urllib.parse import parse_qs
+
+    from exist_shell.client import DEFAULT_CHILD_NAMES_LIMIT
+
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.list_child_names("/db/myapp")
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    sent_query = body["_query"][0]
+    assert f"subsequence($all, 1, {DEFAULT_CHILD_NAMES_LIMIT})" in sent_query
+
+
+def test_list_child_names_sends_custom_limit(httpx_mock, a_server):
+    from urllib.parse import parse_qs
+
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.list_child_names("/db/myapp", limit=5)
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    sent_query = body["_query"][0]
+    assert "subsequence($all, 1, 5)" in sent_query
+
+
+def test_list_child_names_truncated_at_limit(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="r:a.xml\nr:b.xml")
+    with ExistClient(a_server) as client:
+        items = client.list_child_names("/db/myapp", limit=2)
+    assert len(items) == 2
+
+
 def test_put_document_succeeds_on_201(httpx_mock, a_server):
     httpx_mock.add_response(url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="PUT", status_code=201)
     with ExistClient(a_server) as client:

@@ -6,6 +6,7 @@ import typer
 
 from exist_shell import __version__
 from exist_shell.commands import collection, group, server, user
+from exist_shell.completions import patch_bash_completion_template
 from exist_shell.config import app_state
 from exist_shell.commands.cat import cat
 from exist_shell.commands.chmod import chmod
@@ -20,6 +21,8 @@ from exist_shell.commands.ls import ls
 from exist_shell.commands.put import put
 from exist_shell.commands.rm import rm
 from exist_shell.commands.sync import sync
+
+patch_bash_completion_template()
 
 app = typer.Typer(
     name="exsh",
@@ -62,5 +65,19 @@ def main(
         app_state.set_config_path(config)
 
 
+def cli() -> None:
+    """Run the Typer app.
+
+    Catches ``KeyboardInterrupt`` raised during shell completion (Typer/click
+    don't handle it there — completion runs outside their own try/except) as
+    well as any other stray Ctrl+C, exiting 130 instead of printing a
+    traceback.
+    """
+    try:
+        app()
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None
+
+
 if __name__ == "__main__":
-    app()
+    cli()

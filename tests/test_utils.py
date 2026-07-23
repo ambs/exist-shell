@@ -16,6 +16,14 @@ def test_xq_escape_doubles_double_quotes():
     assert xq_escape('say "hello"') == 'say ""hello""'
 
 
+def test_xq_escape_escapes_ampersand():
+    assert xq_escape("cats & dogs") == "cats &amp; dogs"
+
+
+def test_xq_escape_escapes_ampersand_before_doubling_quotes():
+    assert xq_escape('"A & B"') == '""A &amp; B""'
+
+
 # --- check_xml_wellformed ---
 
 def test_valid_xml_returns_none():

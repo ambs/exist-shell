@@ -1,5 +1,6 @@
 """Tests for the shell completion helpers in completions.py."""
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -98,11 +99,11 @@ def test_unknown_nick_returns_empty(cfg):
 def test_cache_hit_returns_items_without_calling_client(cfg, items):
     complete = collection_target_completer()
     with (
-        patch.object(completions_module, "get_cached", return_value=items) as mock_get,
+        patch.object(completions_module, "get_cached_prefix_match", return_value=items) as mock_get,
         patch.object(completions_module, "ExistClient") as mock_client,
     ):
         result = complete("myapp:/")
-    mock_get.assert_called_once_with("myapp", "/")
+    mock_get.assert_called_once_with("myapp", "/", "")
     mock_client.assert_not_called()
     assert "myapp:/subdir/" in result
     assert "myapp:/doc.xml" in result
@@ -122,17 +123,59 @@ def test_cache_miss_calls_client_and_sets_cache(cfg, items):
     client_context.__exit__ = MagicMock(return_value=False)
 
     with (
-        patch.object(completions_module, "get_cached", return_value=None),
+        patch.object(completions_module, "get_cached_prefix_match", return_value=None),
         patch.object(completions_module, "ExistClient", return_value=client_context) as mock_client,
         patch.object(completions_module, "set_cached") as mock_set,
     ):
         result = complete("myapp:/")
 
-    client_instance.list_child_names.assert_called_once_with("/db/myapp/")
-    mock_set.assert_called_once_with("myapp", "/", items)
+    client_instance.list_child_names.assert_called_once_with("/db/myapp/", "")
+    mock_set.assert_called_once_with("myapp", "/", items, "", truncated=False)
     assert "myapp:/subdir/" in result
     _, kwargs = mock_client.call_args
-    assert kwargs == {"connect_timeout": 2.0, "read_timeout": 4.0}
+    assert kwargs == {
+        "connect_timeout": completions_module._COMPLETION_CONNECT_TIMEOUT,
+        "read_timeout": completions_module._COMPLETION_READ_TIMEOUT,
+    }
+
+
+def test_cache_miss_at_listing_limit_marks_cache_entry_truncated(cfg):
+    capped_items = [ResourceEntry(name=f"doc{i}.xml") for i in range(completions_module.DEFAULT_CHILD_NAMES_LIMIT)]
+    complete = collection_target_completer()
+    client_instance = MagicMock()
+    client_instance.list_child_names.return_value = capped_items
+    client_context = MagicMock()
+    client_context.__enter__ = MagicMock(return_value=client_instance)
+    client_context.__exit__ = MagicMock(return_value=False)
+
+    with (
+        patch.object(completions_module, "get_cached_prefix_match", return_value=None),
+        patch.object(completions_module, "ExistClient", return_value=client_context),
+        patch.object(completions_module, "set_cached") as mock_set,
+    ):
+        complete("myapp:/")
+
+    mock_set.assert_called_once_with("myapp", "/", capped_items, "", truncated=True)
+
+
+def test_cache_miss_non_empty_prefix_calls_client_and_sets_cache(cfg):
+    items = [CollectionEntry(name="alpha")]
+    complete = collection_target_completer()
+    client_instance = MagicMock()
+    client_instance.list_child_names.return_value = items
+    client_context = MagicMock()
+    client_context.__enter__ = MagicMock(return_value=client_instance)
+    client_context.__exit__ = MagicMock(return_value=False)
+
+    with (
+        patch.object(completions_module, "get_cached_prefix_match", return_value=None),
+        patch.object(completions_module, "ExistClient", return_value=client_context),
+        patch.object(completions_module, "set_cached") as mock_set,
+    ):
+        complete("myapp:/al")
+
+    client_instance.list_child_names.assert_called_once_with("/db/myapp/", "al")
+    mock_set.assert_called_once_with("myapp", "/", items, "al", truncated=False)
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +186,7 @@ def test_cache_miss_calls_client_and_sets_cache(cfg, items):
 def test_listing_exception_returns_empty(cfg):
     complete = collection_target_completer()
     with (
-        patch.object(completions_module, "get_cached", return_value=None),
+        patch.object(completions_module, "get_cached_prefix_match", return_value=None),
         patch.object(completions_module, "ExistClient", side_effect=OSError("conn refused")),
     ):
         assert complete("myapp:/") == []
@@ -156,7 +199,7 @@ def test_listing_exception_returns_empty(cfg):
 
 def test_kind_collection_excludes_resources(cfg, items):
     complete = collection_target_completer(kind="collection")
-    with patch.object(completions_module, "get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
         result = complete("myapp:/")
     assert any("subdir" in r for r in result)
     assert not any("doc.xml" in r for r in result)
@@ -164,7 +207,7 @@ def test_kind_collection_excludes_resources(cfg, items):
 
 def test_kind_resource_excludes_collections(cfg, items):
     complete = collection_target_completer(kind="resource")
-    with patch.object(completions_module, "get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
         result = complete("myapp:/")
     assert any("doc.xml" in r for r in result)
     assert not any("subdir" in r for r in result)
@@ -172,7 +215,7 @@ def test_kind_resource_excludes_collections(cfg, items):
 
 def test_kind_any_includes_both(cfg, items):
     complete = collection_target_completer(kind="any")
-    with patch.object(completions_module, "get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
         result = complete("myapp:/")
     assert any("subdir" in r for r in result)
     assert any("doc.xml" in r for r in result)
@@ -190,7 +233,7 @@ def test_prefix_filters_results(cfg):
         ResourceEntry(name="alpha.xml"),
     ]
     complete = collection_target_completer()
-    with patch.object(completions_module, "get_cached", return_value=all_items):
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=all_items):
         result = complete("myapp:/al")
     names = [r.split(":", 1)[1] for r in result]
     assert "/alpha/" in names
@@ -213,7 +256,7 @@ def test_partial_path_without_leading_slash_is_normalised(cfg, items):
     client_context.__exit__ = MagicMock(return_value=False)
 
     with (
-        patch.object(completions_module, "get_cached", return_value=None),
+        patch.object(completions_module, "get_cached_prefix_match", return_value=None),
         patch.object(completions_module, "ExistClient", return_value=client_context),
         patch.object(completions_module, "set_cached"),
     ):
@@ -233,7 +276,7 @@ def test_partial_path_without_leading_slash_is_normalised(cfg, items):
 def test_collection_entry_has_trailing_slash(cfg):
     items = [CollectionEntry(name="books")]
     complete = collection_target_completer()
-    with patch.object(completions_module, "get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
         result = complete("myapp:/")
     assert result == ["myapp:/books/"]
 
@@ -241,9 +284,21 @@ def test_collection_entry_has_trailing_slash(cfg):
 def test_resource_entry_has_no_trailing_slash(cfg):
     items = [ResourceEntry(name="readme.xml")]
     complete = collection_target_completer()
-    with patch.object(completions_module, "get_cached", return_value=items):
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
         result = complete("myapp:/")
     assert result == ["myapp:/readme.xml"]
+
+
+def test_out_dir_preserved_without_leading_slash(cfg):
+    """A dir prefix typed without a leading slash must stay slash-less in
+    candidates, matching the typed form ('books/ac', not '/books/ac') —
+    Typer/Click drops any candidate that isn't a literal prefix of `incomplete`.
+    """
+    items = [ResourceEntry(name="academia.xml")]
+    complete = collection_target_completer()
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
+        result = complete("myapp:books/ac")
+    assert result == ["myapp:books/academia.xml"]
 
 
 # ---------------------------------------------------------------------------
@@ -462,3 +517,32 @@ def test_chown_spec_completer_client_exception_returns_empty(cfg):
     with patch.object(completions_module, "get_cached_users", return_value=None), \
          patch.object(completions_module, "ExistClient", side_effect=OSError("refused")):
         assert chown_spec_completer("") == []
+
+
+# ---------------------------------------------------------------------------
+# Typer-internals pin — turns silent degradation on a Typer bump into a
+# loud, immediate CI failure instead of "completion quietly reverts to
+# stock colon-broken behavior on some future upgrade".
+# ---------------------------------------------------------------------------
+
+
+def test_bash_template_patch_applies():
+    completions_module.patch_bash_completion_template()
+    from typer._completion_classes import BashComplete
+    from typer._completion_shared import _completion_scripts
+
+    assert _completion_scripts["bash"] is completions_module._FIXED_COMPLETION_SCRIPT_BASH
+    assert BashComplete.source_template is completions_module._FIXED_COMPLETION_SCRIPT_BASH
+
+
+def test_bash_template_placeholders_render():
+    completions_module._FIXED_COMPLETION_SCRIPT_BASH % {
+        "complete_func": "f", "autocomplete_var": "V", "prog_name": "exsh",
+    }
+
+
+def test_bash_template_patch_swallows_import_error(monkeypatch):
+    """A future Typer release that moves/removes ``_completion_classes``
+    must degrade to stock completion, not crash the whole CLI."""
+    monkeypatch.setitem(sys.modules, "typer._completion_classes", None)
+    completions_module.patch_bash_completion_template()
