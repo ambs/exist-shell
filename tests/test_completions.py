@@ -1,5 +1,6 @@
 """Tests for the shell completion helpers in completions.py."""
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -538,3 +539,10 @@ def test_bash_template_placeholders_render():
     completions_module._FIXED_COMPLETION_SCRIPT_BASH % {
         "complete_func": "f", "autocomplete_var": "V", "prog_name": "exsh",
     }
+
+
+def test_bash_template_patch_swallows_import_error(monkeypatch):
+    """A future Typer release that moves/removes ``_completion_classes``
+    must degrade to stock completion, not crash the whole CLI."""
+    monkeypatch.setitem(sys.modules, "typer._completion_classes", None)
+    completions_module.patch_bash_completion_template()
