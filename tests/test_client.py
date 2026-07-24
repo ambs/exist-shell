@@ -249,7 +249,7 @@ def test_collection_exists_raises_connection_error_on_network_failure(httpx_mock
 
 def test_get_document_returns_content_and_mime_type(httpx_mock, a_server):
     httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/doc.xml",
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml?_source=yes",
         content=b"<root/>",
         headers={"content-type": "application/xml; charset=utf-8"},
     )
@@ -260,9 +260,20 @@ def test_get_document_returns_content_and_mime_type(httpx_mock, a_server):
     assert result.mime_type == "application/xml"
 
 
+def test_get_document_requests_source_to_avoid_executing_xquery_resources(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/script.xql?_source=yes",
+        content=b"xquery version '3.1'; <root/>",
+        headers={"content-type": "application/xquery"},
+    )
+    with ExistClient(a_server) as client:
+        result = client.get_document("/db/myapp/script.xql")
+    assert result.content == b"xquery version '3.1'; <root/>"
+
+
 def test_get_document_uses_default_mime_type_when_header_missing(httpx_mock, a_server):
     httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/doc.xml",
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml?_source=yes",
         content=b"\x00\x01",
     )
     with ExistClient(a_server) as client:
@@ -272,7 +283,7 @@ def test_get_document_uses_default_mime_type_when_header_missing(httpx_mock, a_s
 
 def test_get_document_raises_auth_error_on_401(httpx_mock, a_server):
     httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/doc.xml", status_code=401
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml?_source=yes", status_code=401
     )
     with ExistClient(a_server) as client:
         with pytest.raises(ExistAuthError):
@@ -281,7 +292,7 @@ def test_get_document_raises_auth_error_on_401(httpx_mock, a_server):
 
 def test_get_document_raises_not_found_on_404(httpx_mock, a_server):
     httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/doc.xml", status_code=404
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml?_source=yes", status_code=404
     )
     with ExistClient(a_server) as client:
         with pytest.raises(ExistNotFoundError):

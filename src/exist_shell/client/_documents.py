@@ -28,7 +28,9 @@ class DocumentMixin(QueryMixin):
         """
         url = self._url(path)
         try:
-            r = self._http.get(url)
+            # Without _source=yes, eXist executes executable resources (.xql, .xqm) on
+            # GET instead of returning their raw bytes.
+            r = self._http.get(url, params={"_source": "yes"})
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
         if r.status_code == 401:
