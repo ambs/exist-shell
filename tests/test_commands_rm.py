@@ -1,9 +1,10 @@
 """Tests for the rm command."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+import exist_shell.commands.rm as rm_module
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
 from exist_shell.main import app
 
@@ -13,7 +14,9 @@ def client_mock(monkeypatch):
     """Mock ExistClient used by the rm command."""
     mock = MagicMock()
     monkeypatch.setattr("exist_shell.commands.rm.ExistClient", lambda _: mock)
-    return mock.__enter__.return_value
+    client = mock.__enter__.return_value
+    client.is_collection.return_value = False
+    return client
 
 
 def test_rm_deletes_document(config_with_collection, client_mock, runner):
@@ -64,3 +67,49 @@ def test_rm_rejects_path_traversal(config_with_collection, client_mock, runner):
     result = runner.invoke(app, ["rm", "myapp:/../secret.xml"])
     assert result.exit_code == 1
     assert "traversal" in result.output
+
+
+def test_rm_invalidates_cache_after_document_delete(config_with_collection, client_mock, runner):
+    with patch.object(rm_module, "invalidate") as mock_invalidate:
+        result = runner.invoke(app, ["rm", "myapp:/doc.xml"])
+    assert result.exit_code == 0
+    mock_invalidate.assert_called_once_with("myapp")
+
+
+def test_rm_refuses_collection_without_recursive(config_with_collection, client_mock, runner):
+    client_mock.is_collection.return_value = True
+    result = runner.invoke(app, ["rm", "myapp:/reports"])
+    assert result.exit_code == 1
+    assert "is a collection" in result.output
+    assert "--recursive" in result.output
+    client_mock.delete_document.assert_not_called()
+    client_mock.delete_collection.assert_not_called()
+
+
+def test_rm_recursive_deletes_collection_after_confirmation(config_with_collection, client_mock, runner):
+    client_mock.is_collection.return_value = True
+    result = runner.invoke(app, ["rm", "--recursive", "myapp:/reports"], input="y\n")
+    assert result.exit_code == 0
+    client_mock.delete_collection.assert_called_once_with("/db/myapp/reports")
+
+
+def test_rm_recursive_aborts_when_confirmation_declined(config_with_collection, client_mock, runner):
+    client_mock.is_collection.return_value = True
+    result = runner.invoke(app, ["rm", "--recursive", "myapp:/reports"], input="n\n")
+    assert result.exit_code != 0
+    client_mock.delete_collection.assert_not_called()
+
+
+def test_rm_recursive_yes_skips_confirmation(config_with_collection, client_mock, runner):
+    client_mock.is_collection.return_value = True
+    result = runner.invoke(app, ["rm", "-r", "-y", "myapp:/reports"])
+    assert result.exit_code == 0
+    client_mock.delete_collection.assert_called_once_with("/db/myapp/reports")
+
+
+def test_rm_recursive_invalidates_cache_after_collection_delete(config_with_collection, client_mock, runner):
+    client_mock.is_collection.return_value = True
+    with patch.object(rm_module, "invalidate") as mock_invalidate:
+        result = runner.invoke(app, ["rm", "-r", "-y", "myapp:/reports"])
+    assert result.exit_code == 0
+    mock_invalidate.assert_called_once_with("myapp")
