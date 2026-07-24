@@ -348,6 +348,14 @@ def test_create_collection_succeeds(httpx_mock, a_server):
         client.create_collection("/db/myapp")
 
 
+def test_create_collection_sends_escaped_path(httpx_mock, a_server):
+    httpx_mock.add_response(url=_PARENT_URL, method="POST", status_code=200)
+    with ExistClient(a_server) as client:
+        client.create_collection('/db/my"app')
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert '/db/my""app' in body["_query"][0]
+
+
 def test_create_collection_raises_auth_error_on_401(httpx_mock, a_server):
     httpx_mock.add_response(url=_PARENT_URL, method="POST", status_code=401)
     with ExistClient(a_server) as client:
@@ -589,6 +597,14 @@ def test_is_collection_returns_false_for_document(httpx_mock, a_server):
         assert client.is_collection("/db/myapp/doc.xml") is False
 
 
+def test_is_collection_sends_escaped_path(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="false")
+    with ExistClient(a_server) as client:
+        client.is_collection('/db/myapp/re"ports')
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert '/db/myapp/re""ports' in body["_query"][0]
+
+
 def test_is_collection_raises_auth_error_on_401(httpx_mock, a_server):
     httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", status_code=401)
     with ExistClient(a_server) as client:
@@ -636,6 +652,24 @@ def test_move_document_different_parent_different_name_uses_move_and_rename(http
     body = parse_qs(httpx_mock.get_requests()[0].content.decode())
     assert "xmldb:move" in body["_query"][0]
     assert "xmldb:rename" in body["_query"][0]
+
+
+def test_move_document_sends_escaped_names(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.move_document('/db/my"app/old.xml', '/db/my"app/new.xml')
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert '/db/my""app' in body["_query"][0]
+
+
+def test_move_document_branches_on_raw_unescaped_values(httpx_mock, a_server):
+    """A quote in the shared parent must not defeat the same-parent/same-name checks."""
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
+    with ExistClient(a_server) as client:
+        client.move_document('/db/my"app/old.xml', '/db/my"app/new.xml')
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    assert "xmldb:rename" in body["_query"][0]
+    assert "xmldb:move" not in body["_query"][0]
 
 
 def test_move_document_raises_not_found_on_query_error(httpx_mock, a_server):

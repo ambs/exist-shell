@@ -152,17 +152,21 @@ class DocumentMixin(QueryMixin):
         """
         src = PurePosixPath(src_path.rstrip("/"))
         dst = PurePosixPath(dst_path.rstrip("/"))
-        src_parent = str(src.parent)
-        src_name = src.name
-        dst_parent = str(dst.parent)
-        dst_name = dst.name
+        src_parent_raw = str(src.parent)
+        dst_parent_raw = str(dst.parent)
+        src_name_raw = src.name
+        dst_name_raw = dst.name
+        src_parent = xq_escape(src_parent_raw)
+        src_name = xq_escape(src_name_raw)
+        dst_parent = xq_escape(dst_parent_raw)
+        dst_name = xq_escape(dst_name_raw)
 
-        if src_parent == dst_parent:
+        if src_parent_raw == dst_parent_raw:
             query = (
                 f'xquery version "3.1"; '
                 f'xmldb:rename("{src_parent}", "{src_name}", "{dst_name}")'
             )
-        elif src_name == dst_name:
+        elif src_name_raw == dst_name_raw:
             query = (
                 f'xquery version "3.1"; '
                 f'xmldb:move("{src_parent}", "{dst_parent}", "{src_name}")'
