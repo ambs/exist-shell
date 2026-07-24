@@ -736,6 +736,97 @@ def test_push_keyboard_interrupt_dry_run_skips_manifest_save(
 
 
 # ---------------------------------------------------------------------------
+# Continue past per-file / listing failures (#131)
+# ---------------------------------------------------------------------------
+
+def test_pull_continues_past_failed_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    client_mock.list_collection.return_value = [_resource("bad.xml"), _resource("good.xml")]
+    client_mock.get_document.side_effect = [
+        ExistConnectionError("url", Exception("boom")),
+        DocumentResult(b"<x/>", "application/xml"),
+    ]
+
+    result = runner.invoke(app, ["sync", "--jobs", "1", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 1
+    assert "! bad.xml  (error:" in result.output
+    assert "↓ good.xml  (new)" in result.output
+    assert "1 failed" in result.output
+    assert (local_dir / "good.xml").exists()
+    assert not (local_dir / "bad.xml").exists()
+    assert client_mock.get_document.call_count == 2
+
+
+def test_push_continues_past_failed_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    (local_dir / "bad.xml").write_bytes(b"<bad/>")
+    (local_dir / "good.xml").write_bytes(b"<good/>")
+    client_mock.list_collection.return_value = []
+    client_mock.put_document.side_effect = [
+        ExistConnectionError("url", Exception("boom")),
+        None,
+    ]
+
+    result = runner.invoke(app, ["sync", "--jobs", "1", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 1
+    assert "! bad.xml  (error:" in result.output
+    assert "↑ good.xml  (new)" in result.output
+    assert "1 failed" in result.output
+    assert client_mock.put_document.call_count == 2
+
+
+def test_push_fail_fast_stops_on_transfer_error(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """--fail-fast should halt on a transfer exception, with clean attribution (no raw traceback)."""
+    (local_dir / "a.xml").write_bytes(b"<a/>")
+    (local_dir / "b.xml").write_bytes(b"<b/>")
+    client_mock.list_collection.return_value = []
+    client_mock.put_document.side_effect = ExistConnectionError("url", Exception("boom"))
+
+    result = runner.invoke(app, ["sync", "--fail-fast", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "! a.xml  (error:" in result.output
+    # second file never reached
+    assert client_mock.put_document.call_count == 1
+
+
+def test_pull_walk_remote_continues_past_subcollection_listing_failure(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """A subcollection whose listing fails is skipped; the rest of the walk continues."""
+    from exist_shell.models import CollectionEntry
+
+    ok_col = CollectionEntry(name="ok")
+    bad_col = CollectionEntry(name="bad")
+    client_mock.list_collection.side_effect = [
+        [ok_col, bad_col],
+        [_resource("doc.xml")],
+        ExistConnectionError("url", Exception("boom")),
+    ]
+    client_mock.get_document.return_value = DocumentResult(b"<x/>", "application/xml")
+
+    result = runner.invoke(app, ["sync", "--jobs", "1", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 1
+    assert "! bad  (error:" in result.output
+    assert "1 failed" in result.output
+    assert (local_dir / "ok" / "doc.xml").exists()
+
+
+def test_pull_walk_remote_root_failure_still_aborts(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """A failure listing the root path itself still aborts the whole run (regression guard)."""
+    client_mock.list_collection.side_effect = ExistConnectionError("url", Exception("boom"))
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+
+
+# ---------------------------------------------------------------------------
 # Parallelism (--jobs)
 # ---------------------------------------------------------------------------
 

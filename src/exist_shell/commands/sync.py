@@ -61,6 +61,7 @@ class SyncAction(Enum):
     DELETED = "deleted"
     CREATED = "created"
     INVALID = "invalid"
+    FAILED = "failed"
 
 
 class RemoteResource(NamedTuple):
@@ -81,10 +82,12 @@ class RemoteTree(NamedTuple):
     Attributes:
         resources: All resources found, with paths relative to the walk root.
         subcollections: Relative paths of all subcollections found.
+        failed: Relative paths of subcollections whose listing failed.
     """
 
     resources: list[RemoteResource]
     subcollections: list[str]
+    failed: list[str]
 
 
 class Manifest:
@@ -229,17 +232,25 @@ def _walk_remote(client: ExistClient, base_path: str, max_workers: int = 4) -> R
     concurrently. Results within each level are consumed in submission order
     so that mocked ``side_effect`` sequences in tests remain deterministic.
 
+    A failure listing the root path itself propagates immediately, since
+    there is nothing to walk without it. A failure listing a subcollection
+    discovered deeper in the tree is reported and skipped so the rest of the
+    walk can continue.
+
     Args:
         client: Active ExistClient.
         base_path: Full eXist path to walk (e.g. ``/db/myapp/reports``).
         max_workers: Number of concurrent listing requests.
 
     Returns:
-        RemoteTree with resources and subcollections relative to ``base_path``.
+        RemoteTree with resources and subcollections relative to ``base_path``,
+        plus the relative paths of any subcollections whose listing failed.
     """
     resources: list[RemoteResource] = []
     subcollections: list[str] = []
+    failed: list[str] = []
     level: list[tuple[str, str]] = [("", base_path)]
+    root_level = True
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         while level:
@@ -247,7 +258,16 @@ def _walk_remote(client: ExistClient, base_path: str, max_workers: int = 4) -> R
             level = []
             try:
                 for rel_prefix, future in futures:
-                    for item in future.result():
+                    if root_level:
+                        items = future.result()
+                    else:
+                        try:
+                            items = future.result()
+                        except Exception as exc:
+                            typer.echo(f"! {rel_prefix}  (error: {exc})", err=True)
+                            failed.append(rel_prefix)
+                            continue
+                    for item in items:
                         if isinstance(item, CollectionEntry):
                             rel_name = f"{rel_prefix}/{item.name}" if rel_prefix else item.name
                             subcollections.append(rel_name)
@@ -258,8 +278,9 @@ def _walk_remote(client: ExistClient, base_path: str, max_workers: int = 4) -> R
             except KeyboardInterrupt:
                 executor.shutdown(wait=False, cancel_futures=True)
                 raise
+            root_level = False
 
-    return RemoteTree(resources, subcollections)
+    return RemoteTree(resources, subcollections, failed)
 
 
 def _push_file_task(
@@ -589,7 +610,7 @@ def _print_summary(counts: dict[SyncAction, int]) -> None:
         counts: Map of SyncAction to the number of files that took that action.
     """
     parts = []
-    no_plural = {"conflict", "invalid xml"}
+    no_plural = {"conflict", "invalid xml", "failed"}
     for action, label in [
         (SyncAction.UPLOADED, "uploaded"),
         (SyncAction.DOWNLOADED, "downloaded"),
@@ -597,6 +618,7 @@ def _print_summary(counts: dict[SyncAction, int]) -> None:
         (SyncAction.CONFLICT, "conflict"),
         (SyncAction.DELETED, "deleted"),
         (SyncAction.INVALID, "invalid xml"),
+        (SyncAction.FAILED, "failed"),
     ]:
         n = counts.get(action, 0)
         if n:
@@ -611,6 +633,7 @@ def _push_label(
     pct: int,
     remote_index: dict[str, ResourceEntry],
     verbose: bool,
+    error: str = "",
 ) -> str:
     """Format the progress line for a push action, or return empty string to suppress output.
 
@@ -620,6 +643,7 @@ def _push_label(
         pct: Completion percentage (0–100).
         remote_index: Map of remote rel_path → ResourceEntry, used to classify new vs modified.
         verbose: If True, include SKIPPED lines.
+        error: Error message when action is FAILED.
 
     Returns:
         Formatted progress string, or empty string if the action should not be printed.
@@ -629,6 +653,7 @@ def _push_label(
         SyncAction.UPLOADED: f"{prefix}↑ {rel_path}  ({'new' if rel_path not in remote_index else 'modified'})",
         SyncAction.CONFLICT: f"{prefix}! {rel_path}  (conflict: modified on both sides, skipping)",
         SyncAction.INVALID: f"{prefix}! {rel_path}  (not well-formed XML, skipping)",
+        SyncAction.FAILED: f"{prefix}! {rel_path}  (error: {error})",
     }
     if verbose:
         labels[SyncAction.SKIPPED] = f"{prefix}= {rel_path}  (unchanged)"
@@ -641,6 +666,7 @@ def _pull_label(
     pct: int,
     is_new: bool,
     verbose: bool,
+    error: str = "",
 ) -> str:
     """Format the progress line for a pull action, or return empty string to suppress output.
 
@@ -650,6 +676,7 @@ def _pull_label(
         pct: Completion percentage (0–100).
         is_new: True if the file was not previously in the manifest.
         verbose: If True, include SKIPPED lines.
+        error: Error message when action is FAILED.
 
     Returns:
         Formatted progress string, or empty string if the action should not be printed.
@@ -658,6 +685,7 @@ def _pull_label(
     labels: dict[SyncAction, str] = {
         SyncAction.DOWNLOADED: f"{prefix}↓ {rel_path}  ({'new' if is_new else 'modified'})",
         SyncAction.CONFLICT: f"{prefix}! {rel_path}  (conflict: modified on both sides, skipping)",
+        SyncAction.FAILED: f"{prefix}! {rel_path}  (error: {error})",
     }
     if verbose:
         labels[SyncAction.SKIPPED] = f"{prefix}= {rel_path}  (unchanged)"
@@ -680,7 +708,7 @@ def _run_push_sequential(
     """Run the push file loop sequentially, stopping on the first failure.
 
     Used when ``--fail-fast`` is active to guarantee that no file after the
-    first conflict or invalid XML is ever transferred.
+    first conflict, invalid XML, or transfer error is ever transferred.
 
     Args:
         client: Active ExistClient.
@@ -703,26 +731,30 @@ def _run_push_sequential(
     for i, local_file in enumerate(local_files, 1):
         rel_path = local_file.relative_to(source).as_posix()
         remote_mtime = remote_index[rel_path].last_modified or "" if rel_path in remote_index else ""
-        action, new_entry = _push_file_task(
-            client, full_path, local_file, rel_path, remote_mtime,
-            manifest.get(rel_path), rel_path in manifest, force, dry_run,
-        )
+        try:
+            action, new_entry = _push_file_task(
+                client, full_path, local_file, rel_path, remote_mtime,
+                manifest.get(rel_path), rel_path in manifest, force, dry_run,
+            )
+            error = ""
+        except Exception as exc:
+            action, new_entry, error = SyncAction.FAILED, None, str(exc)
         pct = int(i / total * 100) if total else 100
-        label = _push_label(action, rel_path, pct, remote_index, verbose)
+        label = _push_label(action, rel_path, pct, remote_index, verbose, error)
         if label:
             typer.echo(label)
         counts[action] = counts.get(action, 0) + 1
         if not dry_run and new_entry is not None:
             manifest.set(rel_path, new_entry)
         manifest.maybe_save(nick, path)
-        if action in {SyncAction.INVALID, SyncAction.CONFLICT}:
+        if action in {SyncAction.INVALID, SyncAction.CONFLICT, SyncAction.FAILED}:
             return counts, True
     return counts, False
 
 
 def _drain_futures(
     executor: ThreadPoolExecutor,
-    futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int], str]]],
+    futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int, str], str]]],
     manifest: Manifest,
     nick: str,
     path: str,
@@ -732,11 +764,15 @@ def _drain_futures(
     """Drain a futures dict produced by a parallel sync loop.
 
     Iterates completed futures in arrival order, prints progress labels, updates
-    action counts and the manifest, and handles KeyboardInterrupt cleanly.
+    action counts and the manifest, and handles KeyboardInterrupt cleanly. A
+    future that raises is marked SyncAction.FAILED and reported immediately;
+    the drain continues with the remaining futures rather than aborting, so a
+    single failed transfer doesn't stall progress output while the rest of
+    the pool keeps running silently.
 
     Args:
         executor: The active ThreadPoolExecutor owning the futures.
-        futures: Map of future → (rel_path, label_fn) where label_fn(action, pct) → str.
+        futures: Map of future → (rel_path, label_fn) where label_fn(action, pct, error) → str.
         manifest: Sync manifest (mutated in place as futures complete).
         nick: Collection nickname (for manifest checkpoints).
         path: Remote collection path (for manifest checkpoints).
@@ -751,10 +787,14 @@ def _drain_futures(
     try:
         for future in as_completed(futures):
             rel_path, label_fn = futures[future]
-            action, new_entry = future.result()
+            try:
+                action, new_entry = future.result()
+                error = ""
+            except Exception as exc:
+                action, new_entry, error = SyncAction.FAILED, None, str(exc)
             completed += 1
             pct = int(completed / total * 100) if total else 100
-            label = label_fn(action, pct)
+            label = label_fn(action, pct, error)
             if label:
                 typer.echo(label)
             counts[action] = counts.get(action, 0) + 1
@@ -807,13 +847,13 @@ def _run_push_parallel(
     total = len(local_files)
     tasks = [(lf, lf.relative_to(source).as_posix()) for lf in local_files]
     with ThreadPoolExecutor(max_workers=jobs) as executor:
-        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int], str]]] = {
+        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int, str], str]]] = {
             executor.submit(
                 _push_file_task,
                 client, full_path, lf, rp,
                 remote_index[rp].last_modified or "" if rp in remote_index else "",
                 manifest.get(rp), rp in manifest, force, dry_run,
-            ): (rp, lambda a, p, _rp=rp: _push_label(a, _rp, p, remote_index, verbose))
+            ): (rp, lambda a, p, err, _rp=rp: _push_label(a, _rp, p, remote_index, verbose, err))
             for lf, rp in tasks
         }
         return _drain_futures(executor, futures, manifest, nick, path, total, dry_run)
@@ -878,14 +918,14 @@ def _run_pull_parallel(
     """
     total = len(resources)
     with ThreadPoolExecutor(max_workers=jobs) as executor:
-        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int], str]]] = {
+        futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int, str], str]]] = {
             executor.submit(
                 _pull_file_task,
                 client, full_path, dest, resource.rel_path, resource.entry.last_modified or "",
                 manifest.get(resource.rel_path), resource.rel_path in manifest, force, dry_run,
             ): (
                 resource.rel_path,
-                lambda a, p, _rp=resource.rel_path, _new=(resource.rel_path not in manifest): _pull_label(a, _rp, p, _new, verbose),
+                lambda a, p, err, _rp=resource.rel_path, _new=(resource.rel_path not in manifest): _pull_label(a, _rp, p, _new, verbose, err),
             )
             for resource in resources
         }
@@ -949,6 +989,9 @@ def _push(
                         manifest, force, dry_run, verbose, nick, path, jobs,
                     )
 
+                if tree.failed:
+                    counts[SyncAction.FAILED] = counts.get(SyncAction.FAILED, 0) + len(tree.failed)
+
                 if not fail_fast_triggered and delete:
                     deleted = _delete_remote_extras(
                         client, full_path, local_file_rels, tree.resources, manifest, dry_run
@@ -972,7 +1015,7 @@ def _push(
 
     _print_summary(counts)
 
-    if fail_fast_triggered:
+    if fail_fast_triggered or counts.get(SyncAction.FAILED, 0):
         raise typer.Exit(1)
 
 
@@ -1015,6 +1058,9 @@ def _pull(
                     manifest, force, dry_run, verbose, nick, path, jobs,
                 )
 
+                if tree.failed:
+                    counts[SyncAction.FAILED] = counts.get(SyncAction.FAILED, 0) + len(tree.failed)
+
                 if delete:
                     deleted = _delete_local_extras(dest, tree.resources, manifest, dry_run)
                     deleted += _delete_empty_local_dirs(dest, dry_run)
@@ -1029,6 +1075,9 @@ def _pull(
         manifest.save(nick, path)
 
     _print_summary(counts)
+
+    if counts.get(SyncAction.FAILED, 0):
+        raise typer.Exit(1)
 
 
 def sync(
