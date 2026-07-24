@@ -5,6 +5,7 @@
 ### Fixes
 
 - `cat`/`cp`/`mv`/`edit`/`sync` downloading an executable resource (`.xql`, `.xqm`) ran the query on the server and returned its result instead of the document's raw source
+- The above fix relied on eXist's `_source=yes` REST parameter, which requires the path to be explicitly allowlisted in the server's `descriptor.xml` — not the default for anything under `/db`, regardless of the caller's own read permission. This returned `403 Forbidden` for every `.xql`/`.xqm` download on an unconfigured (i.e. most) servers. Executable resources are now fetched via `util:binary-doc()`, which only needs the read + query-eval permission already required to execute them
 
 ### Enhancements
 
