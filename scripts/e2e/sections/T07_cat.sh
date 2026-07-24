@@ -53,4 +53,13 @@ section_T07_cat() {
     assert_output "exist.sourceforge.net" \
         "T07.8 cat on collection path exits 0 and returns eXist collection XML" \
         "${EXSH[@]}" cat testcol:/missing
+
+    # T07.9-10 — cat on an executable (.xq) resource returns its raw source, not the
+    # result of running the query (regression: #141/#144)
+    assert_output 'xquery version "3.1";' \
+        "T07.9 cat .xq resource returns source" \
+        "${EXSH[@]}" cat testcol:/script.xq
+    assert_output_absent "<computed>4</computed>" \
+        "T07.10 cat .xq resource does not execute the query" \
+        "${EXSH[@]}" cat testcol:/script.xq
 }

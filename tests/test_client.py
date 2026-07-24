@@ -1,3 +1,6 @@
+import base64
+from urllib.parse import parse_qs
+
 import httpx
 import pytest
 
@@ -142,8 +145,6 @@ def test_list_child_names_ignores_trailing_newline(httpx_mock, a_server):
 
 
 def test_list_child_names_sends_escaped_path(httpx_mock, a_server):
-    from urllib.parse import parse_qs
-
     httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", text="")
     with ExistClient(a_server) as client:
         client.list_child_names('/db/myapp/re"ports')
@@ -249,7 +250,7 @@ def test_collection_exists_raises_connection_error_on_network_failure(httpx_mock
 
 def test_get_document_returns_content_and_mime_type(httpx_mock, a_server):
     httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/doc.xml?_source=yes",
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml",
         content=b"<root/>",
         headers={"content-type": "application/xml; charset=utf-8"},
     )
@@ -260,20 +261,9 @@ def test_get_document_returns_content_and_mime_type(httpx_mock, a_server):
     assert result.mime_type == "application/xml"
 
 
-def test_get_document_requests_source_to_avoid_executing_xquery_resources(httpx_mock, a_server):
-    httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/script.xql?_source=yes",
-        content=b"xquery version '3.1'; <root/>",
-        headers={"content-type": "application/xquery"},
-    )
-    with ExistClient(a_server) as client:
-        result = client.get_document("/db/myapp/script.xql")
-    assert result.content == b"xquery version '3.1'; <root/>"
-
-
 def test_get_document_uses_default_mime_type_when_header_missing(httpx_mock, a_server):
     httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/doc.xml?_source=yes",
+        url="http://localhost:8080/exist/rest/db/myapp/doc.xml",
         content=b"\x00\x01",
     )
     with ExistClient(a_server) as client:
@@ -282,21 +272,64 @@ def test_get_document_uses_default_mime_type_when_header_missing(httpx_mock, a_s
 
 
 def test_get_document_raises_auth_error_on_401(httpx_mock, a_server):
-    httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/doc.xml?_source=yes", status_code=401
-    )
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db/myapp/doc.xml", status_code=401)
     with ExistClient(a_server) as client:
         with pytest.raises(ExistAuthError):
             client.get_document("/db/myapp/doc.xml")
 
 
 def test_get_document_raises_not_found_on_404(httpx_mock, a_server):
-    httpx_mock.add_response(
-        url="http://localhost:8080/exist/rest/db/myapp/doc.xml?_source=yes", status_code=404
-    )
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db/myapp/doc.xml", status_code=404)
     with ExistClient(a_server) as client:
         with pytest.raises(ExistNotFoundError):
             client.get_document("/db/myapp/doc.xml")
+
+
+def test_get_document_fetches_xql_source_via_binary_doc_query(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        text=base64.b64encode(b"xquery version '3.1'; <root/>").decode(),
+    )
+    with ExistClient(a_server) as client:
+        result = client.get_document("/db/myapp/script.xql")
+    assert result.content == b"xquery version '3.1'; <root/>"
+    assert result.mime_type == "application/xquery"
+    body = parse_qs(httpx_mock.get_requests()[0].content.decode())
+    sent_query = body["_query"][0]
+    assert "util:binary-doc" in sent_query
+    assert "/db/myapp/script.xql" in sent_query
+
+
+@pytest.mark.parametrize("extension", ["xq", "xqm", "xquery", "xqy", "xqws"])
+def test_get_document_fetches_source_via_binary_doc_query_for_all_executable_extensions(
+    httpx_mock, a_server, extension
+):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        text=base64.b64encode(b"module namespace m = 'urn:m';").decode(),
+    )
+    with ExistClient(a_server) as client:
+        result = client.get_document(f"/db/myapp/lib.{extension}")
+    assert result.content == b"module namespace m = 'urn:m';"
+    assert result.mime_type == "application/xquery"
+
+
+def test_get_document_raises_not_found_when_xql_binary_doc_query_errors(httpx_mock, a_server):
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db", method="POST", status_code=500, text="not found"
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistNotFoundError):
+            client.get_document("/db/myapp/script.xql")
+
+
+def test_get_document_raises_auth_error_on_401_for_xql(httpx_mock, a_server):
+    httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", method="POST", status_code=401)
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.get_document("/db/myapp/script.xql")
 
 
 def test_get_document_raises_connection_error_on_network_failure(httpx_mock, a_server):

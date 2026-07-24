@@ -75,4 +75,15 @@ section_T08_cp() {
     assert_output "cannot write" \
         "T08.13 cp to unwritable local path fails" \
         "${EXSH[@]}" cp testcol:/hello.xml /dev/null/out.xml
+
+    # T08.14-15 — cp remote .xq resource to local: raw source bytes, byte-for-byte
+    # (regression: #141/#144)
+    assert_exit0 "T08.14 cp remote .xq file to local" \
+        "${EXSH[@]}" cp testcol:/script.xq "${TMPDIR_E2E}/script_dl.xq"
+    if cmp -s "${TMPDIR_E2E}/script.xq" "${TMPDIR_E2E}/script_dl.xq"; then
+        ok "T08.15 downloaded .xq file matches original bytes exactly"
+    else
+        _LAST_OUTPUT="downloaded .xq file differs from original"
+        fail "T08.15 downloaded .xq file matches original bytes exactly"
+    fi
 }

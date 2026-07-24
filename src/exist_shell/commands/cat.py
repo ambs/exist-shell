@@ -8,7 +8,7 @@ from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
 from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
 
-_TEXT_TYPES = {"application/xml", "application/json", "application/javascript"}
+_TEXT_TYPES = {"application/xml", "application/json", "application/javascript", "application/xquery"}
 
 
 def _is_text(mime_type: str) -> bool:

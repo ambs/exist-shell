@@ -26,6 +26,15 @@ def test_cat_prints_text(config_with_collection, client_mock, runner):
     assert "<root/>" in result.output
 
 
+def test_cat_prints_xquery_source(config_with_collection, client_mock, runner):
+    client_mock.get_document.return_value = DocumentResult(
+        content=b'xquery version "3.1"; <root/>', mime_type="application/xquery"
+    )
+    result = runner.invoke(app, ["cat", "myapp:/script.xql"])
+    assert result.exit_code == 0
+    assert 'xquery version "3.1"; <root/>' in result.output
+
+
 def test_cat_binary_without_raw_fails(config_with_collection, client_mock, runner):
     client_mock.get_document.return_value = DocumentResult(
         content=b"\x00\x01\x02", mime_type="application/octet-stream"

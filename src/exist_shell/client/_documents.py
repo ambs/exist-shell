@@ -1,5 +1,6 @@
 """Documents mixin — document-level operations."""
 
+import base64
 from pathlib import PurePosixPath
 
 import httpx
@@ -7,6 +8,12 @@ import httpx
 from exist_shell.client._queries import QueryMixin
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistQueryError
 from exist_shell.models import DocumentResult
+from exist_shell.utils import xq_escape
+
+# eXist stores resources with these extensions as binary XQuery modules (MIME type
+# application/xquery, per exist-core's mime-types.xml) and executes them on a plain
+# GET instead of returning their source bytes.
+_EXECUTABLE_EXTENSIONS = {".xq", ".xql", ".xqm", ".xquery", ".xqy", ".xqws"}
 
 
 class DocumentMixin(QueryMixin):
@@ -26,11 +33,12 @@ class DocumentMixin(QueryMixin):
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the path does not exist.
         """
+        if PurePosixPath(path).suffix.lower() in _EXECUTABLE_EXTENSIONS:
+            return self._get_executable_document(path)
+
         url = self._url(path)
         try:
-            # Without _source=yes, eXist executes executable resources (.xql, .xqm) on
-            # GET instead of returning their raw bytes.
-            r = self._http.get(url, params={"_source": "yes"})
+            r = self._http.get(url)
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
         if r.status_code == 401:
@@ -40,6 +48,42 @@ class DocumentMixin(QueryMixin):
         r.raise_for_status()
         mime_type = r.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
         return DocumentResult(content=r.content, mime_type=mime_type)
+
+    def _get_executable_document(self, path: str) -> DocumentResult:
+        """Fetch the raw bytes of an executable XQuery resource via an ad-hoc query.
+
+        A plain GET executes these resources instead of returning their source, and
+        eXist's REST ``_source=yes`` parameter only works for paths explicitly
+        allowlisted server-side in descriptor.xml — which is not the default for
+        anything under /db, regardless of the caller's own read permission on the
+        resource. ``util:binary-doc`` returns the resource's raw stored bytes and
+        only needs the read + query-eval permission the caller already needs to
+        execute the resource in the first place.
+
+        Args:
+            path: Full eXist path starting with /db/, with an extension in
+                ``_EXECUTABLE_EXTENSIONS`` (e.g. /db/myapp/script.xql).
+
+        Returns:
+            DocumentResult with the raw content bytes and MIME type application/xquery.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistNotFoundError: If the path does not exist.
+        """
+        safe_path = xq_escape(path)
+        query = (
+            'xquery version "3.1"; '
+            f'let $doc := util:binary-doc("{safe_path}") '
+            "return if (exists($doc)) then $doc "
+            'else fn:error(xs:QName("exsh:not-found"), "not found")'
+        )
+        try:
+            content = self.execute_query(query)
+        except ExistQueryError as e:
+            raise ExistNotFoundError(path) from e
+        return DocumentResult(content=base64.b64decode(content), mime_type="application/xquery")
 
     def put_document(self, path: str, content: bytes, mime_type: str) -> None:
         """Store a document at the given eXist path.
