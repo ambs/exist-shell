@@ -104,7 +104,7 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh put <file> <nick>:<path>` | Upload a local file to a collection |
 | `exsh cp <src> <dst>` | Copy a document (local ↔ remote or remote ↔ remote) |
 | `exsh edit <nick>:<path>` | Open a document in `$EDITOR`, re-upload if changed |
-| `exsh rm <nick>:<path>...` | Delete one or more documents |
+| `exsh rm <nick>:<path>...` | Delete one or more documents; `--recursive`/`-r` (with `--yes`/`-y`) to delete a collection |
 | `exsh mkdir <nick>:<path>` | Create a collection |
 | `exsh sync <local> <nick>[:<path>]` | Push a local folder to a remote collection |
 | `exsh sync <nick>[:<path>] <local>` | Pull a remote collection to a local folder |
@@ -154,6 +154,9 @@ exsh rm mydata:reports/2025/old.xml
 
 # Delete multiple documents
 exsh rm mydata:reports/2025/a.xml mydata:reports/2025/b.xml
+
+# Delete a whole collection (prompts unless --yes is also given)
+exsh rm --recursive mydata:reports/2025
 
 # Create a subcollection
 exsh mkdir mydata:reports/2026

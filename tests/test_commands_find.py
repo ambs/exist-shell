@@ -1,9 +1,10 @@
 """Tests for the find command."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+import exist_shell.commands.find as find_module
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistQueryError
 from exist_shell.main import app
 
@@ -60,6 +61,22 @@ def test_find_remove_no_matches_skips_prompt(config_with_collection, client_mock
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]', "--remove"])
     assert result.exit_code == 0
     client_mock.delete_document.assert_not_called()
+
+
+def test_find_remove_invalidates_cache(config_with_collection, client_mock, runner):
+    client_mock.find_documents.return_value = ["/db/myapp/a.xml"]
+    with patch.object(find_module, "invalidate") as mock_invalidate:
+        result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]', "--remove", "--yes"])
+    assert result.exit_code == 0
+    mock_invalidate.assert_called_once_with("myapp")
+
+
+def test_find_without_remove_does_not_invalidate_cache(config_with_collection, client_mock, runner):
+    client_mock.find_documents.return_value = ["/db/myapp/a.xml"]
+    with patch.object(find_module, "invalidate") as mock_invalidate:
+        result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]'])
+    assert result.exit_code == 0
+    mock_invalidate.assert_not_called()
 
 
 def test_find_unknown_collection_fails(config_path, client_mock, runner):

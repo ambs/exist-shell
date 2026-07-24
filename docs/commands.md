@@ -181,10 +181,19 @@ EDITOR=nano exsh edit mydata:config.xml
 Delete one or more documents from an eXist collection.
 
 ```
-exsh rm <nick>:<path>...
+exsh rm [--recursive] [--yes] <nick>:<path>...
 ```
 
 Multiple paths can be supplied in a single invocation. Deletion is permanent — there is no undo.
+
+A target that is itself a collection is refused by default (`Error: '<nick>:<path>' is a collection; use -r/--recursive to delete it and everything under it.`) rather than silently deleting the whole subtree. Pass `--recursive` to allow it; unless `--yes` is also given, `rm` first prompts for confirmation naming the collection being removed.
+
+### Options
+
+| Flag | Effect |
+|------|--------|
+| `--recursive / -r` | Allow a target that is a collection to be deleted, along with everything under it. |
+| `--yes / -y` | Skip the confirmation prompt when deleting a collection. |
 
 ### Examples
 
@@ -194,6 +203,12 @@ exsh rm mydata:reports/2025/old.xml
 
 # Delete multiple documents at once
 exsh rm mydata:reports/2025/a.xml mydata:reports/2025/b.xml
+
+# Delete a whole collection (prompts for confirmation)
+exsh rm --recursive mydata:reports/2025
+
+# Delete a whole collection without prompting
+exsh rm --recursive --yes mydata:reports/2025
 ```
 
 ---

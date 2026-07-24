@@ -2,6 +2,7 @@
 
 import typer
 
+from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
 from exist_shell.exceptions import ExistNotFoundError, ExistQueryError
@@ -58,6 +59,8 @@ def find(
                             failures += 1
                             continue
                     typer.echo(f"{nick}:{doc_path.removeprefix(prefix)}")
+                if remove:
+                    invalidate(nick)
                 if failures:
                     raise typer.Exit(1)
     except ExistQueryError as e:

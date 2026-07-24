@@ -6,6 +6,9 @@
 
 - `cat`/`cp`/`mv`/`edit`/`sync` downloading an executable resource (`.xql`, `.xqm`) ran the query on the server and returned its result instead of the document's raw source
 - The above fix relied on eXist's `_source=yes` REST parameter, which requires the path to be explicitly allowlisted in the server's `descriptor.xml` — not the default for anything under `/db`, regardless of the caller's own read permission. This returned `403 Forbidden` for every executable-resource download (`.xq`, `.xql`, `.xqm`, `.xquery`, `.xqy`, `.xqws`) on an unconfigured (i.e. most) server. These resources are now fetched via `util:binary-doc()`, which only needs the read + query-eval permission already required to execute them
+- `rm <nick>:<path>` on a path that is a collection silently deleted the entire subtree with no confirmation, since eXist's `DELETE` is recursive on collections. `rm` now refuses a collection target unless `--recursive`/`-r` is given, and prompts for confirmation unless `--yes`/`-y` is also passed
+- `create_collection`, `is_collection`, and `move_document` embedded paths/names into generated XQuery without escaping `"`/`&`, unlike every other client method — a path or name containing either broke the query (or, in `move_document`, changed its meaning)
+- `rm` and `find --remove` never invalidated the completion cache after deleting, so deleted documents kept appearing in tab completion until the cache TTL expired
 
 ### Enhancements
 
