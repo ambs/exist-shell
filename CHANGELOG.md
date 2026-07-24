@@ -2,6 +2,10 @@
 
 ## unreleased
 
+### Fixes
+
+- `cat`/`cp`/`mv`/`edit`/`sync` downloading an executable resource (`.xql`, `.xqm`) ran the query on the server and returned its result instead of the document's raw source
+
 ### Enhancements
 
 - **Faster, correct bash tab-completion for `nick:path` targets**: the generated bash completion script now handles the `:` word-break correctly (no more `dlp:dlp:...` insertions), completing a collection no longer needs an extra backspace before continuing into it, and completion listings are filtered and capped server-side and cached per prefix so progressive typing reuses a single fetch. Re-run `exsh --install-completion bash` after upgrading to pick up the new script.
