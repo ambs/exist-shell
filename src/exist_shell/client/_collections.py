@@ -152,7 +152,7 @@ class CollectionMixin(QueryMixin):
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the collection cannot be created.
         """
-        clean = path.rstrip("/")
+        safe_clean = xq_escape(path.rstrip("/"))
         # fold-left walks each path segment from /db downward, threading the
         # parent path as the accumulator. xmldb:create-collection is idempotent
         # (existing collections return their path without error), so intermediate
@@ -160,7 +160,7 @@ class CollectionMixin(QueryMixin):
         # discards the create-collection return value from the sequence.
         query = (
             'xquery version "3.1"; '
-            f'let $parts := tokenize("{clean}", "/")[. != ""] '
+            f'let $parts := tokenize("{safe_clean}", "/")[. != ""] '
             "let $_ := fold-left(tail($parts), \"/\" || head($parts), function($parent, $seg) { "
             "  let $new := $parent || \"/\" || $seg "
             "  return ($new, xmldb:create-collection($parent, $seg))[1] "
@@ -207,6 +207,7 @@ class CollectionMixin(QueryMixin):
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
         """
-        query = f'xquery version "3.1"; xmldb:collection-available("{path}")'
+        safe_path = xq_escape(path)
+        query = f'xquery version "3.1"; xmldb:collection-available("{safe_path}")'
         result = self.execute_query(query)
         return result.strip() == "true"
