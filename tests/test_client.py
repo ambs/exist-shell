@@ -301,14 +301,17 @@ def test_get_document_fetches_xql_source_via_binary_doc_query(httpx_mock, a_serv
     assert "/db/myapp/script.xql" in sent_query
 
 
-def test_get_document_fetches_xqm_source_via_binary_doc_query(httpx_mock, a_server):
+@pytest.mark.parametrize("extension", ["xq", "xqm", "xquery", "xqy", "xqws"])
+def test_get_document_fetches_source_via_binary_doc_query_for_all_executable_extensions(
+    httpx_mock, a_server, extension
+):
     httpx_mock.add_response(
         url="http://localhost:8080/exist/rest/db",
         method="POST",
         text=base64.b64encode(b"module namespace m = 'urn:m';").decode(),
     )
     with ExistClient(a_server) as client:
-        result = client.get_document("/db/myapp/lib.xqm")
+        result = client.get_document(f"/db/myapp/lib.{extension}")
     assert result.content == b"module namespace m = 'urn:m';"
     assert result.mime_type == "application/xquery"
 

@@ -11,9 +11,9 @@ from exist_shell.models import DocumentResult
 from exist_shell.utils import xq_escape
 
 # eXist stores resources with these extensions as binary XQuery modules (MIME type
-# application/xquery) and executes them on a plain GET instead of returning their
-# source bytes.
-_EXECUTABLE_EXTENSIONS = {".xql", ".xqm"}
+# application/xquery, per exist-core's mime-types.xml) and executes them on a plain
+# GET instead of returning their source bytes.
+_EXECUTABLE_EXTENSIONS = {".xq", ".xql", ".xqm", ".xquery", ".xqy", ".xqws"}
 
 
 class DocumentMixin(QueryMixin):
@@ -50,7 +50,7 @@ class DocumentMixin(QueryMixin):
         return DocumentResult(content=r.content, mime_type=mime_type)
 
     def _get_executable_document(self, path: str) -> DocumentResult:
-        """Fetch the raw bytes of an executable resource (.xql/.xqm) via an ad-hoc query.
+        """Fetch the raw bytes of an executable XQuery resource via an ad-hoc query.
 
         A plain GET executes these resources instead of returning their source, and
         eXist's REST ``_source=yes`` parameter only works for paths explicitly
@@ -61,7 +61,8 @@ class DocumentMixin(QueryMixin):
         execute the resource in the first place.
 
         Args:
-            path: Full eXist path starting with /db/, ending in .xql or .xqm.
+            path: Full eXist path starting with /db/, with an extension in
+                ``_EXECUTABLE_EXTENSIONS`` (e.g. /db/myapp/script.xql).
 
         Returns:
             DocumentResult with the raw content bytes and MIME type application/xquery.

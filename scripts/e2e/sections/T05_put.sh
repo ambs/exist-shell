@@ -8,6 +8,7 @@ section_T05_put() {
     # Prepare local files (persist for T06+)
     printf '<hello>world</hello>' > "${TMPDIR_E2E}/hello.xml"
     printf '\x00\x01\x02\x03'   > "${TMPDIR_E2E}/data.bin"
+    printf 'xquery version "3.1";\n<computed>{2 + 2}</computed>' > "${TMPDIR_E2E}/script.xq"
 
     # T05.1 — upload XML from file
     assert_exit0 "T05.1 put XML file" \
@@ -67,4 +68,10 @@ section_T05_put() {
     # T05.12 — binary file is uploaded without XML validation
     assert_exit0 "T05.12 put binary skips XML validation" \
         "${EXSH[@]}" put testcol:/data.bin -f "${TMPDIR_E2E}/data.bin" --mime application/octet-stream
+
+    # T05.13 — .xq file stored as application/xquery (eXist's executable resource type;
+    # --mime is required since exsh has no built-in guess for this extension). Regression
+    # coverage for #141/#144: cat/cp must return the source below, not the query's output.
+    assert_exit0 "T05.13 put .xq file as application/xquery" \
+        "${EXSH[@]}" put testcol:/script.xq -f "${TMPDIR_E2E}/script.xq" --mime application/xquery
 }
