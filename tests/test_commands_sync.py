@@ -791,6 +791,31 @@ def test_push_fail_fast_stops_on_transfer_error(config_with_collection, client_m
     assert client_mock.put_document.call_count == 1
 
 
+def test_push_walk_remote_continues_past_subcollection_listing_failure(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """A subcollection whose listing fails during the pre-push walk is skipped and counted, but local files still push."""
+    from exist_shell.models import CollectionEntry
+
+    (local_dir / "new.xml").write_bytes(b"<new/>")
+    ok_col = CollectionEntry(name="ok")
+    bad_col = CollectionEntry(name="bad")
+    client_mock.list_collection.side_effect = [
+        [ok_col, bad_col],
+        [],
+        ExistConnectionError("url", Exception("boom")),
+        [],  # re-walk after upload, to record the server-assigned mtime
+    ]
+
+    result = runner.invoke(app, ["sync", "--jobs", "1", str(local_dir), "myapp:/"])
+
+    assert result.exit_code == 1
+    assert "! bad  (error:" in result.output
+    assert "↑ new.xml  (new)" in result.output
+    assert "1 failed" in result.output
+    assert client_mock.put_document.call_count == 1
+
+
 def test_pull_walk_remote_continues_past_subcollection_listing_failure(
     config_with_collection, client_mock, manifest_dir, local_dir, runner
 ):
