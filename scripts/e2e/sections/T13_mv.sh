@@ -183,4 +183,41 @@ section_T13_mv() {
     assert_output "not found" \
         "T13.23 mv nonexistent source fails" \
         "${EXSH[@]}" mv testcol:/nonexistent_mv.xml testcol:/dst.xml
+
+    # ---------------------------------------------------------------------------
+    # T13.24 — mv onto/into itself is refused instead of destroying data (#133)
+    # ---------------------------------------------------------------------------
+    assert_exit0 "T13.24 setup: create mv_self with a document" \
+        "${EXSH[@]}" put testcol:/mv_self/inside.xml -f "${TMPDIR_E2E}/mv_src.xml"
+
+    # T13.25 — collection target equal to source is rejected
+    assert_output "same as, or inside" \
+        "T13.25 mv collection onto itself is rejected" \
+        "${EXSH[@]}" mv testcol:/mv_self testcol:/mv_self
+
+    assert_exit1 "T13.25 mv collection onto itself exits non-zero" \
+        "${EXSH[@]}" mv testcol:/mv_self testcol:/mv_self
+
+    # T13.26 — collection target inside source (trailing slash) is rejected
+    assert_output "same as, or inside" \
+        "T13.26 mv collection into itself (trailing slash) is rejected" \
+        "${EXSH[@]}" mv testcol:/mv_self "testcol:/mv_self/"
+
+    # T13.27 — source collection and its contents survive the rejected mv
+    assert_output "inside.xml" \
+        "T13.27 mv_self/inside.xml still present after rejected self-mv" \
+        "${EXSH[@]}" ls testcol:/mv_self
+
+    assert_output "<mv>test</mv>" \
+        "T13.27 mv_self/inside.xml content intact after rejected self-mv" \
+        "${EXSH[@]}" cat testcol:/mv_self/inside.xml
+
+    # T13.28 — document target equal to source is rejected
+    assert_output "same as, or inside" \
+        "T13.28 mv document onto itself is rejected" \
+        "${EXSH[@]}" mv testcol:/mv_self/inside.xml testcol:/mv_self/inside.xml
+
+    assert_output "<mv>test</mv>" \
+        "T13.28 document content intact after rejected self-mv" \
+        "${EXSH[@]}" cat testcol:/mv_self/inside.xml
 }
