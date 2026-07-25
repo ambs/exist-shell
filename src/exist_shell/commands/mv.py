@@ -112,6 +112,13 @@ def mv(
         )
         raise typer.Exit(1)
 
+    if tgt_full == src_full or tgt_full.startswith(src_full.rstrip("/") + "/"):
+        typer.echo(
+            "Error: target is the same as, or inside, the source.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     with handle_exist_errors(src_path, src_nick, src_collection.server_nick):
         with ExistClient(src_server) as client:
             if client.is_collection(src_full):

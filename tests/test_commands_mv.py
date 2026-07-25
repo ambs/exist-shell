@@ -207,6 +207,34 @@ def test_mv_target_path_traversal_fails(config_with_collection, client_mock, run
     assert "traversal" in result.output
 
 
+def test_mv_collection_onto_itself_fails(config_with_collection, client_mock, runner):
+    client_mock.is_collection.return_value = True
+    result = runner.invoke(app, ["mv", "myapp:/a", "myapp:/a"])
+    assert result.exit_code == 1
+    assert "same as, or inside" in result.output
+    client_mock.delete_collection.assert_not_called()
+    client_mock.create_collection.assert_not_called()
+    client_mock.put_document.assert_not_called()
+
+
+def test_mv_collection_into_itself_trailing_slash_fails(config_with_collection, client_mock, runner):
+    client_mock.is_collection.return_value = True
+    result = runner.invoke(app, ["mv", "myapp:/a", "myapp:/a/"])
+    assert result.exit_code == 1
+    assert "same as, or inside" in result.output
+    client_mock.delete_collection.assert_not_called()
+    client_mock.create_collection.assert_not_called()
+    client_mock.put_document.assert_not_called()
+
+
+def test_mv_document_onto_itself_fails(config_with_collection, client_mock, runner):
+    client_mock.is_collection.return_value = False
+    result = runner.invoke(app, ["mv", "myapp:/doc.xml", "myapp:/doc.xml"])
+    assert result.exit_code == 1
+    assert "same as, or inside" in result.output
+    client_mock.move_document.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Server errors
 # ---------------------------------------------------------------------------
