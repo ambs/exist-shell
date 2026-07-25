@@ -86,4 +86,28 @@ section_T08_cp() {
         _LAST_OUTPUT="downloaded .xq file differs from original"
         fail "T08.15 downloaded .xq file matches original bytes exactly"
     fi
+
+    # ---------------------------------------------------------------------------
+    # T08.16-18 — is_remote no longer misclassifies colon-containing local
+    # paths as nick:path targets (#138)
+    # ---------------------------------------------------------------------------
+
+    # T08.16 — a fake Windows-style source (drive letter + backslash) is now
+    # treated as local, not as a nick lookup. It fails as a local read error
+    # rather than "collection 'C' not found".
+    assert_output "cannot read" \
+        "T08.16 cp with Windows-style source is treated as local, not a nick" \
+        "${EXSH[@]}" cp 'C:\data\doc.xml' testcol:/should_not_upload.xml
+
+    # T08.17 — a relative local path with a directory component before the
+    # colon (e.g. a filename containing ':') is treated as local and uploads
+    # successfully instead of being misread as nick:path.
+    mkdir -p "${TMPDIR_E2E}/colon_dir"
+    printf '<colon>ok</colon>' > "${TMPDIR_E2E}/colon_dir/name:v1.xml"
+    assert_exit0 "T08.17 cp local path with colon in a path component uploads" \
+        "${EXSH[@]}" cp "${TMPDIR_E2E}/colon_dir/name:v1.xml" testcol:/colon_upload.xml
+
+    assert_output "<colon>ok</colon>" \
+        "T08.18 uploaded colon-named file content is intact" \
+        "${EXSH[@]}" cat testcol:/colon_upload.xml
 }

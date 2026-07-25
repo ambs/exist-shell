@@ -52,26 +52,26 @@ def test_add_collection_duplicate_nick_raises(config_path, a_server):
 
 
 def test_password_not_exposed_in_repr():
-    server = Server(nick="s", host="h", password=SecretStr("fake-value-123"))
+    server = Server(nick="sv", host="h", password=SecretStr("fake-value-123"))
     assert "fake-value-123" not in repr(server)
 
 
 def test_password_round_trips_through_file(config_path):
-    server = Server(nick="s", host="localhost", password=SecretStr("test-pw"))
+    server = Server(nick="sv", host="localhost", password=SecretStr("test-pw"))
     config = Config.load()
     config.add_server(server)
 
     reloaded = Config.load()
-    assert reloaded.servers["s"].password.get_secret_value() == "test-pw"
+    assert reloaded.servers["sv"].password.get_secret_value() == "test-pw"
 
 
-@pytest.mark.parametrize("nick", ["foo", "my-db", "db_1", "A", "a1", "abc-def_123"])
+@pytest.mark.parametrize("nick", ["foo", "my-db", "db_1", "a1", "abc-def_123"])
 def test_valid_server_nick(nick):
     s = Server(nick=nick, host="localhost")
     assert s.nick == nick
 
 
-@pytest.mark.parametrize("nick", ["fo o", "f:oo", "/foo", "-foo", "", "foo!", "foo.bar", "_foo"])
+@pytest.mark.parametrize("nick", ["fo o", "f:oo", "/foo", "-foo", "", "foo!", "foo.bar", "_foo", "A"])
 def test_invalid_server_nick_raises(nick):
     with pytest.raises(ValidationError):
         Server(nick=nick, host="localhost")
@@ -83,7 +83,7 @@ def test_valid_collection_nick(nick):
     assert c.nick == nick
 
 
-@pytest.mark.parametrize("nick", ["fo o", "f:oo", "-foo", "", "foo!", "_foo"])
+@pytest.mark.parametrize("nick", ["fo o", "f:oo", "-foo", "", "foo!", "_foo", "A"])
 def test_invalid_collection_nick_raises(nick):
     with pytest.raises(ValidationError):
         Collection(nick=nick, server_nick="local", name="mydb")

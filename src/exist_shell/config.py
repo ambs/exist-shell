@@ -7,7 +7,9 @@ from pathlib import Path
 import tomlkit
 from pydantic import BaseModel, Field, SecretStr
 
-NICK_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
+# Minimum length 2: a single-character nick could collide with a Windows
+# drive letter (e.g. "C:\data") in nick:path parsing (see utils.is_remote).
+NICK_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_-]+$"
 
 if sys.platform == "win32":
     import platformdirs

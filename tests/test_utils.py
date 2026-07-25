@@ -3,7 +3,14 @@
 import pytest
 from typer.testing import CliRunner
 
-from exist_shell.utils import check_xml_wellformed, parse_target, parse_user_at_server, validate_path, xq_escape
+from exist_shell.utils import (
+    check_xml_wellformed,
+    is_remote,
+    parse_target,
+    parse_user_at_server,
+    validate_path,
+    xq_escape,
+)
 
 
 # --- xq_escape ---
@@ -124,6 +131,33 @@ def test_parse_target_rejects_traversal(runner: CliRunner):
     from typer import Exit
     with pytest.raises((Exit, SystemExit)):
         parse_target("myapp:/../other")
+
+
+# --- is_remote ---
+
+def test_is_remote_no_colon_is_local(config_path):
+    assert is_remote("/local/doc.xml") is False
+
+
+def test_is_remote_configured_nick_is_remote(config_with_collection):
+    assert is_remote("myapp:/docs/file.xml") is True
+
+
+def test_is_remote_windows_drive_letter_backslash_is_local(config_path):
+    assert is_remote(r"C:\data\doc.xml") is False
+
+
+def test_is_remote_windows_drive_letter_forward_slash_is_local(config_path):
+    assert is_remote("C:/data/doc.xml") is False
+
+
+def test_is_remote_posix_path_with_colon_in_component_is_local(config_path):
+    assert is_remote("some/dir:v2/file.xml") is False
+
+
+def test_is_remote_unconfigured_bare_nick_stays_remote(config_path):
+    """Typo'd or not-yet-configured nicks still resolve remote for a helpful error."""
+    assert is_remote("ghost:/doc.xml") is True
 
 
 # --- parse_user_at_server ---

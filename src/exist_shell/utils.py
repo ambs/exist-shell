@@ -31,15 +31,32 @@ def xq_escape(value: str) -> str:
 
 
 def is_remote(target: str) -> bool:
-    """Return True if target uses the ``nick:path`` remote syntax.
+    r"""Return True if target uses the ``nick:path`` remote syntax.
+
+    A bare ``:`` is ambiguous with local paths: Windows drive letters
+    (``C:\data``) and POSIX filenames containing a colon. The prefix before
+    the first ``:`` is treated as local rather than a nick when it matches a
+    Windows drive letter followed by a path separator, or when it contains a
+    path separator itself (meaning it can't be a bare nick). A prefix that
+    matches a configured collection nick always wins, and anything else
+    falls back to remote so typo'd nicks still get a helpful error.
 
     Args:
         target: Raw argument string from the CLI.
 
     Returns:
-        True if the string contains ``:``, indicating a remote path.
+        True if the string should be interpreted as ``nick:path``.
     """
-    return ":" in target
+    if ":" not in target:
+        return False
+    prefix, _, rest = target.partition(":")
+    if prefix in Config.load().collections:
+        return True
+    if len(prefix) == 1 and prefix.isalpha() and rest.startswith(("\\", "/")):
+        return False
+    if "/" in prefix or "\\" in prefix:
+        return False
+    return True
 
 
 def parse_user_at_server(value: str) -> tuple[str, str | None]:
