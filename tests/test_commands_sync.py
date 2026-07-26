@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, call
 
 import pytest
 
-from exist_shell.commands.sync import Manifest
+from exist_shell.commands.sync import Manifest, _manifest_path
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError
 from exist_shell.main import app
 from exist_shell.models import DocumentResult, ResourceEntry
@@ -76,8 +76,7 @@ def test_push_skips_unchanged_file(config_with_collection, client_mock, manifest
     mtime = "2025-01-01T00:00:00.000"
     manifest_dir.mkdir(parents=True)
     # Write a manifest that matches current local state
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(content), "remote_last_modified": mtime}
     }))
@@ -102,8 +101,7 @@ def test_push_uploads_modified_file(config_with_collection, client_mock, manifes
 
     mtime = "2025-01-01T00:00:00.000"
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(old_content), "remote_last_modified": mtime}
     }))
@@ -121,8 +119,7 @@ def test_push_detects_conflict(config_with_collection, client_mock, manifest_dir
     local_file.write_bytes(b"<local/>")
 
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(b"<original/>"), "remote_last_modified": "2025-01-01T00:00:00.000"}
     }))
@@ -134,6 +131,33 @@ def test_push_detects_conflict(config_with_collection, client_mock, manifest_dir
     assert result.exit_code == 0
     client_mock.put_document.assert_not_called()
     assert "! doc.xml  (conflict: modified on both sides, skipping)" in result.output
+
+
+def test_push_manifest_not_shared_across_local_dirs(
+    config_with_collection, client_mock, manifest_dir, local_dir, tmp_path, runner
+):
+    """Regression test for #137: a second local dir must not inherit another dir's manifest state."""
+    # State left behind by a previous sync of `local_dir` against an older remote mtime.
+    manifest_dir.mkdir(parents=True)
+    manifest_path = _manifest_path("myapp", "/", local_dir)
+    manifest_path.write_text(json.dumps({
+        "doc.xml": {"local_sha256": _sha256(b"<a/>"), "remote_last_modified": "2025-01-01T00:00:00.000"}
+    }))
+
+    # A second, independent local directory that has never been synced before.
+    other_dir = tmp_path / "other_local"
+    other_dir.mkdir()
+    (other_dir / "doc.xml").write_bytes(b"<b/>")
+
+    # Remote mtime has since moved on from what's recorded for `local_dir`.
+    client_mock.list_collection.return_value = [_resource("doc.xml", "2025-06-01T00:00:00.000")]
+
+    result = runner.invoke(app, ["sync", str(other_dir), "myapp:/"])
+    assert result.exit_code == 0
+    # Must be a plain unconditional upload (no manifest entry for this dir),
+    # not a false conflict against local_dir's unrelated recorded state.
+    client_mock.put_document.assert_called_once()
+    assert "conflict" not in result.output
 
 
 def test_push_force_uploads_all(config_with_collection, client_mock, manifest_dir, local_dir, runner):
@@ -236,8 +260,7 @@ def test_pull_skips_unchanged_file(config_with_collection, client_mock, manifest
 
     mtime = "2025-01-01T00:00:00.000"
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(content), "remote_last_modified": mtime}
     }))
@@ -258,8 +281,7 @@ def test_pull_downloads_missing_local_file(config_with_collection, client_mock, 
     # Manifest says file is synced but local file was deleted — must re-download.
     mtime = "2025-01-01T00:00:00.000"
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(b"<root/>"), "remote_last_modified": mtime}
     }))
@@ -280,8 +302,7 @@ def test_pull_downloads_modified_file(config_with_collection, client_mock, manif
     local_file.write_bytes(content)
 
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(content), "remote_last_modified": "2025-01-01T00:00:00.000"}
     }))
@@ -300,8 +321,7 @@ def test_pull_detects_conflict(config_with_collection, client_mock, manifest_dir
     local_file.write_bytes(b"<local_edit/>")
 
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(b"<original/>"), "remote_last_modified": "2025-01-01T00:00:00.000"}
     }))
@@ -503,8 +523,7 @@ def test_push_resumes_skipping_already_uploaded_file(
     (local_dir / "doc.xml").write_bytes(content)
 
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(content), "remote_last_modified": ""}
     }))
@@ -530,8 +549,7 @@ def test_push_skips_touched_file(config_with_collection, client_mock, manifest_d
 
     mtime = "2025-01-01T00:00:00.000"
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     stat = local_file.stat()
     manifest_path.write_text(json.dumps({
         "doc.xml": {
@@ -621,8 +639,7 @@ def test_push_fail_fast_stops_on_conflict(config_with_collection, client_mock, m
 
     # Manifest records a different hash (simulating prior sync of different content)
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    manifest_path = manifest_dir / f"myapp@{manifest_key}.json"
+    manifest_path = _manifest_path("myapp", "/", local_dir)
     manifest_path.write_text(json.dumps({
         "doc.xml": {"local_sha256": _sha256(b"<original/>"), "remote_last_modified": "2025-01-01T00:00:00.000"}
     }))
@@ -936,8 +953,7 @@ def test_push_corrupt_manifest_falls_back_to_empty(
     config_with_collection, client_mock, manifest_dir, local_dir, runner
 ):
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    (manifest_dir / f"myapp@{manifest_key}.json").write_text("THIS IS NOT JSON")
+    _manifest_path("myapp", "/", local_dir).write_text("THIS IS NOT JSON")
     (local_dir / "doc.xml").write_bytes(b"<x/>")
     client_mock.list_collection.return_value = []
 
@@ -957,8 +973,7 @@ def test_push_skips_locally_modified_malformed_xml(
     local_file.write_bytes(b"<unclosed>")
 
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    (manifest_dir / f"myapp@{manifest_key}.json").write_text(json.dumps({
+    _manifest_path("myapp", "/", local_dir).write_text(json.dumps({
         "doc.xml": {
             "local_sha256": _sha256(b"<valid/>"),
             "remote_last_modified": mtime,
@@ -1030,8 +1045,7 @@ def test_push_dry_run_shows_modified_file_without_uploading(
     local_file.write_bytes(b"<new/>")
 
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    (manifest_dir / f"myapp@{manifest_key}.json").write_text(json.dumps({
+    _manifest_path("myapp", "/", local_dir).write_text(json.dumps({
         "doc.xml": {
             "local_sha256": _sha256(b"<old/>"),
             "remote_last_modified": mtime,
@@ -1132,8 +1146,7 @@ def test_push_fail_fast_skipped_file_emits_no_label(
     stat = local_file.stat()
 
     manifest_dir.mkdir(parents=True)
-    manifest_key = hashlib.sha256(b"/").hexdigest()[:16]
-    (manifest_dir / f"myapp@{manifest_key}.json").write_text(json.dumps({
+    _manifest_path("myapp", "/", local_dir).write_text(json.dumps({
         "doc.xml": {
             "local_sha256": _sha256(b"<root/>"),
             "remote_last_modified": mtime,
