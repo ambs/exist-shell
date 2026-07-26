@@ -93,16 +93,18 @@ class RemoteTree(NamedTuple):
 class Manifest:
     """Sync manifest: tracks per-file state and handles checkpoint writes."""
 
-    def __init__(self, data: dict[str, ManifestEntry], checkpoint_every: int) -> None:
+    def __init__(self, data: dict[str, ManifestEntry], checkpoint_every: int, path: Path) -> None:
         """Initialize the manifest.
 
         Args:
             data: Per-file state loaded from disk (or empty for a fresh manifest).
             checkpoint_every: Mutation count between automatic checkpoint writes.
+            path: File path this manifest is persisted to.
         """
         self._data = data
         self._dirty = 0
         self._checkpoint_every = checkpoint_every
+        self._path = path
 
     def get(self, rel_path: str) -> ManifestEntry:
         """Return the manifest entry for rel_path, or an empty entry if absent.
@@ -145,38 +147,22 @@ class Manifest:
         self._data.pop(rel_path, None)
         self._dirty += 1
 
-    def maybe_save(self, nick: str, remote_path: str) -> None:
-        """Write to disk when accumulated mutations reach the threshold.
-
-        Args:
-            nick: Collection nickname.
-            remote_path: Remote collection path.
-        """
+    def maybe_save(self) -> None:
+        """Write to disk when accumulated mutations reach the threshold."""
         if self._dirty >= self._checkpoint_every:
-            self._write(nick, remote_path)
+            self._write()
             self._dirty = 0
 
-    def save(self, nick: str, remote_path: str) -> None:
-        """Unconditional final write.
+    def save(self) -> None:
+        """Unconditional final write."""
+        self._write()
 
-        Args:
-            nick: Collection nickname.
-            remote_path: Remote collection path.
-        """
-        self._write(nick, remote_path)
-
-    def _write(self, nick: str, remote_path: str) -> None:
-        """Atomically write manifest data to disk.
-
-        Args:
-            nick: Collection nickname.
-            remote_path: Remote collection path.
-        """
-        p = _manifest_path(nick, remote_path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = p.with_suffix(".tmp")
+    def _write(self) -> None:
+        """Atomically write manifest data to disk."""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._path.with_suffix(".tmp")
         tmp.write_text(json.dumps(self._data))
-        tmp.rename(p)
+        tmp.rename(self._path)
 
 
 def _sha256(path: Path) -> str:
@@ -191,38 +177,45 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _manifest_path(nick: str, remote_path: str) -> Path:
-    """Return the manifest file path for a (nick, remote_path) pair.
+def _manifest_path(nick: str, remote_path: str, local_dir: Path) -> Path:
+    """Return the manifest file path for a (nick, remote_path, local_dir) triple.
+
+    The local directory is included in the key so that two working copies of
+    the same remote collection get independent manifests instead of silently
+    corrupting each other's sync state.
 
     Args:
         nick: Collection nickname.
         remote_path: Remote collection path.
+        local_dir: Local sync directory (source for push, destination for pull).
 
     Returns:
         Absolute path to the JSON manifest file.
     """
-    key = hashlib.sha256(remote_path.encode()).hexdigest()[:16]
+    key_input = f"{remote_path}\x00{local_dir.resolve()}"
+    key = hashlib.sha256(key_input.encode()).hexdigest()[:16]
     return _get_sync_cache_dir() / f"{nick}@{key}.json"
 
 
-def _load_manifest(nick: str, remote_path: str, checkpoint_every: int) -> Manifest:
+def _load_manifest(nick: str, remote_path: str, local_dir: Path, checkpoint_every: int) -> Manifest:
     """Load the sync manifest, returning an empty manifest if the file is missing.
 
     Args:
         nick: Collection nickname.
         remote_path: Remote collection path.
+        local_dir: Local sync directory (source for push, destination for pull).
         checkpoint_every: Mutation count between automatic checkpoint writes.
 
     Returns:
         Manifest wrapping the last-synced state for each file.
     """
-    p = _manifest_path(nick, remote_path)
+    p = _manifest_path(nick, remote_path, local_dir)
     if not p.exists():
-        return Manifest({}, checkpoint_every)
+        return Manifest({}, checkpoint_every, p)
     try:
-        return Manifest(json.loads(p.read_text()), checkpoint_every)
+        return Manifest(json.loads(p.read_text()), checkpoint_every, p)
     except Exception:
-        return Manifest({}, checkpoint_every)
+        return Manifest({}, checkpoint_every, p)
 
 
 def _walk_remote(client: ExistClient, base_path: str, max_workers: int = 4) -> RemoteTree:
@@ -702,8 +695,6 @@ def _run_push_sequential(
     force: bool,
     dry_run: bool,
     verbose: bool,
-    nick: str,
-    path: str,
 ) -> tuple[dict[SyncAction, int], bool]:
     """Run the push file loop sequentially, stopping on the first failure.
 
@@ -720,8 +711,6 @@ def _run_push_sequential(
         force: If True, upload regardless of manifest state.
         dry_run: If True, print actions without uploading.
         verbose: If True, print unchanged files.
-        nick: Collection nickname (for manifest checkpoints).
-        path: Remote collection path (for manifest checkpoints).
 
     Returns:
         Tuple of (counts, fail_fast_triggered).
@@ -746,7 +735,7 @@ def _run_push_sequential(
         counts[action] = counts.get(action, 0) + 1
         if not dry_run and new_entry is not None:
             manifest.set(rel_path, new_entry)
-        manifest.maybe_save(nick, path)
+        manifest.maybe_save()
         if action in {SyncAction.INVALID, SyncAction.CONFLICT, SyncAction.FAILED}:
             return counts, True
     return counts, False
@@ -756,8 +745,6 @@ def _drain_futures(
     executor: ThreadPoolExecutor,
     futures: dict[Future[tuple[SyncAction, ManifestEntry | None]], tuple[str, Callable[[SyncAction, int, str], str]]],
     manifest: Manifest,
-    nick: str,
-    path: str,
     total: int,
     dry_run: bool,
 ) -> dict[SyncAction, int]:
@@ -774,8 +761,6 @@ def _drain_futures(
         executor: The active ThreadPoolExecutor owning the futures.
         futures: Map of future → (rel_path, label_fn) where label_fn(action, pct, error) → str.
         manifest: Sync manifest (mutated in place as futures complete).
-        nick: Collection nickname (for manifest checkpoints).
-        path: Remote collection path (for manifest checkpoints).
         total: Total number of tasks, used to compute the completion percentage.
         dry_run: If True, skip manifest writes.
 
@@ -800,7 +785,7 @@ def _drain_futures(
             counts[action] = counts.get(action, 0) + 1
             if not dry_run and new_entry is not None:
                 manifest.set(rel_path, new_entry)
-            manifest.maybe_save(nick, path)
+            manifest.maybe_save()
     except KeyboardInterrupt:
         executor.shutdown(wait=False, cancel_futures=True)
         raise
@@ -817,8 +802,6 @@ def _run_push_parallel(
     force: bool,
     dry_run: bool,
     verbose: bool,
-    nick: str,
-    path: str,
     jobs: int,
 ) -> dict[SyncAction, int]:
     """Run the push file loop with concurrent uploads.
@@ -837,8 +820,6 @@ def _run_push_parallel(
         force: If True, upload regardless of manifest state.
         dry_run: If True, print actions without uploading.
         verbose: If True, print unchanged files.
-        nick: Collection nickname (for manifest checkpoints).
-        path: Remote collection path (for manifest checkpoints).
         jobs: Number of parallel upload workers.
 
     Returns:
@@ -856,7 +837,7 @@ def _run_push_parallel(
             ): (rp, lambda a, p, err, _rp=rp: _push_label(a, _rp, p, remote_index, verbose, err))
             for lf, rp in tasks
         }
-        return _drain_futures(executor, futures, manifest, nick, path, total, dry_run)
+        return _drain_futures(executor, futures, manifest, total, dry_run)
 
 
 def _refresh_remote_mtimes(
@@ -890,8 +871,6 @@ def _run_pull_parallel(
     force: bool,
     dry_run: bool,
     verbose: bool,
-    nick: str,
-    path: str,
     jobs: int,
 ) -> dict[SyncAction, int]:
     """Run the pull file loop with concurrent downloads.
@@ -909,8 +888,6 @@ def _run_pull_parallel(
         force: If True, download regardless of manifest state.
         dry_run: If True, print actions without downloading.
         verbose: If True, print unchanged files.
-        nick: Collection nickname (for manifest checkpoints).
-        path: Remote collection path (for manifest checkpoints).
         jobs: Number of parallel download workers.
 
     Returns:
@@ -929,7 +906,7 @@ def _run_pull_parallel(
             )
             for resource in resources
         }
-        return _drain_futures(executor, futures, manifest, nick, path, total, dry_run)
+        return _drain_futures(executor, futures, manifest, total, dry_run)
 
 
 def _push(
@@ -961,7 +938,7 @@ def _push(
         jobs: Number of parallel upload workers.
     """
     collection, server, full_path = resolve_collection(nick, path)
-    manifest = _load_manifest(nick, path, checkpoint_every)
+    manifest = _load_manifest(nick, path, source, checkpoint_every)
     counts: dict[SyncAction, int] = {}
     fail_fast_triggered = False
 
@@ -981,12 +958,12 @@ def _push(
                 if fail_fast:
                     counts, fail_fast_triggered = _run_push_sequential(
                         client, full_path, local_files, source, remote_index,
-                        manifest, force, dry_run, verbose, nick, path,
+                        manifest, force, dry_run, verbose,
                     )
                 else:
                     counts = _run_push_parallel(
                         client, full_path, local_files, source, remote_index,
-                        manifest, force, dry_run, verbose, nick, path, jobs,
+                        manifest, force, dry_run, verbose, jobs,
                     )
 
                 if tree.failed:
@@ -1005,12 +982,12 @@ def _push(
                     _refresh_remote_mtimes(client, full_path, manifest, jobs)
     except KeyboardInterrupt:
         if not dry_run:
-            manifest.save(nick, path)
+            manifest.save()
         typer.echo("\nInterrupted.", err=True)
         raise typer.Exit(130)
 
     if not dry_run:
-        manifest.save(nick, path)
+        manifest.save()
         invalidate(nick)
 
     _print_summary(counts)
@@ -1044,7 +1021,7 @@ def _pull(
         jobs: Number of parallel download workers.
     """
     collection, server, full_path = resolve_collection(nick, path)
-    manifest = _load_manifest(nick, path, checkpoint_every)
+    manifest = _load_manifest(nick, path, dest, checkpoint_every)
     counts: dict[SyncAction, int] = {}
 
     try:
@@ -1055,7 +1032,7 @@ def _pull(
 
                 counts = _run_pull_parallel(
                     client, full_path, dest, tree.resources,
-                    manifest, force, dry_run, verbose, nick, path, jobs,
+                    manifest, force, dry_run, verbose, jobs,
                 )
 
                 if tree.failed:
@@ -1067,12 +1044,12 @@ def _pull(
                     counts[SyncAction.DELETED] = counts.get(SyncAction.DELETED, 0) + deleted
     except KeyboardInterrupt:
         if not dry_run:
-            manifest.save(nick, path)
+            manifest.save()
         typer.echo("\nInterrupted.", err=True)
         raise typer.Exit(130)
 
     if not dry_run:
-        manifest.save(nick, path)
+        manifest.save()
 
     _print_summary(counts)
 
