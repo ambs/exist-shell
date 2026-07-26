@@ -12,4 +12,4 @@ ruff: ## Lint with ruff
 	uv run ruff check src/
 
 ty: ## Type-check with ty
-	uv run ty check src/
+	uv run ty check src/ tests/

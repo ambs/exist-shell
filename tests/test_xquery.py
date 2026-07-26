@@ -123,6 +123,7 @@ def test_basex_validate_returns_error_on_failure(monkeypatch):
     v = BasexValidator("/usr/bin/basex")
     result = v.validate("invalid xquery !!!")
     assert result.ok is False
+    assert result.error is not None
     assert "Unexpected token" in result.error
 
 
@@ -134,6 +135,7 @@ def test_basex_validate_falls_back_to_stdout_when_stderr_empty(monkeypatch):
     monkeypatch.setattr("exist_shell.xquery.subprocess.run", lambda *a, **kw: completed)
     v = BasexValidator("/usr/bin/basex")
     result = v.validate("invalid xquery !!!")
+    assert result.error is not None
     assert "Parse error" in result.error
 
 
@@ -170,6 +172,7 @@ def test_saxon_validate_returns_error_on_failure(monkeypatch):
     v = SaxonValidator("/usr/bin/saxon")
     result = v.validate("invalid xquery !!!")
     assert result.ok is False
+    assert result.error is not None
     assert "Static error" in result.error
 
 
@@ -211,6 +214,7 @@ def test_validate_locally_named_validator_unknown_returns_error(monkeypatch):
     monkeypatch.setattr("exist_shell.xquery._VALIDATORS_BY_NAME", {})
     result = validate_locally("1+1", validator="nonexistent")
     assert result.ok is False
+    assert result.error is not None
     assert "unknown validator" in result.error
 
 
@@ -220,6 +224,7 @@ def test_validate_locally_named_validator_not_installed_returns_error(monkeypatc
     monkeypatch.setattr("exist_shell.xquery._VALIDATORS_BY_NAME", {"myval": mock_cls})
     result = validate_locally("1+1", validator="myval")
     assert result.ok is False
+    assert result.error is not None
     assert "not installed" in result.error
 
 

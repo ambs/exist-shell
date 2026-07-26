@@ -138,6 +138,8 @@ def test_windows_default_paths_use_platformdirs(monkeypatch):
         "_test_config_win32",
         Path(__file__).parent.parent / "src/exist_shell/config.py",
     )
+    assert spec is not None
+    assert spec.loader is not None
     fresh = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fresh)
 
