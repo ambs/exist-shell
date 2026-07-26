@@ -6,7 +6,7 @@ import pytest
 import exist_shell.cache as cache_module
 from exist_shell.cache import _get_cache_dir as _real_get_cache_dir
 from exist_shell.cache import get_cached, get_cached_groups, get_cached_prefix_match, get_cached_users, invalidate, set_cached, set_cached_groups, set_cached_users
-from exist_shell.models import CollectionEntry, GroupEntry, ResourceEntry, UserEntry
+from exist_shell.models import CollectionEntry, CollectionItem, GroupEntry, ResourceEntry, UserEntry
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +32,7 @@ def test_set_and_get_cached_within_ttl():
 
 
 def test_get_cached_expired(monkeypatch):
-    items = [CollectionEntry(name="subdir")]
+    items: list[CollectionItem] = [CollectionEntry(name="subdir")]
     set_cached("myapp", "/", items)
     now = time.time()
     monkeypatch.setattr(cache_module.time, "time", lambda: now + cache_module.CACHE_TTL + 1)
@@ -40,26 +40,34 @@ def test_get_cached_expired(monkeypatch):
 
 
 def test_different_dir_paths_are_cached_separately():
-    items_a = [CollectionEntry(name="a")]
-    items_b = [ResourceEntry(name="b.xml")]
+    items_a: list[CollectionItem] = [CollectionEntry(name="a")]
+    items_b: list[CollectionItem] = [ResourceEntry(name="b.xml")]
     set_cached("myapp", "/foo/", items_a)
     set_cached("myapp", "/bar/", items_b)
-    assert get_cached("myapp", "/foo/")[0].name == "a"  # type: ignore[index]
-    assert get_cached("myapp", "/bar/")[0].name == "b.xml"  # type: ignore[index]
+    result_a = get_cached("myapp", "/foo/")
+    result_b = get_cached("myapp", "/bar/")
+    assert result_a is not None
+    assert result_b is not None
+    assert result_a[0].name == "a"
+    assert result_b[0].name == "b.xml"
 
 
 def test_different_prefixes_are_cached_separately():
-    items_a = [CollectionEntry(name="alpha")]
-    items_b = [CollectionEntry(name="beta")]
+    items_a: list[CollectionItem] = [CollectionEntry(name="alpha")]
+    items_b: list[CollectionItem] = [CollectionEntry(name="beta")]
     set_cached("myapp", "/", items_a, "al")
     set_cached("myapp", "/", items_b, "be")
-    assert get_cached("myapp", "/", "al")[0].name == "alpha"  # type: ignore[index]
-    assert get_cached("myapp", "/", "be")[0].name == "beta"  # type: ignore[index]
+    result_al = get_cached("myapp", "/", "al")
+    result_be = get_cached("myapp", "/", "be")
+    assert result_al is not None
+    assert result_be is not None
+    assert result_al[0].name == "alpha"
+    assert result_be[0].name == "beta"
     assert get_cached("myapp", "/") is None
 
 
 def test_invalidate_removes_only_target_nick():
-    items = [CollectionEntry(name="x")]
+    items: list[CollectionItem] = [CollectionEntry(name="x")]
     set_cached("alpha", "/", items)
     set_cached("beta", "/", items)
     invalidate("alpha")
@@ -83,7 +91,7 @@ def test_set_cached_empty_list():
 
 
 def test_prefix_match_exact_hit():
-    items = [ResourceEntry(name="academia.xml")]
+    items: list[CollectionItem] = [ResourceEntry(name="academia.xml")]
     set_cached("myapp", "/", items, "academi")
     result = get_cached_prefix_match("myapp", "/", "academi")
     assert result is not None
@@ -91,7 +99,7 @@ def test_prefix_match_exact_hit():
 
 
 def test_prefix_match_reuses_shorter_ancestor():
-    items = [
+    items: list[CollectionItem] = [
         ResourceEntry(name="academia.xml"),
         ResourceEntry(name="academico.xml"),
         ResourceEntry(name="acadar.xml"),
@@ -103,7 +111,7 @@ def test_prefix_match_reuses_shorter_ancestor():
 
 
 def test_prefix_match_walks_multiple_ancestors():
-    items = [ResourceEntry(name="academia.xml"), ResourceEntry(name="acadar.xml")]
+    items: list[CollectionItem] = [ResourceEntry(name="academia.xml"), ResourceEntry(name="acadar.xml")]
     set_cached("myapp", "/", items, "a")
     result = get_cached_prefix_match("myapp", "/", "academi")
     assert result is not None
@@ -115,14 +123,14 @@ def test_prefix_match_no_ancestor_cached_misses():
 
 
 def test_prefix_match_does_not_reuse_stale_ancestor():
-    items = [ResourceEntry(name="academia.xml")]
+    items: list[CollectionItem] = [ResourceEntry(name="academia.xml")]
     set_cached("myapp", "/", items, "acad")
     with patch.object(cache_module, "CACHE_TTL", -1.0):
         assert get_cached_prefix_match("myapp", "/", "academi") is None
 
 
 def test_prefix_match_empty_prefix_ancestor():
-    items = [ResourceEntry(name="a.xml"), ResourceEntry(name="b.xml")]
+    items: list[CollectionItem] = [ResourceEntry(name="a.xml"), ResourceEntry(name="b.xml")]
     set_cached("myapp", "/", items, "")
     result = get_cached_prefix_match("myapp", "/", "a")
     assert result is not None
@@ -130,13 +138,13 @@ def test_prefix_match_empty_prefix_ancestor():
 
 
 def test_prefix_match_skips_truncated_ancestor():
-    items = [ResourceEntry(name="academia.xml")]
+    items: list[CollectionItem] = [ResourceEntry(name="academia.xml")]
     set_cached("myapp", "/", items, "acad", truncated=True)
     assert get_cached_prefix_match("myapp", "/", "academi") is None
 
 
 def test_prefix_match_untruncated_ancestor_still_reused():
-    items = [ResourceEntry(name="academia.xml")]
+    items: list[CollectionItem] = [ResourceEntry(name="academia.xml")]
     set_cached("myapp", "/", items, "acad", truncated=False)
     result = get_cached_prefix_match("myapp", "/", "academi")
     assert result is not None
@@ -172,8 +180,12 @@ def test_get_cached_users_expired(monkeypatch):
 def test_cached_users_different_servers_are_independent():
     set_cached_users("local", [UserEntry(username="alice", groups=[])])
     set_cached_users("prod", [UserEntry(username="bob", groups=[])])
-    assert get_cached_users("local")[0].username == "alice"  # type: ignore[index]
-    assert get_cached_users("prod")[0].username == "bob"  # type: ignore[index]
+    local_users = get_cached_users("local")
+    prod_users = get_cached_users("prod")
+    assert local_users is not None
+    assert prod_users is not None
+    assert local_users[0].username == "alice"
+    assert prod_users[0].username == "bob"
 
 
 # ---------------------------------------------------------------------------
@@ -205,8 +217,12 @@ def test_get_cached_groups_expired(monkeypatch):
 def test_cached_groups_different_servers_are_independent():
     set_cached_groups("local", [GroupEntry(name="editors", members=[])])
     set_cached_groups("prod", [GroupEntry(name="ops", members=[])])
-    assert get_cached_groups("local")[0].name == "editors"  # type: ignore[index]
-    assert get_cached_groups("prod")[0].name == "ops"  # type: ignore[index]
+    local_groups = get_cached_groups("local")
+    prod_groups = get_cached_groups("prod")
+    assert local_groups is not None
+    assert prod_groups is not None
+    assert local_groups[0].name == "editors"
+    assert prod_groups[0].name == "ops"
 
 
 # ---------------------------------------------------------------------------

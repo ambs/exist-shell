@@ -20,7 +20,7 @@ jobs:
       - name: Run ty
         id: ty
         continue-on-error: true
-        run: uv run ty check src/ 2>&1 | tee ty.log
+        run: uv run ty check src/ tests/ 2>&1 | tee ty.log
       - name: Build PR comment
         if: github.event_name == 'pull_request'
         run: |
