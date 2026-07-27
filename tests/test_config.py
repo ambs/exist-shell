@@ -199,6 +199,16 @@ def test_load_does_not_warn_for_owner_only_file(config_path, a_server, capsys):
     assert "readable by other users" not in captured.err
 
 
+def test_warn_if_insecure_permissions_is_noop_on_windows(monkeypatch, tmp_path):
+    """Warn if insecure permissions is noop on windows."""
+    from exist_shell.config import _warn_if_insecure_permissions
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    # A nonexistent path proves the win32 branch returns before calling
+    # path.stat(), which would otherwise raise FileNotFoundError.
+    _warn_if_insecure_permissions(tmp_path / "does-not-exist.toml")
+
+
 def test_windows_default_paths_use_platformdirs(monkeypatch):
     """Windows default paths use platformdirs."""
     from pathlib import Path
