@@ -1,10 +1,12 @@
 """Configuration models and persistence for servers and collections."""
 
 import os
+import stat
 import sys
 from pathlib import Path
 
 import tomlkit
+import typer
 from pydantic import BaseModel, Field, SecretStr
 
 # Minimum length 2: a single-character nick could collide with a Windows
@@ -59,6 +61,24 @@ class _AppState:
 app_state = _AppState()
 
 
+def _warn_if_insecure_permissions(path: Path) -> None:
+    """Warn on stderr if a config file is readable by group or other.
+
+    Args:
+        path: Path to the config file to check.
+    """
+    if sys.platform == "win32":
+        return
+    mode = path.stat().st_mode
+    if mode & (stat.S_IRWXG | stat.S_IRWXO):
+        typer.echo(
+            f"Warning: {path} is readable by other users on this machine "
+            f"(mode {oct(stat.S_IMODE(mode))}). It may contain plaintext "
+            f"server passwords; consider running `chmod 600 {path}`.",
+            err=True,
+        )
+
+
 class Server(BaseModel):
     """An eXist-db server configuration."""
 
@@ -102,6 +122,7 @@ class Config(BaseModel):
         path = app_state.config_path()
         if not path.exists():
             return cls()
+        _warn_if_insecure_permissions(path)
         with open(path) as f:
             raw = tomlkit.load(f)
         servers = {
@@ -117,9 +138,16 @@ class Config(BaseModel):
         return cls(servers=servers, collections=collections, cache_dir=cache_dir)
 
     def save(self) -> None:
-        """Persist the current configuration to disk atomically."""
+        """Persist the current configuration to disk atomically.
+
+        The config file may contain plaintext server passwords, so it and its
+        parent directory are created with owner-only permissions (0600/0700)
+        on POSIX platforms.
+        """
         path = app_state.config_path()
         path.parent.mkdir(parents=True, exist_ok=True)
+        if sys.platform != "win32":
+            os.chmod(path.parent, 0o700)
         data: dict = {
             "servers": {
                 nick: {
@@ -142,6 +170,8 @@ class Config(BaseModel):
             data["cache_dir"] = str(self.cache_dir)
         tmp = path.with_suffix(".tmp")
         tmp.write_text(tomlkit.dumps(data))
+        if sys.platform != "win32":
+            os.chmod(tmp, 0o600)
         tmp.rename(path)
 
     def add_server(self, server: Server) -> None:

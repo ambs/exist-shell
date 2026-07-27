@@ -2,6 +2,7 @@
 
 import importlib
 import importlib.util
+import stat
 import sys
 import types
 
@@ -138,6 +139,74 @@ def test_save_persists_cache_dir(config_path, tmp_path):
     config.save()
     reloaded = Config.load()
     assert reloaded.cache_dir == cache
+
+
+# ---------------------------------------------------------------------------
+# file permissions (issue #136)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits only")
+def test_save_writes_config_file_owner_only(config_path, a_server):
+    """Save writes config file owner only."""
+    config = Config.load()
+    config.add_server(a_server)
+    mode = stat.S_IMODE(config_path.stat().st_mode)
+    assert mode == 0o600
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits only")
+def test_save_writes_config_dir_owner_only(config_path, a_server):
+    """Save writes config dir owner only."""
+    config = Config.load()
+    config.add_server(a_server)
+    mode = stat.S_IMODE(config_path.parent.stat().st_mode)
+    assert mode == 0o700
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits only")
+def test_save_tightens_preexisting_loose_dir_permissions(config_path, a_server):
+    """Save tightens preexisting loose dir permissions."""
+    config_path.parent.chmod(0o755)
+    config = Config.load()
+    config.add_server(a_server)
+    mode = stat.S_IMODE(config_path.parent.stat().st_mode)
+    assert mode == 0o700
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits only")
+def test_load_warns_on_stderr_for_group_readable_file(config_path, a_server, capsys):
+    """Load warns on stderr for group readable file."""
+    config = Config.load()
+    config.add_server(a_server)
+    config_path.chmod(0o644)
+
+    Config.load()
+
+    captured = capsys.readouterr()
+    assert "readable by other users" in captured.err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits only")
+def test_load_does_not_warn_for_owner_only_file(config_path, a_server, capsys):
+    """Load does not warn for owner only file."""
+    config = Config.load()
+    config.add_server(a_server)
+
+    Config.load()
+
+    captured = capsys.readouterr()
+    assert "readable by other users" not in captured.err
+
+
+def test_warn_if_insecure_permissions_is_noop_on_windows(monkeypatch, tmp_path):
+    """Warn if insecure permissions is noop on windows."""
+    from exist_shell.config import _warn_if_insecure_permissions
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    # A nonexistent path proves the win32 branch returns before calling
+    # path.stat(), which would otherwise raise FileNotFoundError.
+    _warn_if_insecure_permissions(tmp_path / "does-not-exist.toml")
 
 
 def test_windows_default_paths_use_platformdirs(monkeypatch):
