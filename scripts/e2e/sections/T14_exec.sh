@@ -132,4 +132,47 @@ section_T14_exec() {
     else
         fail "T14.13 exec output pipes into xmllint (xmllint exited ${code}; output: ${_LAST_OUTPUT})"
     fi
+
+    # --resource: execute a stored .xql resource in place, rather than local code.
+    # script.xq (stored as application/xquery by T05.13) contains a literal
+    # "xquery version" line followed by <computed>{2 + 2}</computed>. A plain `cat`
+    # would return that source verbatim; --resource must instead GET the resource
+    # so eXist executes it server-side and returns <computed>4</computed>.
+
+    # T14.14 — --resource executes the stored script, not just echoes its source
+    assert_output "<computed>4</computed>" \
+        "T14.14 exec --resource runs the stored .xq server-side" \
+        "${EXSH[@]}" exec --resource testcol:/script.xq
+    assert_output_absent "xquery version" \
+        "T14.14b exec --resource output has no XQuery source, only the execution result" \
+        "${EXSH[@]}" exec --resource testcol:/script.xq
+
+    # T14.15 — -p/--param is forwarded as a request parameter the resource can read
+    printf 'xquery version "3.1";\nimport module namespace request="http://exist-db.org/xquery/request";\n<echo>{request:get-parameter("name", "default")}</echo>' \
+        > "${TMPDIR_E2E}/params.xq"
+    assert_exit0 "T14.15a put params.xq as application/xquery" \
+        "${EXSH[@]}" put testcol:/params.xq -f "${TMPDIR_E2E}/params.xq" --mime application/xquery
+
+    assert_output "<echo>default</echo>" \
+        "T14.15b exec --resource without -p uses the resource's own default" \
+        "${EXSH[@]}" exec --resource testcol:/params.xq
+
+    assert_output "<echo>world</echo>" \
+        "T14.15c exec --resource -p name=world forwards the parameter" \
+        "${EXSH[@]}" exec --resource testcol:/params.xq -p name=world
+
+    # T14.16 — TARGET and --resource are mutually exclusive
+    assert_output "mutually exclusive" \
+        "T14.16 exec TARGET and --resource together fails" \
+        "${EXSH[@]}" exec testcol:/ --resource testcol:/script.xq
+
+    # T14.17 — -p without --resource fails
+    assert_output "--param requires --resource" \
+        "T14.17 exec -p without --resource fails" \
+        "${EXSH[@]}" exec testcol:/ --no-validate -p name=world
+
+    # T14.18 — --resource on a path that doesn't exist
+    assert_output "not found" \
+        "T14.18 exec --resource on missing path fails" \
+        "${EXSH[@]}" exec --resource testcol:/ghost.xql
 }

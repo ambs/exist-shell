@@ -36,6 +36,39 @@ class QueryMixin(ExistClientBase):
         self._check_response(r)
         return r.text
 
+    def execute_resource(self, path: str, params: dict[str, str] | None = None) -> str:
+        """Execute a stored XQuery resource in place and return its output.
+
+        eXist executes resources with an XQuery MIME type on a plain GET, so
+        this is a GET on ``path`` rather than a POST of query source — the
+        counterpart to :meth:`get_document`'s deliberate avoidance of
+        execution when the caller just wants the source bytes.
+
+        Args:
+            path: Full eXist path to the resource, e.g. /db/myapp/report.xql.
+            params: Optional query-string parameters forwarded to the
+                resource as external variables.
+
+        Returns:
+            Raw response text from the server.
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistNotFoundError: If the path does not exist.
+            ExistQueryError: If the resource raises an XQuery error during execution.
+            ExistServerError: If the server returns any other error status.
+        """
+        url = self._url(path)
+        try:
+            r = self._http.get(url, params=params)
+        except httpx.RequestError as e:
+            raise ExistConnectionError(url, e) from e
+        if r.status_code in (400, 500):
+            raise ExistQueryError(r.text.strip())
+        self._check_response(r, path)
+        return r.text
+
     def find_documents(self, path: str, expression: str) -> list[str]:
         """Find documents under a collection whose content matches an XPath expression.
 
