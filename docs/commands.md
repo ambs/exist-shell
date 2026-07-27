@@ -286,6 +286,7 @@ Execute an XQuery script on an eXist-db server and print the result to stdout.
 
 ```
 exsh exec <nick>[:<path>] [-f FILE] [--no-fix] [--no-validate] [--validator NAME]
+exsh exec --resource <nick>:<path.xql> [-p NAME=VALUE ...]
 ```
 
 The query is read from `--file` or from stdin. Before sending, `exsh` optionally preprocesses the source and validates it locally:
@@ -306,10 +307,18 @@ The first installed validator found on `PATH` is used automatically. Use `--vali
 
 Run `exsh exec --list-validators` to see which validators are available on the current machine.
 
+### Executing a stored resource
+
+`--resource <nick>:<path.xql>` runs a `.xql`/`.xqm` script that's already stored on the server in place, instead of sending local source. This is a plain `GET` on the resource — the same mechanism eXist uses to execute these MIME types automatically — so it relies on the resource being invoked in its own stored collection context, which matters for scripts that assume that context (e.g. relative `doc()`/`collection()` lookups).
+
+`--resource` is mutually exclusive with the `<nick>[:<path>]` argument, and skips local preprocessing/validation entirely, since there's no local source to fix up or check. Repeat `-p/--param NAME=VALUE` to forward query-string parameters, which the resource can read as external variables.
+
 ### Options
 
 | Flag | Description |
 |------|-------------|
+| `--resource <nick>:<path.xql>` | Execute a stored resource in place instead of local code. |
+| `-p / --param NAME=VALUE` | Query-string parameter to forward with `--resource` (repeatable). |
 | `-f / --file FILE` | XQuery file to execute. When omitted, stdin is read. |
 | `--no-fix` | Skip preprocessing (version declaration, namespace imports). |
 | `--no-validate` | Skip local validation even if a validator is installed. |
@@ -339,6 +348,12 @@ exsh exec mydata:/ --validator basex -f query.xq
 
 # Check which validators are available locally
 exsh exec --list-validators
+
+# Execute a stored resource in place, rather than downloading it first
+exsh exec --resource mydata:/report.xql
+
+# ...forwarding query-string parameters as external variables
+exsh exec --resource mydata:/report.xql -p from=2026-01-01 -p to=2026-12-31
 ```
 
 ---

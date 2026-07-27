@@ -664,6 +664,93 @@ def test_execute_query_read_timeout_message_differs_from_connect_timeout(httpx_m
 
 
 # ---------------------------------------------------------------------------
+# execute_resource
+# ---------------------------------------------------------------------------
+
+def test_execute_resource_returns_text_on_200(httpx_mock, a_server):
+    """Execute resource returns text on 200."""
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/report.xql",
+        method="GET",
+        text="<result>42</result>",
+    )
+    with ExistClient(a_server) as client:
+        output = client.execute_resource("/db/myapp/report.xql")
+    assert output == "<result>42</result>"
+
+
+def test_execute_resource_forwards_params(httpx_mock, a_server):
+    """Execute resource forwards params."""
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/report.xql?from=2026-01-01",
+        method="GET",
+        text="ok",
+    )
+    with ExistClient(a_server) as client:
+        output = client.execute_resource("/db/myapp/report.xql", params={"from": "2026-01-01"})
+    assert output == "ok"
+
+
+def test_execute_resource_raises_not_found_on_404(httpx_mock, a_server):
+    """Execute resource raises not found on 404."""
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/ghost.xql",
+        method="GET",
+        status_code=404,
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistNotFoundError):
+            client.execute_resource("/db/myapp/ghost.xql")
+
+
+def test_execute_resource_raises_query_error_on_400(httpx_mock, a_server):
+    """Execute resource raises query error on 400."""
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/report.xql",
+        method="GET",
+        status_code=400,
+        text="Unexpected token at line 1",
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError) as exc_info:
+            client.execute_resource("/db/myapp/report.xql")
+    assert "Unexpected token" in str(exc_info.value)
+
+
+def test_execute_resource_raises_query_error_on_500(httpx_mock, a_server):
+    """Execute resource raises query error on 500."""
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/report.xql",
+        method="GET",
+        status_code=500,
+        text="Internal server error",
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistQueryError):
+            client.execute_resource("/db/myapp/report.xql")
+
+
+def test_execute_resource_raises_auth_error_on_401(httpx_mock, a_server):
+    """Execute resource raises auth error on 401."""
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db/myapp/report.xql",
+        method="GET",
+        status_code=401,
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.execute_resource("/db/myapp/report.xql")
+
+
+def test_execute_resource_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    """Execute resource raises connection error on network failure."""
+    httpx_mock.add_exception(httpx.ConnectError("refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.execute_resource("/db/myapp/report.xql")
+
+
+# ---------------------------------------------------------------------------
 # find_documents
 # ---------------------------------------------------------------------------
 

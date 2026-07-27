@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistQueryError
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistQueryError
 from exist_shell.main import app
 from exist_shell.xquery import ValidatorResult
 
@@ -190,3 +190,87 @@ def test_exec_prints_query_output(config_with_collection, client_mock, no_valida
     result = runner.invoke(app, ["exec", "myapp:/", "--no-fix"], input="1+1")
     assert result.exit_code == 0
     assert "<answer>42</answer>" in result.output
+
+
+# ---------------------------------------------------------------------------
+# --resource
+# ---------------------------------------------------------------------------
+
+def test_exec_resource_executes_stored_resource(config_with_collection, client_mock, runner):
+    """Exec resource executes stored resource."""
+    client_mock.execute_resource.return_value = "<answer>42</answer>"
+    result = runner.invoke(app, ["exec", "--resource", "myapp:/report.xql"])
+    assert result.exit_code == 0
+    assert "<answer>42</answer>" in result.output
+    client_mock.execute_resource.assert_called_once_with("/db/myapp/report.xql", params=None)
+
+
+def test_exec_resource_forwards_params(config_with_collection, client_mock, runner):
+    """Exec resource forwards params."""
+    client_mock.execute_resource.return_value = "ok"
+    result = runner.invoke(
+        app, ["exec", "--resource", "myapp:/report.xql", "-p", "from=2026-01-01", "-p", "to=2026-12-31"]
+    )
+    assert result.exit_code == 0
+    client_mock.execute_resource.assert_called_once_with(
+        "/db/myapp/report.xql", params={"from": "2026-01-01", "to": "2026-12-31"}
+    )
+
+
+def test_exec_resource_and_target_are_mutually_exclusive(config_with_collection, runner):
+    """Exec resource and target are mutually exclusive."""
+    result = runner.invoke(app, ["exec", "myapp:/", "--resource", "myapp:/report.xql"])
+    assert result.exit_code == 1
+    assert "mutually exclusive" in result.output
+
+
+def test_exec_param_without_resource_exits_1(config_with_collection, client_mock, no_validation, runner):
+    """Exec param without resource exits 1."""
+    result = runner.invoke(app, ["exec", "myapp:/", "--no-fix", "-p", "a=b"], input="1+1")
+    assert result.exit_code == 1
+    assert "--param requires --resource" in result.output
+
+
+def test_exec_resource_invalid_param_exits_1(config_with_collection, runner):
+    """Exec resource invalid param exits 1."""
+    result = runner.invoke(app, ["exec", "--resource", "myapp:/report.xql", "-p", "noequals"])
+    assert result.exit_code == 1
+    assert "invalid --param" in result.output
+
+
+def test_exec_resource_requires_path(config_with_collection, runner):
+    """Exec resource requires path."""
+    result = runner.invoke(app, ["exec", "--resource", "myapp"])
+    assert result.exit_code == 1
+    assert "path is required" in result.output
+
+
+def test_exec_resource_unknown_collection_exits_1(config_path, runner):
+    """Exec resource unknown collection exits 1."""
+    result = runner.invoke(app, ["exec", "--resource", "ghost:/report.xql"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_exec_resource_not_found_exits_1(config_with_collection, client_mock, runner):
+    """Exec resource not found exits 1."""
+    client_mock.execute_resource.side_effect = ExistNotFoundError("/db/myapp/ghost.xql")
+    result = runner.invoke(app, ["exec", "--resource", "myapp:/ghost.xql"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_exec_resource_query_error_exits_1(config_with_collection, client_mock, runner):
+    """Exec resource query error exits 1."""
+    client_mock.execute_resource.side_effect = ExistQueryError("boom")
+    result = runner.invoke(app, ["exec", "--resource", "myapp:/report.xql"])
+    assert result.exit_code == 1
+    assert "XQuery error" in result.output
+
+
+def test_exec_resource_does_not_read_stdin(config_with_collection, client_mock, runner):
+    """Exec resource does not read stdin."""
+    client_mock.execute_resource.return_value = "ok"
+    result = runner.invoke(app, ["exec", "--resource", "myapp:/report.xql"], input="should be ignored")
+    assert result.exit_code == 0
+    client_mock.execute_query.assert_not_called()

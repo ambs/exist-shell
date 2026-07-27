@@ -109,6 +109,7 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh sync <local> <nick>[:<path>]` | Push a local folder to a remote collection |
 | `exsh sync <nick>[:<path>] <local>` | Pull a remote collection to a local folder |
 | `exsh exec <nick>[:<path>]` | Execute an XQuery script on a server |
+| `exsh exec --resource <nick>:<path.xql>` | Execute a stored resource in place, forwarding `-p name=value` params |
 | `exsh find <nick>[:<path>] --query <xpath>` | Find documents matching an XPath expression, with optional `--remove` |
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
@@ -172,6 +173,12 @@ exsh exec mydata:/ --no-fix -f query.xq
 
 # List locally available XQuery validators
 exsh exec --list-validators
+
+# Execute a stored .xql/.xqm resource in place, rather than downloading it first
+exsh exec --resource mydata:/report.xql
+
+# ...forwarding query-string parameters as external variables
+exsh exec --resource mydata:/report.xql -p from=2026-01-01 -p to=2026-12-31
 
 # List documents containing a matching element anywhere in their tree
 exsh find mydata:reports --query 'foo[@type="draft"]'
