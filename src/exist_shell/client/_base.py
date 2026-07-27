@@ -6,7 +6,7 @@ from urllib.parse import quote
 import httpx
 
 from exist_shell.config import Server
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistServerError
 
 
 class ExistClientBase:
@@ -60,15 +60,34 @@ class ExistClientBase:
         Raises:
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
+            ExistServerError: If the server returns any other error status.
         """
         url = f"{self._base}/rest/db"
         try:
             r = self._http.get(url)
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
+        self._check_response(r)
+
+    def _check_response(self, r: httpx.Response, path: str | None = None) -> None:
+        """Raise a typed exception for a non-2xx eXist REST response.
+
+        Args:
+            r: The HTTP response to check.
+            path: The eXist path being accessed, used in the 404 message.
+                Falls back to the request URL when not given.
+
+        Raises:
+            ExistAuthError: If the response status is 401.
+            ExistNotFoundError: If the response status is 404.
+            ExistServerError: For any other non-2xx status.
+        """
         if r.status_code == 401:
-            raise ExistAuthError(url)
-        r.raise_for_status()
+            raise ExistAuthError(str(r.request.url))
+        if r.status_code == 404:
+            raise ExistNotFoundError(path if path is not None else str(r.request.url))
+        if r.is_error:
+            raise ExistServerError(r.status_code, r.text.strip())
 
     def close(self) -> None:
         """Close the underlying HTTP connection."""

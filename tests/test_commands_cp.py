@@ -60,6 +60,23 @@ def test_local_to_remote_unreadable_source_fails(config_with_collection, client_
     assert "cannot read" in result.output
 
 
+def test_local_to_remote_rejects_malformed_xml(config_with_collection, client_mock, tmp_path, runner):
+    f = tmp_path / "bad.xml"
+    f.write_bytes(b"<unclosed>")
+    result = runner.invoke(app, ["cp", str(f), "myapp:/bad.xml"])
+    assert result.exit_code == 1
+    assert "not well-formed XML" in result.output
+    client_mock.put_document.assert_not_called()
+
+
+def test_local_to_remote_non_xml_mime_skips_validation(config_with_collection, client_mock, tmp_path, runner):
+    f = tmp_path / "data.bin"
+    f.write_bytes(b"\x00\x01\x02not xml")
+    result = runner.invoke(app, ["cp", str(f), "myapp:/data.bin"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()
+
+
 # --- remote → local ---
 
 def test_remote_to_local_exact_path(config_with_collection, client_mock, xml_doc, tmp_path, runner):

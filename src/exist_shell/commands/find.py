@@ -5,7 +5,7 @@ import typer
 from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
-from exist_shell.exceptions import ExistNotFoundError, ExistQueryError
+from exist_shell.exceptions import ExistNotFoundError
 from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
 
 _QUERY_TIMEOUT = 120.0
@@ -38,31 +38,27 @@ def find(
     prefix = f"/db/{collection.name}"
     search_root = full_path.rstrip("/")
 
-    try:
-        with handle_exist_errors(path, nick, collection.server_nick):
-            with ExistClient(server, read_timeout=_QUERY_TIMEOUT) as client:
-                if not client.is_collection(search_root):
-                    typer.echo(f"Error: path '{path}' not found in collection '{nick}'.", err=True)
-                    raise typer.Exit(1)
-                matches = client.find_documents(full_path, query)
-                if not matches:
-                    return
-                if remove and not yes:
-                    typer.confirm(f"Delete {len(matches)} matching document(s)?", abort=True)
-                failures = 0
-                for doc_path in matches:
-                    if remove:
-                        try:
-                            client.delete_document(doc_path)
-                        except ExistNotFoundError:
-                            typer.echo(f"Warning: '{doc_path}' already gone, skipping.", err=True)
-                            failures += 1
-                            continue
-                    typer.echo(f"{nick}:{doc_path.removeprefix(prefix)}")
+    with handle_exist_errors(path, nick, collection.server_nick):
+        with ExistClient(server, read_timeout=_QUERY_TIMEOUT) as client:
+            if not client.is_collection(search_root):
+                typer.echo(f"Error: path '{path}' not found in collection '{nick}'.", err=True)
+                raise typer.Exit(1)
+            matches = client.find_documents(full_path, query)
+            if not matches:
+                return
+            if remove and not yes:
+                typer.confirm(f"Delete {len(matches)} matching document(s)?", abort=True)
+            failures = 0
+            for doc_path in matches:
                 if remove:
-                    invalidate(nick)
-                if failures:
-                    raise typer.Exit(1)
-    except ExistQueryError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+                    try:
+                        client.delete_document(doc_path)
+                    except ExistNotFoundError:
+                        typer.echo(f"Warning: '{doc_path}' already gone, skipping.", err=True)
+                        failures += 1
+                        continue
+                typer.echo(f"{nick}:{doc_path.removeprefix(prefix)}")
+            if remove:
+                invalidate(nick)
+            if failures:
+                raise typer.Exit(1)

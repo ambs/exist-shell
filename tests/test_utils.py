@@ -1,10 +1,13 @@
 """Tests for shared path validation and command utilities."""
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
+from exist_shell.exceptions import ExistAuthError, ExistNotFoundError, ExistQueryError, ExistServerError
 from exist_shell.utils import (
     check_xml_wellformed,
+    handle_exist_errors,
     is_remote,
     parse_target,
     parse_user_at_server,
@@ -181,3 +184,37 @@ def test_parse_user_at_server_at_only():
 
 def test_parse_user_at_server_multiple_at_uses_last():
     assert parse_user_at_server("a@b@prod") == ("a@b", "prod")
+
+
+# --- handle_exist_errors ---
+
+
+def test_handle_exist_errors_reports_not_found(capsys):
+    with pytest.raises(typer.Exit):
+        with handle_exist_errors("/doc.xml", "myapp", "prod"):
+            raise ExistNotFoundError("/doc.xml")
+    assert "not found in collection 'myapp'" in capsys.readouterr().err
+
+
+def test_handle_exist_errors_reports_auth_failure(capsys):
+    with pytest.raises(typer.Exit):
+        with handle_exist_errors("/doc.xml", "myapp", "prod"):
+            raise ExistAuthError("http://example.com")
+    assert "authentication failed for server 'prod'" in capsys.readouterr().err
+
+
+def test_handle_exist_errors_reports_server_error_instead_of_traceback(capsys):
+    """A 403 (or any other non-401/404 status) must exit cleanly, not raise."""
+    with pytest.raises(typer.Exit):
+        with handle_exist_errors("/doc.xml", "myapp", "prod"):
+            raise ExistServerError(403, "Permission denied")
+    err = capsys.readouterr().err
+    assert "403" in err
+    assert "Permission denied" in err
+
+
+def test_handle_exist_errors_reports_query_error(capsys):
+    with pytest.raises(typer.Exit):
+        with handle_exist_errors("/doc.xml", "myapp", "prod"):
+            raise ExistQueryError("bad syntax")
+    assert "XQuery error: bad syntax" in capsys.readouterr().err

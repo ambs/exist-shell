@@ -7,7 +7,7 @@ import typer
 from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
-from exist_shell.utils import guess_mime, handle_exist_errors, is_remote, parse_target, resolve_collection
+from exist_shell.utils import check_xml_wellformed, guess_mime, handle_exist_errors, is_remote, parse_target, resolve_collection
 
 
 def _remote_dest(path: str, source_name: str) -> str:
@@ -56,6 +56,10 @@ def _local_to_remote(source: str, target: str) -> None:
         raise typer.Exit(1)
 
     mime_type = guess_mime(src_path)
+
+    if xml_error := check_xml_wellformed(content, mime_type):
+        typer.echo(f"Error: '{source}' is not well-formed XML: {xml_error}", err=True)
+        raise typer.Exit(1)
 
     nick, tgt_path = parse_target(target)
     dest_path = _remote_dest(tgt_path, src_path.name)
