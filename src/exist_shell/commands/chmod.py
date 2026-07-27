@@ -7,7 +7,6 @@ import typer
 
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
-from exist_shell.exceptions import ExistQueryError
 from exist_shell.models import CollectionEntry
 from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
 
@@ -215,22 +214,18 @@ def chmod(
     nick, path = parse_target(target, path_required=False)
     collection, server, full_path = resolve_collection(nick, path)
 
-    try:
-        with handle_exist_errors(path, nick, collection.server_nick):
-            with ExistClient(server) as client:
-                if recursive:
-                    if not client.is_collection(full_path):
-                        typer.echo(
-                            f"Error: '{path}' is not a collection. "
-                            "Omit -R to chmod a single document.",
-                            err=True,
-                        )
-                        raise typer.Exit(1)
-                    count = _chmod_tree(client, full_path, mode_spec)
-                    typer.echo(f"Permissions of '{path}' updated ({count} items).")
-                else:
-                    client.chmod_resource(full_path, _resolve_mode(client, full_path, mode_spec))
-                    typer.echo(f"Permissions of '{path}' updated.")
-    except ExistQueryError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+    with handle_exist_errors(path, nick, collection.server_nick):
+        with ExistClient(server) as client:
+            if recursive:
+                if not client.is_collection(full_path):
+                    typer.echo(
+                        f"Error: '{path}' is not a collection. "
+                        "Omit -R to chmod a single document.",
+                        err=True,
+                    )
+                    raise typer.Exit(1)
+                count = _chmod_tree(client, full_path, mode_spec)
+                typer.echo(f"Permissions of '{path}' updated ({count} items).")
+            else:
+                client.chmod_resource(full_path, _resolve_mode(client, full_path, mode_spec))
+                typer.echo(f"Permissions of '{path}' updated.")

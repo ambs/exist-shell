@@ -6,7 +6,6 @@ from pathlib import Path
 import typer
 
 from exist_shell.client import ExistClient
-from exist_shell.exceptions import ExistQueryError
 from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
 from exist_shell.xquery import list_validators, preprocess, validate_locally
 
@@ -54,12 +53,8 @@ def exec(
             typer.echo(f"Error: {result.error}", err=True)
             raise typer.Exit(1)
 
-    try:
-        with handle_exist_errors(path, nick, collection.server_nick):
-            with ExistClient(server) as client:
-                output = client.execute_query(code, context=full_path)
-    except ExistQueryError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+    with handle_exist_errors(path, nick, collection.server_nick):
+        with ExistClient(server) as client:
+            output = client.execute_query(code, context=full_path)
 
     typer.echo(output, nl=False)

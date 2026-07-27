@@ -74,3 +74,22 @@ class ExistQueryError(ExistError):
         """Initialize with the server-provided error detail."""
         super().__init__(f"XQuery error: {detail}")
         self.detail = detail
+
+
+class ExistServerError(ExistError):
+    """Raised for any HTTP error status not covered by a more specific exception.
+
+    Catches statuses such as 403 Forbidden that would otherwise fall through
+    to a raw ``httpx.HTTPStatusError`` traceback.
+
+    Attributes:
+        detail: The response body returned by the server, if any.
+    """
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        """Initialize with the HTTP status code and response body."""
+        message = f"Server returned HTTP {status_code}"
+        if detail:
+            message += f": {detail}"
+        super().__init__(message, status_code=status_code)
+        self.detail = detail

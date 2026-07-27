@@ -51,17 +51,14 @@ class CollectionMixin(QueryMixin):
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the path does not exist.
+            ExistServerError: If the server returns any other error status.
         """
         url = self._url(path)
         try:
             r = self._http.get(url)
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
-        if r.status_code == 401:
-            raise ExistAuthError(url)
-        if r.status_code == 404:
-            raise ExistNotFoundError(path)
-        r.raise_for_status()
+        self._check_response(r, path)
         items: list[CollectionItem] = []
         root = ET.fromstring(r.text)
         col = root.find(f"{{{_EXIST_NS}}}collection")
@@ -182,17 +179,14 @@ class CollectionMixin(QueryMixin):
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the path does not exist.
+            ExistServerError: If the server returns any other error status.
         """
         url = self._url(path)
         try:
             r = self._http.delete(url)
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
-        if r.status_code == 401:
-            raise ExistAuthError(url)
-        if r.status_code == 404:
-            raise ExistNotFoundError(path)
-        r.raise_for_status()
+        self._check_response(r, path)
 
     def is_collection(self, path: str) -> bool:
         """Return True if path is an existing collection, False if it is a document or absent.

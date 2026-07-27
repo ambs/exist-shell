@@ -9,7 +9,7 @@ from pathlib import Path
 import typer
 
 from exist_shell.config import Collection, Config, Server
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistError, ExistNotFoundError
 
 
 def xq_escape(value: str) -> str:
@@ -195,5 +195,8 @@ def handle_exist_errors(path: str, nick: str, server_nick: str) -> Generator[Non
         typer.echo(f"Error: authentication failed for server '{server_nick}'.", err=True)
         raise typer.Exit(1)
     except ExistConnectionError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+    except ExistError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)

@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 import httpx
 
 from exist_shell.client._queries import QueryMixin
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistQueryError
+from exist_shell.exceptions import ExistConnectionError, ExistNotFoundError, ExistQueryError
 from exist_shell.models import DocumentResult
 from exist_shell.utils import xq_escape
 
@@ -32,6 +32,7 @@ class DocumentMixin(QueryMixin):
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the path does not exist.
+            ExistServerError: If the server returns any other error status.
         """
         if PurePosixPath(path).suffix.lower() in _EXECUTABLE_EXTENSIONS:
             return self._get_executable_document(path)
@@ -41,11 +42,7 @@ class DocumentMixin(QueryMixin):
             r = self._http.get(url)
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
-        if r.status_code == 401:
-            raise ExistAuthError(url)
-        if r.status_code == 404:
-            raise ExistNotFoundError(path)
-        r.raise_for_status()
+        self._check_response(r, path)
         mime_type = r.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
         return DocumentResult(content=r.content, mime_type=mime_type)
 
@@ -97,17 +94,14 @@ class DocumentMixin(QueryMixin):
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the parent collection does not exist.
+            ExistServerError: If the server returns any other error status.
         """
         url = self._url(path)
         try:
             r = self._http.put(url, content=content, headers={"Content-Type": mime_type})
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
-        if r.status_code == 401:
-            raise ExistAuthError(url)
-        if r.status_code == 404:
-            raise ExistNotFoundError(path)
-        r.raise_for_status()
+        self._check_response(r, path)
 
     def delete_document(self, path: str) -> None:
         """Delete a document at the given eXist path.
@@ -119,17 +113,14 @@ class DocumentMixin(QueryMixin):
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
             ExistNotFoundError: If the path does not exist.
+            ExistServerError: If the server returns any other error status.
         """
         url = self._url(path)
         try:
             r = self._http.delete(url)
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
-        if r.status_code == 401:
-            raise ExistAuthError(url)
-        if r.status_code == 404:
-            raise ExistNotFoundError(path)
-        r.raise_for_status()
+        self._check_response(r, path)
 
     def move_document(self, src_path: str, dst_path: str) -> None:
         """Move or rename a single document using XQuery.

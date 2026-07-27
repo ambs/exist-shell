@@ -3,7 +3,7 @@
 import httpx
 
 from exist_shell.client._base import ExistClientBase
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistQueryError
+from exist_shell.exceptions import ExistConnectionError, ExistQueryError
 from exist_shell.utils import xq_escape
 
 
@@ -24,17 +24,16 @@ class QueryMixin(ExistClientBase):
             ExistConnectionError: If the server cannot be reached.
             ExistAuthError: If the server returns HTTP 401.
             ExistQueryError: If the server returns HTTP 400 or 500 (query error).
+            ExistServerError: If the server returns any other error status.
         """
         url = self._url(context)
         try:
             r = self._http.post(url, data={"_query": query, "_wrap": "no"})
         except httpx.RequestError as e:
             raise ExistConnectionError(url, e) from e
-        if r.status_code == 401:
-            raise ExistAuthError(url)
         if r.status_code in (400, 500):
             raise ExistQueryError(r.text.strip())
-        r.raise_for_status()
+        self._check_response(r)
         return r.text
 
     def find_documents(self, path: str, expression: str) -> list[str]:
