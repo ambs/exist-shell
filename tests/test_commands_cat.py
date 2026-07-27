@@ -18,6 +18,7 @@ def client_mock(monkeypatch):
 
 
 def test_cat_prints_text(config_with_collection, client_mock, runner):
+    """Cat prints text."""
     client_mock.get_document.return_value = DocumentResult(
         content=b"<root/>", mime_type="application/xml"
     )
@@ -27,6 +28,7 @@ def test_cat_prints_text(config_with_collection, client_mock, runner):
 
 
 def test_cat_prints_xquery_source(config_with_collection, client_mock, runner):
+    """Cat prints xquery source."""
     client_mock.get_document.return_value = DocumentResult(
         content=b'xquery version "3.1"; <root/>', mime_type="application/xquery"
     )
@@ -36,6 +38,7 @@ def test_cat_prints_xquery_source(config_with_collection, client_mock, runner):
 
 
 def test_cat_binary_without_raw_fails(config_with_collection, client_mock, runner):
+    """Cat binary without raw fails."""
     client_mock.get_document.return_value = DocumentResult(
         content=b"\x00\x01\x02", mime_type="application/octet-stream"
     )
@@ -45,6 +48,7 @@ def test_cat_binary_without_raw_fails(config_with_collection, client_mock, runne
 
 
 def test_cat_binary_with_raw_succeeds(config_with_collection, client_mock, runner):
+    """Cat binary with raw succeeds."""
     client_mock.get_document.return_value = DocumentResult(
         content=b"\x00\x01\x02", mime_type="application/octet-stream"
     )
@@ -53,18 +57,21 @@ def test_cat_binary_with_raw_succeeds(config_with_collection, client_mock, runne
 
 
 def test_cat_missing_path_fails(config_with_collection, client_mock, runner):
+    """Cat missing path fails."""
     result = runner.invoke(app, ["cat", "myapp"])
     assert result.exit_code == 1
     assert "path is required" in result.output
 
 
 def test_cat_unknown_collection_fails(config_path, client_mock, runner):
+    """Cat unknown collection fails."""
     result = runner.invoke(app, ["cat", "ghost:/doc.xml"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_cat_not_found_fails(config_with_collection, client_mock, runner):
+    """Cat not found fails."""
     client_mock.get_document.side_effect = ExistNotFoundError("/db/myapp/missing.xml")
     result = runner.invoke(app, ["cat", "myapp:/missing.xml"])
     assert result.exit_code == 1
@@ -72,6 +79,7 @@ def test_cat_not_found_fails(config_with_collection, client_mock, runner):
 
 
 def test_cat_auth_error_fails(config_with_collection, client_mock, runner):
+    """Cat auth error fails."""
     client_mock.get_document.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["cat", "myapp:/doc.xml"])
     assert result.exit_code == 1
@@ -79,12 +87,14 @@ def test_cat_auth_error_fails(config_with_collection, client_mock, runner):
 
 
 def test_cat_connection_error_fails(config_with_collection, client_mock, runner):
+    """Cat connection error fails."""
     client_mock.get_document.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["cat", "myapp:/doc.xml"])
     assert result.exit_code == 1
 
 
 def test_cat_rejects_path_traversal(config_with_collection, client_mock, runner):
+    """Cat rejects path traversal."""
     result = runner.invoke(app, ["cat", "myapp:/../other/secret.xml"])
     assert result.exit_code == 1
     assert "traversal" in result.output

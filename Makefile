@@ -9,7 +9,7 @@ test: ## Run tests
 	uv run pytest
 
 ruff: ## Lint with ruff
-	uv run ruff check src/
+	uv run ruff check src/ tests/
 
 ty: ## Type-check with ty
 	uv run ty check src/ tests/

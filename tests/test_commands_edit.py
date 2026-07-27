@@ -51,6 +51,7 @@ def _editor_fails():
 # --- happy path ---
 
 def test_edit_uploads_changes(config_with_collection, client_mock, xml_doc, runner, monkeypatch):
+    """Edit uploads changes."""
     client_mock.get_document.return_value = xml_doc
     monkeypatch.setenv("VISUAL", "vi")
     with patch("exist_shell.commands.edit.subprocess.run", side_effect=_editor_that_writes(b"<modified/>")):
@@ -62,6 +63,7 @@ def test_edit_uploads_changes(config_with_collection, client_mock, xml_doc, runn
 
 
 def test_edit_skips_upload_when_unchanged(config_with_collection, client_mock, xml_doc, runner, monkeypatch):
+    """Edit skips upload when unchanged."""
     client_mock.get_document.return_value = xml_doc
     monkeypatch.setenv("VISUAL", "vi")
     with patch("exist_shell.commands.edit.subprocess.run", side_effect=_editor_noop()):
@@ -72,6 +74,7 @@ def test_edit_skips_upload_when_unchanged(config_with_collection, client_mock, x
 
 
 def test_edit_temp_file_has_correct_suffix(config_with_collection, client_mock, xml_doc, runner, monkeypatch):
+    """Edit temp file has correct suffix."""
     client_mock.get_document.return_value = xml_doc
     monkeypatch.setenv("VISUAL", "vi")
     seen_suffix = []
@@ -86,6 +89,7 @@ def test_edit_temp_file_has_correct_suffix(config_with_collection, client_mock, 
 
 
 def test_edit_uses_visual_env(config_with_collection, client_mock, xml_doc, runner, monkeypatch):
+    """Edit uses visual env."""
     client_mock.get_document.return_value = xml_doc
     monkeypatch.setenv("VISUAL", "myeditor")
     seen_cmd = []
@@ -100,6 +104,7 @@ def test_edit_uses_visual_env(config_with_collection, client_mock, xml_doc, runn
 
 
 def test_edit_falls_back_to_editor_env(config_with_collection, client_mock, xml_doc, runner, monkeypatch):
+    """Edit falls back to editor env."""
     client_mock.get_document.return_value = xml_doc
     monkeypatch.delenv("VISUAL", raising=False)
     monkeypatch.setenv("EDITOR", "nano")
@@ -115,6 +120,7 @@ def test_edit_falls_back_to_editor_env(config_with_collection, client_mock, xml_
 
 
 def test_find_editor_falls_back_to_notepad_on_windows(monkeypatch):
+    """Find editor falls back to notepad on windows."""
     from exist_shell.commands.edit import _find_editor
 
     monkeypatch.delenv("VISUAL", raising=False)
@@ -126,6 +132,7 @@ def test_find_editor_falls_back_to_notepad_on_windows(monkeypatch):
 # --- error paths ---
 
 def test_edit_editor_nonzero_exit_fails(config_with_collection, client_mock, xml_doc, runner, monkeypatch):
+    """Edit editor nonzero exit fails."""
     client_mock.get_document.return_value = xml_doc
     monkeypatch.setenv("VISUAL", "vi")
     with patch("exist_shell.commands.edit.subprocess.run", side_effect=_editor_fails()):
@@ -136,24 +143,28 @@ def test_edit_editor_nonzero_exit_fails(config_with_collection, client_mock, xml
 
 
 def test_edit_missing_path_fails(config_with_collection, client_mock, runner):
+    """Edit missing path fails."""
     result = runner.invoke(app, ["edit", "myapp"])
     assert result.exit_code == 1
     assert "path is required" in result.output
 
 
 def test_edit_unknown_collection_fails(config_path, client_mock, runner):
+    """Edit unknown collection fails."""
     result = runner.invoke(app, ["edit", "ghost:/doc.xml"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_edit_rejects_path_traversal(config_with_collection, client_mock, runner):
+    """Edit rejects path traversal."""
     result = runner.invoke(app, ["edit", "myapp:/../other/secret.xml"])
     assert result.exit_code == 1
     assert "traversal" in result.output
 
 
 def test_edit_not_found_fails(config_with_collection, client_mock, runner):
+    """Edit not found fails."""
     client_mock.get_document.side_effect = ExistNotFoundError("/db/myapp/missing.xml")
     result = runner.invoke(app, ["edit", "myapp:/missing.xml"])
     assert result.exit_code == 1
@@ -161,6 +172,7 @@ def test_edit_not_found_fails(config_with_collection, client_mock, runner):
 
 
 def test_edit_auth_error_on_get_fails(config_with_collection, client_mock, runner):
+    """Edit auth error on get fails."""
     client_mock.get_document.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["edit", "myapp:/doc.xml"])
     assert result.exit_code == 1
@@ -168,12 +180,14 @@ def test_edit_auth_error_on_get_fails(config_with_collection, client_mock, runne
 
 
 def test_edit_connection_error_on_get_fails(config_with_collection, client_mock, runner):
+    """Edit connection error on get fails."""
     client_mock.get_document.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["edit", "myapp:/doc.xml"])
     assert result.exit_code == 1
 
 
 def test_edit_auth_error_on_put_fails(config_with_collection, client_mock, xml_doc, runner, monkeypatch):
+    """Edit auth error on put fails."""
     client_mock.get_document.return_value = xml_doc
     client_mock.put_document.side_effect = ExistAuthError("url")
     monkeypatch.setenv("VISUAL", "vi")

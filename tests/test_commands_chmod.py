@@ -38,34 +38,42 @@ def config_with_collection(config_path, a_server):
 
 
 def test_is_octal_mode_four_digits_with_leading_zero():
+    """Is octal mode four digits with leading zero."""
     assert _is_octal_mode("0755") is True
 
 
 def test_is_octal_mode_three_digits():
+    """Is octal mode three digits."""
     assert _is_octal_mode("755") is True
 
 
 def test_is_octal_mode_one_digit():
+    """Is octal mode one digit."""
     assert _is_octal_mode("7") is True
 
 
 def test_is_octal_mode_four_digits_no_leading_zero():
+    """Is octal mode four digits no leading zero."""
     assert _is_octal_mode("4755") is True
 
 
 def test_is_octal_mode_rejects_invalid_digit():
+    """Is octal mode rejects invalid digit."""
     assert _is_octal_mode("0888") is False
 
 
 def test_is_octal_mode_rejects_symbolic():
+    """Is octal mode rejects symbolic."""
     assert _is_octal_mode("u+x") is False
 
 
 def test_is_octal_mode_rejects_empty():
+    """Is octal mode rejects empty."""
     assert _is_octal_mode("") is False
 
 
 def test_is_octal_mode_rejects_too_many_digits():
+    """Is octal mode rejects too many digits."""
     assert _is_octal_mode("077777") is False
 
 
@@ -75,18 +83,22 @@ def test_is_octal_mode_rejects_too_many_digits():
 
 
 def test_parse_octal_mode_0755():
+    """Parse octal mode 0755."""
     assert _parse_octal_mode("0755") == 0o755
 
 
 def test_parse_octal_mode_644():
+    """Parse octal mode 644."""
     assert _parse_octal_mode("644") == 0o644
 
 
 def test_parse_octal_mode_zero():
+    """Parse octal mode zero."""
     assert _parse_octal_mode("0") == 0
 
 
 def test_parse_octal_mode_4755():
+    """Parse octal mode 4755."""
     assert _parse_octal_mode("4755") == 0o4755
 
 
@@ -96,36 +108,43 @@ def test_parse_octal_mode_4755():
 
 
 def test_symbolic_add_user_execute():
+    """Symbolic add user execute."""
     # rw-r--r-- = 0o644; u+x → rwxr--r-- = 0o744
     assert _apply_symbolic_mode("u+x", 0o644) == 0o744
 
 
 def test_symbolic_remove_group_other_write():
+    """Symbolic remove group other write."""
     # rwxrwxrwx = 0o777; go-w → rwxr-xr-x = 0o755
     assert _apply_symbolic_mode("go-w", 0o777) == 0o755
 
 
 def test_symbolic_set_all_read_write():
+    """Symbolic set all read write."""
     # 0o755; a=rw → rw-rw-rw- = 0o666
     assert _apply_symbolic_mode("a=rw", 0o755) == 0o666
 
 
 def test_symbolic_set_user_rwx_group_rx_other_rx():
+    """Symbolic set user rwx group rx other rx."""
     # 0o000; u=rwx,go=rx → rwxr-xr-x = 0o755
     assert _apply_symbolic_mode("u=rwx,go=rx", 0o000) == 0o755
 
 
 def test_symbolic_empty_who_defaults_to_all():
+    """Symbolic empty who defaults to all."""
     # =r on 0o777 → r--r--r-- = 0o444
     assert _apply_symbolic_mode("=r", 0o777) == 0o444
 
 
 def test_symbolic_no_perms_add_is_noop():
+    """Symbolic no perms add is noop."""
     # u+ with no perms: no change
     assert _apply_symbolic_mode("u+", 0o644) == 0o644
 
 
 def test_symbolic_multiple_clauses():
+    """Symbolic multiple clauses."""
     # u+x,g-w on rw-rw-rw- = 0o666 → rwx-w-rw- = 0o626... wait
     # 0o666 = rw-rw-rw-; u+x → rwxrw-rw- = 0o766... wait
     # Actually u+x on 0o666: add bit 0o100 → 0o766
@@ -134,27 +153,32 @@ def test_symbolic_multiple_clauses():
 
 
 def test_symbolic_setuid():
+    """Symbolic setuid."""
     # u+s on 0o755 → 0o4755
     assert _apply_symbolic_mode("u+s", 0o755) == 0o4755
 
 
 def test_symbolic_sticky():
+    """Symbolic sticky."""
     # o+t on 0o755 → 0o1755
     assert _apply_symbolic_mode("o+t", 0o755) == 0o1755
 
 
 def test_symbolic_clear_setuid():
+    """Symbolic clear setuid."""
     # u-s on 0o4755 → 0o755
     assert _apply_symbolic_mode("u-s", 0o4755) == 0o755
 
 
 def test_symbolic_equals_clears_special_bits():
+    """Symbolic equals clears special bits."""
     # u=rw on 0o4755 (setuid set): u= clears setuid too → 0o655 (rw-r-xr-x)
     # 0o4755 = rwsr-xr-x; u=rw → rw-r-xr-x = 0o655 (setuid gone)
     assert _apply_symbolic_mode("u=rw", 0o4755) == 0o655
 
 
 def test_symbolic_raises_on_invalid_clause():
+    """Symbolic raises on invalid clause."""
     with pytest.raises(ValueError, match="invalid symbolic mode clause"):
         _apply_symbolic_mode("u&x", 0o644)
 
@@ -165,6 +189,7 @@ def test_symbolic_raises_on_invalid_clause():
 
 
 def test_chmod_octal_document(config_with_collection, client_mock, runner):
+    """Chmod octal document."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["chmod", "0644", "myapp:/doc.xml"])
     assert result.exit_code == 0
@@ -174,6 +199,7 @@ def test_chmod_octal_document(config_with_collection, client_mock, runner):
 
 
 def test_chmod_octal_without_leading_zero(config_with_collection, client_mock, runner):
+    """Chmod octal without leading zero."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["chmod", "755", "myapp:/doc.xml"])
     assert result.exit_code == 0
@@ -181,6 +207,7 @@ def test_chmod_octal_without_leading_zero(config_with_collection, client_mock, r
 
 
 def test_chmod_octal_collection_root(config_with_collection, client_mock, runner):
+    """Chmod octal collection root."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["chmod", "0755", "myapp:"])
     assert result.exit_code == 0
@@ -198,6 +225,7 @@ def test_chmod_symbolic_add_execute(config_with_collection, client_mock, runner)
 
 
 def test_chmod_symbolic_remove_write(config_with_collection, client_mock, runner):
+    """Chmod symbolic remove write."""
     client_mock.get_permissions.return_value = 0o777
     result = runner.invoke(app, ["chmod", "go-w", "myapp:/doc.xml"])
     assert result.exit_code == 0
@@ -205,6 +233,7 @@ def test_chmod_symbolic_remove_write(config_with_collection, client_mock, runner
 
 
 def test_chmod_symbolic_set_all(config_with_collection, client_mock, runner):
+    """Chmod symbolic set all."""
     client_mock.get_permissions.return_value = 0o755
     result = runner.invoke(app, ["chmod", "a=rw", "myapp:/doc.xml"])
     assert result.exit_code == 0
@@ -217,6 +246,7 @@ def test_chmod_symbolic_set_all(config_with_collection, client_mock, runner):
 
 
 def test_chmod_recursive_single_level(config_with_collection, client_mock, runner):
+    """Chmod recursive single level."""
     client_mock.is_collection.return_value = True
     client_mock.list_collection.return_value = [
         ResourceEntry(name="a.xml"),
@@ -231,6 +261,7 @@ def test_chmod_recursive_single_level(config_with_collection, client_mock, runne
 
 
 def test_chmod_recursive_nested(config_with_collection, client_mock, runner):
+    """Chmod recursive nested."""
     client_mock.is_collection.return_value = True
     sub = CollectionEntry(name="sub")
 
@@ -265,6 +296,7 @@ def test_chmod_recursive_symbolic_calls_get_permissions_per_item(
 
 
 def test_chmod_recursive_on_non_collection_fails(config_with_collection, client_mock, runner):
+    """Chmod recursive on non collection fails."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["chmod", "-R", "0644", "myapp:/doc.xml"])
     assert result.exit_code == 1
@@ -278,6 +310,7 @@ def test_chmod_recursive_on_non_collection_fails(config_with_collection, client_
 
 
 def test_chmod_invalid_mode_exits(config_with_collection, client_mock, runner):
+    """Chmod invalid mode exits."""
     result = runner.invoke(app, ["chmod", "0999", "myapp:/doc.xml"])
     assert result.exit_code == 1
     assert "invalid mode" in result.output
@@ -285,12 +318,14 @@ def test_chmod_invalid_mode_exits(config_with_collection, client_mock, runner):
 
 
 def test_chmod_garbage_mode_exits(config_with_collection, client_mock, runner):
+    """Chmod garbage mode exits."""
     result = runner.invoke(app, ["chmod", "hello!", "myapp:/doc.xml"])
     assert result.exit_code == 1
     assert "invalid mode" in result.output
 
 
 def test_chmod_unknown_collection_fails(config_with_collection, client_mock, runner):
+    """Chmod unknown collection fails."""
     result = runner.invoke(app, ["chmod", "0644", "ghost:/doc.xml"])
     assert result.exit_code == 1
     assert "collection 'ghost' not found" in result.output
@@ -302,6 +337,7 @@ def test_chmod_unknown_collection_fails(config_with_collection, client_mock, run
 
 
 def test_chmod_query_error(config_with_collection, client_mock, runner):
+    """Chmod query error."""
     client_mock.chmod_resource.side_effect = ExistQueryError("Permission denied")
     result = runner.invoke(app, ["chmod", "0644", "myapp:/doc.xml"])
     assert result.exit_code == 1
@@ -309,6 +345,7 @@ def test_chmod_query_error(config_with_collection, client_mock, runner):
 
 
 def test_chmod_auth_error(config_with_collection, client_mock, runner):
+    """Chmod auth error."""
     client_mock.chmod_resource.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["chmod", "0644", "myapp:/doc.xml"])
     assert result.exit_code == 1
@@ -316,6 +353,7 @@ def test_chmod_auth_error(config_with_collection, client_mock, runner):
 
 
 def test_chmod_connection_error(config_with_collection, client_mock, runner):
+    """Chmod connection error."""
     client_mock.chmod_resource.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["chmod", "0644", "myapp:/doc.xml"])
     assert result.exit_code == 1

@@ -27,6 +27,7 @@ def xml_doc():
 # --- local → remote ---
 
 def test_local_to_remote_exact_path(config_with_collection, client_mock, tmp_path, runner):
+    """Local to remote exact path."""
     f = tmp_path / "doc.xml"
     f.write_bytes(b"<root/>")
     result = runner.invoke(app, ["cp", str(f), "myapp:/docs/doc.xml"])
@@ -37,6 +38,7 @@ def test_local_to_remote_exact_path(config_with_collection, client_mock, tmp_pat
 
 
 def test_local_to_remote_into_directory(config_with_collection, client_mock, tmp_path, runner):
+    """Local to remote into directory."""
     f = tmp_path / "doc.xml"
     f.write_bytes(b"<root/>")
     result = runner.invoke(app, ["cp", str(f), "myapp:/docs/"])
@@ -46,6 +48,7 @@ def test_local_to_remote_into_directory(config_with_collection, client_mock, tmp
 
 
 def test_local_to_remote_guesses_mime(config_with_collection, client_mock, tmp_path, runner):
+    """Local to remote guesses mime."""
     f = tmp_path / "image.png"
     f.write_bytes(b"\x89PNG")
     result = runner.invoke(app, ["cp", str(f), "myapp:/images/image.png"])
@@ -55,6 +58,7 @@ def test_local_to_remote_guesses_mime(config_with_collection, client_mock, tmp_p
 
 
 def test_local_to_remote_unreadable_source_fails(config_with_collection, client_mock, runner):
+    """Local to remote unreadable source fails."""
     result = runner.invoke(app, ["cp", "/nonexistent/file.xml", "myapp:/doc.xml"])
     assert result.exit_code == 1
     assert "cannot read" in result.output
@@ -80,6 +84,7 @@ def test_local_to_remote_non_xml_mime_skips_validation(config_with_collection, c
 # --- remote → local ---
 
 def test_remote_to_local_exact_path(config_with_collection, client_mock, xml_doc, tmp_path, runner):
+    """Remote to local exact path."""
     client_mock.get_document.return_value = xml_doc
     dest = tmp_path / "out.xml"
     result = runner.invoke(app, ["cp", "myapp:/docs/doc.xml", str(dest)])
@@ -88,6 +93,7 @@ def test_remote_to_local_exact_path(config_with_collection, client_mock, xml_doc
 
 
 def test_remote_to_local_into_directory(config_with_collection, client_mock, xml_doc, tmp_path, runner):
+    """Remote to local into directory."""
     client_mock.get_document.return_value = xml_doc
     result = runner.invoke(app, ["cp", "myapp:/docs/doc.xml", str(tmp_path)])
     assert result.exit_code == 0
@@ -95,6 +101,7 @@ def test_remote_to_local_into_directory(config_with_collection, client_mock, xml
 
 
 def test_remote_to_local_not_found_fails(config_with_collection, client_mock, tmp_path, runner):
+    """Remote to local not found fails."""
     client_mock.get_document.side_effect = ExistNotFoundError("/db/myapp/missing.xml")
     result = runner.invoke(app, ["cp", "myapp:/missing.xml", str(tmp_path)])
     assert result.exit_code == 1
@@ -104,6 +111,7 @@ def test_remote_to_local_not_found_fails(config_with_collection, client_mock, tm
 # --- remote → remote ---
 
 def test_remote_to_remote_exact_path(config_with_collection, client_mock, xml_doc, runner):
+    """Remote to remote exact path."""
     client_mock.get_document.return_value = xml_doc
     result = runner.invoke(app, ["cp", "myapp:/src/doc.xml", "myapp:/dst/doc.xml"])
     assert result.exit_code == 0
@@ -113,6 +121,7 @@ def test_remote_to_remote_exact_path(config_with_collection, client_mock, xml_do
 
 
 def test_remote_to_remote_into_directory(config_with_collection, client_mock, xml_doc, runner):
+    """Remote to remote into directory."""
     client_mock.get_document.return_value = xml_doc
     result = runner.invoke(app, ["cp", "myapp:/src/doc.xml", "myapp:/dst/"])
     assert result.exit_code == 0
@@ -121,6 +130,7 @@ def test_remote_to_remote_into_directory(config_with_collection, client_mock, xm
 
 
 def test_remote_to_remote_preserves_mime(config_with_collection, client_mock, runner):
+    """Remote to remote preserves mime."""
     client_mock.get_document.return_value = DocumentResult(
         content=b"\x89PNG", mime_type="image/png"
     )
@@ -131,6 +141,7 @@ def test_remote_to_remote_preserves_mime(config_with_collection, client_mock, ru
 
 
 def test_remote_to_remote_auth_error_on_get_fails(config_with_collection, client_mock, runner):
+    """Remote to remote auth error on get fails."""
     client_mock.get_document.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["cp", "myapp:/src/doc.xml", "myapp:/dst/doc.xml"])
     assert result.exit_code == 1
@@ -138,6 +149,7 @@ def test_remote_to_remote_auth_error_on_get_fails(config_with_collection, client
 
 
 def test_remote_to_remote_connection_error_on_put_fails(config_with_collection, client_mock, xml_doc, runner):
+    """Remote to remote connection error on put fails."""
     client_mock.get_document.return_value = xml_doc
     client_mock.put_document.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["cp", "myapp:/src/doc.xml", "myapp:/dst/doc.xml"])
@@ -147,6 +159,7 @@ def test_remote_to_remote_connection_error_on_put_fails(config_with_collection, 
 # --- both local ---
 
 def test_both_local_fails(config_path, runner):
+    """Both local fails."""
     result = runner.invoke(app, ["cp", "/local/src.xml", "/local/dst.xml"])
     assert result.exit_code == 1
     assert "remote" in result.output
@@ -155,12 +168,14 @@ def test_both_local_fails(config_path, runner):
 # --- path validation ---
 
 def test_cp_rejects_traversal_in_source(config_with_collection, client_mock, runner):
+    """Cp rejects traversal in source."""
     result = runner.invoke(app, ["cp", "myapp:/../other.xml", "myapp:/dst.xml"])
     assert result.exit_code == 1
     assert "traversal" in result.output
 
 
 def test_cp_rejects_traversal_in_target(config_with_collection, client_mock, xml_doc, runner):
+    """Cp rejects traversal in target."""
     client_mock.get_document.return_value = xml_doc
     result = runner.invoke(app, ["cp", "myapp:/src.xml", "myapp:/../other.xml"])
     assert result.exit_code == 1

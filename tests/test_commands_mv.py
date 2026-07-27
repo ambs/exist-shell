@@ -33,6 +33,7 @@ def config_two_servers(config_path):
 # ---------------------------------------------------------------------------
 
 def test_mv_document_rename_same_collection(config_with_collection, client_mock, runner):
+    """Mv document rename same collection."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["mv", "myapp:/docs/old.xml", "myapp:/docs/new.xml"])
     assert result.exit_code == 0
@@ -42,6 +43,7 @@ def test_mv_document_rename_same_collection(config_with_collection, client_mock,
 
 
 def test_mv_document_move_to_different_collection(config_with_collection, client_mock, runner):
+    """Mv document move to different collection."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["mv", "myapp:/src/doc.xml", "myapp:/dst/doc.xml"])
     assert result.exit_code == 0
@@ -51,6 +53,7 @@ def test_mv_document_move_to_different_collection(config_with_collection, client
 
 
 def test_mv_document_into_collection_trailing_slash(config_with_collection, client_mock, runner):
+    """Mv document into collection trailing slash."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["mv", "myapp:/doc.xml", "myapp:/archive/"])
     assert result.exit_code == 0
@@ -60,6 +63,7 @@ def test_mv_document_into_collection_trailing_slash(config_with_collection, clie
 
 
 def test_mv_document_at_root_path(config_with_collection, client_mock, runner):
+    """Mv document at root path."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["mv", "myapp:/a.xml", "myapp:/b.xml"])
     assert result.exit_code == 0
@@ -73,6 +77,7 @@ def test_mv_document_at_root_path(config_with_collection, client_mock, runner):
 # ---------------------------------------------------------------------------
 
 def test_mv_collection_rename(config_with_collection, client_mock, runner):
+    """Mv collection rename."""
     client_mock.is_collection.return_value = True
     client_mock.list_collection.return_value = []
     result = runner.invoke(app, ["mv", "myapp:/old_col", "myapp:/new_col"])
@@ -82,6 +87,7 @@ def test_mv_collection_rename(config_with_collection, client_mock, runner):
 
 
 def test_mv_collection_into_parent(config_with_collection, client_mock, runner):
+    """Mv collection into parent."""
     client_mock.is_collection.return_value = True
     client_mock.list_collection.return_value = []
     result = runner.invoke(app, ["mv", "myapp:/sub", "myapp:/parent/"])
@@ -91,6 +97,7 @@ def test_mv_collection_into_parent(config_with_collection, client_mock, runner):
 
 
 def test_mv_collection_with_documents_copies_then_deletes(config_with_collection, client_mock, runner):
+    """Mv collection with documents copies then deletes."""
     from exist_shell.models import DocumentResult, ResourceEntry
 
     client_mock.is_collection.return_value = True
@@ -126,6 +133,7 @@ def test_mv_collection_uploads_before_deleting(config_with_collection, client_mo
 
 
 def test_mv_collection_with_subcollections(config_with_collection, client_mock, runner):
+    """Mv collection with subcollections."""
     from exist_shell.models import CollectionEntry, DocumentResult, ResourceEntry
 
     client_mock.is_collection.return_value = True
@@ -151,6 +159,7 @@ def test_mv_collection_with_subcollections(config_with_collection, client_mock, 
 
 
 def test_mv_empty_collection_creates_and_deletes(config_with_collection, client_mock, runner):
+    """Mv empty collection creates and deletes."""
     client_mock.is_collection.return_value = True
     client_mock.list_collection.return_value = []
 
@@ -166,48 +175,56 @@ def test_mv_empty_collection_creates_and_deletes(config_with_collection, client_
 # ---------------------------------------------------------------------------
 
 def test_mv_both_local_fails(runner):
+    """Mv both local fails."""
     result = runner.invoke(app, ["mv", "/local/src.xml", "/local/dst.xml"])
     assert result.exit_code == 1
     assert "remote" in result.output
 
 
 def test_mv_source_local_fails(runner):
+    """Mv source local fails."""
     result = runner.invoke(app, ["mv", "/local/src.xml", "myapp:/dst.xml"])
     assert result.exit_code == 1
     assert "remote" in result.output
 
 
 def test_mv_target_local_fails(config_with_collection, client_mock, runner):
+    """Mv target local fails."""
     result = runner.invoke(app, ["mv", "myapp:/src.xml", "/local/dst.xml"])
     assert result.exit_code == 1
     assert "remote" in result.output
 
 
 def test_mv_unknown_source_collection_fails(config_path, runner):
+    """Mv unknown source collection fails."""
     result = runner.invoke(app, ["mv", "ghost:/doc.xml", "ghost:/new.xml"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_mv_cross_server_fails(config_two_servers, runner):
+    """Mv cross server fails."""
     result = runner.invoke(app, ["mv", "myapp:/doc.xml", "otherapp:/doc.xml"])
     assert result.exit_code == 1
     assert "cross-server" in result.output
 
 
 def test_mv_source_path_traversal_fails(config_with_collection, client_mock, runner):
+    """Mv source path traversal fails."""
     result = runner.invoke(app, ["mv", "myapp:/../secret.xml", "myapp:/dst.xml"])
     assert result.exit_code == 1
     assert "traversal" in result.output
 
 
 def test_mv_target_path_traversal_fails(config_with_collection, client_mock, runner):
+    """Mv target path traversal fails."""
     result = runner.invoke(app, ["mv", "myapp:/src.xml", "myapp:/../secret.xml"])
     assert result.exit_code == 1
     assert "traversal" in result.output
 
 
 def test_mv_collection_onto_itself_fails(config_with_collection, client_mock, runner):
+    """Mv collection onto itself fails."""
     client_mock.is_collection.return_value = True
     result = runner.invoke(app, ["mv", "myapp:/a", "myapp:/a"])
     assert result.exit_code == 1
@@ -218,6 +235,7 @@ def test_mv_collection_onto_itself_fails(config_with_collection, client_mock, ru
 
 
 def test_mv_collection_into_itself_trailing_slash_fails(config_with_collection, client_mock, runner):
+    """Mv collection into itself trailing slash fails."""
     client_mock.is_collection.return_value = True
     result = runner.invoke(app, ["mv", "myapp:/a", "myapp:/a/"])
     assert result.exit_code == 1
@@ -228,6 +246,7 @@ def test_mv_collection_into_itself_trailing_slash_fails(config_with_collection, 
 
 
 def test_mv_document_onto_itself_fails(config_with_collection, client_mock, runner):
+    """Mv document onto itself fails."""
     client_mock.is_collection.return_value = False
     result = runner.invoke(app, ["mv", "myapp:/doc.xml", "myapp:/doc.xml"])
     assert result.exit_code == 1
@@ -240,6 +259,7 @@ def test_mv_document_onto_itself_fails(config_with_collection, client_mock, runn
 # ---------------------------------------------------------------------------
 
 def test_mv_document_not_found_fails(config_with_collection, client_mock, runner):
+    """Mv document not found fails."""
     client_mock.is_collection.return_value = False
     client_mock.move_document.side_effect = ExistNotFoundError("/db/myapp/missing.xml")
     result = runner.invoke(app, ["mv", "myapp:/missing.xml", "myapp:/dst.xml"])
@@ -248,6 +268,7 @@ def test_mv_document_not_found_fails(config_with_collection, client_mock, runner
 
 
 def test_mv_auth_error_fails(config_with_collection, client_mock, runner):
+    """Mv auth error fails."""
     client_mock.is_collection.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["mv", "myapp:/doc.xml", "myapp:/dst.xml"])
     assert result.exit_code == 1
@@ -255,12 +276,14 @@ def test_mv_auth_error_fails(config_with_collection, client_mock, runner):
 
 
 def test_mv_connection_error_fails(config_with_collection, client_mock, runner):
+    """Mv connection error fails."""
     client_mock.is_collection.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["mv", "myapp:/doc.xml", "myapp:/dst.xml"])
     assert result.exit_code == 1
 
 
 def test_mv_collection_get_document_error_fails(config_with_collection, client_mock, runner):
+    """Mv collection get document error fails."""
     client_mock.is_collection.return_value = True
     client_mock.list_collection.return_value = []
     client_mock.create_collection.side_effect = ExistNotFoundError("/db/myapp/dst")

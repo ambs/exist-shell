@@ -1,3 +1,5 @@
+"""Tests for the ls command."""
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,6 +11,7 @@ from exist_shell.models import CollectionEntry, ResourceEntry
 
 @pytest.fixture
 def client_mock(monkeypatch):
+    """Mock ExistClient used by the ls command."""
     mock = MagicMock()
     monkeypatch.setattr("exist_shell.commands.ls.ExistClient", lambda _: mock)
     return mock.__enter__.return_value
@@ -16,6 +19,7 @@ def client_mock(monkeypatch):
 
 @pytest.fixture
 def items():
+    """One collection entry and one resource entry, as returned by list_collection."""
     return [
         CollectionEntry(name="subdir", permissions="rwxr-xr-x", owner="admin"),
         ResourceEntry(name="file.xml", size=1234, mime_type="application/xml"),
@@ -23,6 +27,7 @@ def items():
 
 
 def test_ls_lists_subcollection(config_with_collection, client_mock, items, runner):
+    """Ls lists subcollection."""
     client_mock.list_collection.return_value = items
     result = runner.invoke(app, ["ls", "myapp:/"])
     assert result.exit_code == 0
@@ -30,6 +35,7 @@ def test_ls_lists_subcollection(config_with_collection, client_mock, items, runn
 
 
 def test_ls_lists_resource(config_with_collection, client_mock, items, runner):
+    """Ls lists resource."""
     client_mock.list_collection.return_value = items
     result = runner.invoke(app, ["ls", "myapp:/"])
     assert result.exit_code == 0
@@ -37,18 +43,21 @@ def test_ls_lists_resource(config_with_collection, client_mock, items, runner):
 
 
 def test_ls_default_path_is_root(config_with_collection, client_mock, runner):
+    """Ls default path is root."""
     client_mock.list_collection.return_value = []
     runner.invoke(app, ["ls", "myapp"])
     client_mock.list_collection.assert_called_once_with("/db/myapp/")
 
 
 def test_ls_unknown_collection_fails(config_path, client_mock, runner):
+    """Ls unknown collection fails."""
     result = runner.invoke(app, ["ls", "ghost:/"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_ls_not_found_path_fails(config_with_collection, client_mock, runner):
+    """Ls not found path fails."""
     client_mock.list_collection.side_effect = ExistNotFoundError("/db/myapp/missing")
     result = runner.invoke(app, ["ls", "myapp:/missing"])
     assert result.exit_code == 1
@@ -56,24 +65,28 @@ def test_ls_not_found_path_fails(config_with_collection, client_mock, runner):
 
 
 def test_ls_auth_error_fails(config_with_collection, client_mock, runner):
+    """Ls auth error fails."""
     client_mock.list_collection.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["ls", "myapp:/"])
     assert result.exit_code == 1
 
 
 def test_ls_connection_error_fails(config_with_collection, client_mock, runner):
+    """Ls connection error fails."""
     client_mock.list_collection.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["ls", "myapp:/"])
     assert result.exit_code == 1
 
 
 def test_ls_rejects_path_traversal(config_with_collection, client_mock, runner):
+    """Ls rejects path traversal."""
     result = runner.invoke(app, ["ls", "myapp:/../other"])
     assert result.exit_code == 1
     assert "traversal" in result.output
 
 
 def test_ls_columns_aligned(config_with_collection, client_mock, runner):
+    """Ls columns aligned."""
     client_mock.list_collection.return_value = [
         CollectionEntry(name="short", permissions="rwxr-xr-x", owner="admin"),
         ResourceEntry(name="a-much-longer-name.xml", size=42, mime_type="application/xml"),
@@ -94,6 +107,7 @@ def test_ls_columns_aligned(config_with_collection, client_mock, runner):
 
 
 def test_ls_sort_by_name(config_with_collection, client_mock, runner):
+    """Ls sort by name."""
     client_mock.list_collection.return_value = [
         ResourceEntry(name="zebra.xml"),
         ResourceEntry(name="apple.xml"),
@@ -108,6 +122,7 @@ def test_ls_sort_by_name(config_with_collection, client_mock, runner):
 
 
 def test_ls_sort_by_name_reverse(config_with_collection, client_mock, runner):
+    """Ls sort by name reverse."""
     client_mock.list_collection.return_value = [
         ResourceEntry(name="apple.xml"),
         CollectionEntry(name="mango"),
@@ -122,6 +137,7 @@ def test_ls_sort_by_name_reverse(config_with_collection, client_mock, runner):
 
 
 def test_ls_sort_by_time(config_with_collection, client_mock, runner):
+    """Ls sort by time."""
     client_mock.list_collection.return_value = [
         ResourceEntry(name="new.xml", last_modified="2024-03-01T00:00:00.000"),
         ResourceEntry(name="old.xml", last_modified="2024-01-01T00:00:00.000"),
@@ -136,6 +152,7 @@ def test_ls_sort_by_time(config_with_collection, client_mock, runner):
 
 
 def test_ls_names_only(config_with_collection, client_mock, items, runner):
+    """Ls names only."""
     client_mock.list_collection.return_value = items
     result = runner.invoke(app, ["ls", "myapp:/", "--names-only"])
     assert result.exit_code == 0

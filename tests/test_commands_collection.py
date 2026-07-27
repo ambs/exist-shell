@@ -1,3 +1,5 @@
+"""Tests for the collection subcommands (add, new, rm)."""
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,6 +11,7 @@ from exist_shell.main import app
 
 @pytest.fixture
 def client_mock(monkeypatch):
+    """Mock ExistClient used by the collection command."""
     mock = MagicMock()
     monkeypatch.setattr("exist_shell.commands.collection.ExistClient", lambda _: mock)
     return mock.__enter__.return_value
@@ -16,16 +19,19 @@ def client_mock(monkeypatch):
 
 @pytest.fixture
 def config_with_server(config_path, a_server):
+    """Persist a config with one server but no collections."""
     Config.load().add_server(a_server)
 
 
 def test_collection_ls_empty(config_path, runner):
+    """Collection ls empty."""
     result = runner.invoke(app, ["collection", "ls"])
     assert result.exit_code == 0
     assert result.output == ""
 
 
 def test_collection_ls_lists_collections(config_path, a_server, runner):
+    """Collection ls lists collections."""
     config = Config.load()
     config.add_server(a_server)
     config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
@@ -37,6 +43,7 @@ def test_collection_ls_lists_collections(config_path, a_server, runner):
 
 
 def test_collection_add_success(config_with_server, client_mock, runner):
+    """Collection add success."""
     client_mock.collection_exists.return_value = True
     result = runner.invoke(app, ["collection", "add", "myapp", "--server", "local"])
     assert result.exit_code == 0
@@ -44,6 +51,7 @@ def test_collection_add_success(config_with_server, client_mock, runner):
 
 
 def test_collection_add_auto_selects_single_server(config_with_server, client_mock, runner):
+    """Collection add auto selects single server."""
     client_mock.collection_exists.return_value = True
     result = runner.invoke(app, ["collection", "add", "myapp"])
     assert result.exit_code == 0
@@ -51,6 +59,7 @@ def test_collection_add_auto_selects_single_server(config_with_server, client_mo
 
 
 def test_collection_add_requires_server_when_multiple(config_path, client_mock, runner, a_server):
+    """Collection add requires server when multiple."""
     from pydantic import SecretStr
     from exist_shell.config import Server
     config = Config.load()
@@ -62,12 +71,14 @@ def test_collection_add_requires_server_when_multiple(config_path, client_mock, 
 
 
 def test_collection_add_unknown_server_fails(config_path, client_mock, runner):
+    """Collection add unknown server fails."""
     result = runner.invoke(app, ["collection", "add", "myapp", "--server", "ghost"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_collection_add_duplicate_nick_fails(config_with_server, client_mock, runner):
+    """Collection add duplicate nick fails."""
     client_mock.collection_exists.return_value = True
     runner.invoke(app, ["collection", "add", "myapp", "--server", "local"])
     result = runner.invoke(app, ["collection", "add", "myapp", "--server", "local"])
@@ -76,6 +87,7 @@ def test_collection_add_duplicate_nick_fails(config_with_server, client_mock, ru
 
 
 def test_collection_add_collection_not_found_fails(config_with_server, client_mock, runner):
+    """Collection add collection not found fails."""
     client_mock.collection_exists.return_value = False
     result = runner.invoke(app, ["collection", "add", "ghost", "--server", "local"])
     assert result.exit_code == 1
@@ -83,6 +95,7 @@ def test_collection_add_collection_not_found_fails(config_with_server, client_mo
 
 
 def test_collection_add_connection_error_fails(config_with_server, client_mock, runner):
+    """Collection add connection error fails."""
     client_mock.collection_exists.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["collection", "add", "myapp", "--server", "local"])
     assert result.exit_code == 1
@@ -90,12 +103,14 @@ def test_collection_add_connection_error_fails(config_with_server, client_mock, 
 
 
 def test_collection_add_auth_error_fails(config_with_server, client_mock, runner):
+    """Collection add auth error fails."""
     client_mock.collection_exists.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["collection", "add", "myapp", "--server", "local"])
     assert result.exit_code == 1
 
 
 def test_collection_add_at_syntax(config_with_server, client_mock, runner):
+    """Collection add at syntax."""
     client_mock.collection_exists.return_value = True
     result = runner.invoke(app, ["collection", "add", "myapp@local"])
     assert result.exit_code == 0
@@ -103,12 +118,14 @@ def test_collection_add_at_syntax(config_with_server, client_mock, runner):
 
 
 def test_collection_add_at_syntax_conflict_fails(config_with_server, client_mock, runner):
+    """Collection add at syntax conflict fails."""
     result = runner.invoke(app, ["collection", "add", "myapp@local", "--server", "other"])
     assert result.exit_code == 1
     assert "conflicting" in result.output
 
 
 def test_collection_add_at_syntax_matching_server_option_ok(config_with_server, client_mock, runner):
+    """Collection add at syntax matching server option ok."""
     client_mock.collection_exists.return_value = True
     result = runner.invoke(app, ["collection", "add", "myapp@local", "--server", "local"])
     assert result.exit_code == 0
@@ -120,6 +137,7 @@ def test_collection_add_at_syntax_matching_server_option_ok(config_with_server, 
 
 
 def test_collection_new_success(config_with_server, client_mock, runner):
+    """Collection new success."""
     client_mock.collection_exists.return_value = False
     result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
     assert result.exit_code == 0
@@ -128,6 +146,7 @@ def test_collection_new_success(config_with_server, client_mock, runner):
 
 
 def test_collection_new_auto_selects_single_server(config_with_server, client_mock, runner):
+    """Collection new auto selects single server."""
     client_mock.collection_exists.return_value = False
     result = runner.invoke(app, ["collection", "new", "myapp"])
     assert result.exit_code == 0
@@ -135,6 +154,7 @@ def test_collection_new_auto_selects_single_server(config_with_server, client_mo
 
 
 def test_collection_new_at_syntax(config_with_server, client_mock, runner):
+    """Collection new at syntax."""
     client_mock.collection_exists.return_value = False
     result = runner.invoke(app, ["collection", "new", "myapp@local"])
     assert result.exit_code == 0
@@ -142,12 +162,14 @@ def test_collection_new_at_syntax(config_with_server, client_mock, runner):
 
 
 def test_collection_new_at_syntax_conflict_fails(config_with_server, client_mock, runner):
+    """Collection new at syntax conflict fails."""
     result = runner.invoke(app, ["collection", "new", "myapp@local", "--server", "other"])
     assert result.exit_code == 1
     assert "conflicting" in result.output
 
 
 def test_collection_new_requires_server_when_multiple(config_path, client_mock, runner, a_server):
+    """Collection new requires server when multiple."""
     from pydantic import SecretStr
     config = Config.load()
     config.add_server(a_server)
@@ -158,12 +180,14 @@ def test_collection_new_requires_server_when_multiple(config_path, client_mock, 
 
 
 def test_collection_new_unknown_server_fails(config_path, client_mock, runner):
+    """Collection new unknown server fails."""
     result = runner.invoke(app, ["collection", "new", "myapp", "--server", "ghost"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_collection_new_duplicate_nick_fails(config_with_server, client_mock, runner):
+    """Collection new duplicate nick fails."""
     client_mock.collection_exists.return_value = False
     runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
     result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
@@ -172,6 +196,7 @@ def test_collection_new_duplicate_nick_fails(config_with_server, client_mock, ru
 
 
 def test_collection_new_custom_nick(config_with_server, client_mock, runner):
+    """Collection new custom nick."""
     client_mock.collection_exists.return_value = False
     result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local", "--nick", "ma"])
     assert result.exit_code == 0
@@ -180,6 +205,7 @@ def test_collection_new_custom_nick(config_with_server, client_mock, runner):
 
 
 def test_collection_new_already_exists_on_server(config_with_server, client_mock, runner):
+    """Collection new already exists on server."""
     client_mock.collection_exists.return_value = True
     result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
     assert result.exit_code == 0
@@ -189,6 +215,7 @@ def test_collection_new_already_exists_on_server(config_with_server, client_mock
 
 
 def test_collection_new_auth_error_fails(config_with_server, client_mock, runner):
+    """Collection new auth error fails."""
     client_mock.collection_exists.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
     assert result.exit_code == 1
@@ -196,6 +223,7 @@ def test_collection_new_auth_error_fails(config_with_server, client_mock, runner
 
 
 def test_collection_new_connection_error_fails(config_with_server, client_mock, runner):
+    """Collection new connection error fails."""
     client_mock.collection_exists.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["collection", "new", "myapp", "--server", "local"])
     assert result.exit_code == 1
@@ -208,6 +236,7 @@ def test_collection_new_connection_error_fails(config_with_server, client_mock, 
 
 
 def test_collection_rm_removes_from_config(config_with_collection, runner):
+    """Collection rm removes from config."""
     result = runner.invoke(app, ["collection", "rm", "myapp"])
     assert result.exit_code == 0
     assert "myapp" not in Config.load().collections
@@ -215,24 +244,28 @@ def test_collection_rm_removes_from_config(config_with_collection, runner):
 
 
 def test_collection_rm_unknown_nick_fails(config_path, runner):
+    """Collection rm unknown nick fails."""
     result = runner.invoke(app, ["collection", "rm", "ghost"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_collection_rm_delete_calls_client(config_with_collection, client_mock, runner):
+    """Collection rm delete calls client."""
     result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
     assert result.exit_code == 0
     client_mock.delete_collection.assert_called_once_with("/db/myapp")
 
 
 def test_collection_rm_delete_removes_from_config(config_with_collection, client_mock, runner):
+    """Collection rm delete removes from config."""
     result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
     assert result.exit_code == 0
     assert "myapp" not in Config.load().collections
 
 
 def test_collection_rm_delete_not_found_on_server_fails(config_with_collection, client_mock, runner):
+    """Collection rm delete not found on server fails."""
     client_mock.delete_collection.side_effect = ExistNotFoundError("/db/myapp")
     result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
     assert result.exit_code == 1
@@ -241,6 +274,7 @@ def test_collection_rm_delete_not_found_on_server_fails(config_with_collection, 
 
 
 def test_collection_rm_delete_auth_error_fails(config_with_collection, client_mock, runner):
+    """Collection rm delete auth error fails."""
     client_mock.delete_collection.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
     assert result.exit_code == 1
@@ -249,6 +283,7 @@ def test_collection_rm_delete_auth_error_fails(config_with_collection, client_mo
 
 
 def test_collection_rm_delete_connection_error_fails(config_with_collection, client_mock, runner):
+    """Collection rm delete connection error fails."""
     client_mock.delete_collection.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["collection", "rm", "myapp", "--delete"])
     assert result.exit_code == 1
@@ -256,6 +291,7 @@ def test_collection_rm_delete_connection_error_fails(config_with_collection, cli
 
 
 def test_collection_rm_delete_missing_server_fails(config_path, runner):
+    """Collection rm delete missing server fails."""
     from pydantic import SecretStr
     config = Config.load()
     config.add_server(Server(nick="local", host="localhost", password=SecretStr("")))

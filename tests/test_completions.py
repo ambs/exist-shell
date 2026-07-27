@@ -28,6 +28,7 @@ def cfg(config_path):
 
 @pytest.fixture
 def items():
+    """One collection entry and one resource entry, as returned by list_child_names."""
     return [
         CollectionEntry(name="subdir"),
         ResourceEntry(name="doc.xml"),
@@ -40,6 +41,7 @@ def items():
 
 
 def test_returns_empty_when_config_load_fails(config_path):
+    """Returns empty when config load fails."""
     complete = collection_target_completer()
     with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert complete("") == []
@@ -51,16 +53,19 @@ def test_returns_empty_when_config_load_fails(config_path):
 
 
 def test_no_colon_allow_local_returns_empty(cfg):
+    """No colon allow local returns empty."""
     complete = collection_target_completer(allow_local=True)
     assert complete("myapp") == []
 
 
 def test_no_colon_returns_matching_nick_suffixed_with_colon(cfg):
+    """No colon returns matching nick suffixed with colon."""
     complete = collection_target_completer()
     assert complete("") == ["myapp:"]
 
 
 def test_no_colon_prefix_filters_nicks(cfg):
+    """No colon prefix filters nicks."""
     # Add a second collection so we can confirm prefix filtering
     Config.load().add_collection(
         Collection(nick="other", server_nick="local", name="other")
@@ -72,6 +77,7 @@ def test_no_colon_prefix_filters_nicks(cfg):
 
 
 def test_no_colon_empty_incomplete_returns_all_nicks(cfg):
+    """No colon empty incomplete returns all nicks."""
     Config.load().add_collection(
         Collection(nick="extra", server_nick="local", name="extra")
     )
@@ -87,6 +93,7 @@ def test_no_colon_empty_incomplete_returns_all_nicks(cfg):
 
 
 def test_unknown_nick_returns_empty(cfg):
+    """Unknown nick returns empty."""
     complete = collection_target_completer()
     assert complete("ghost:/") == []
 
@@ -97,6 +104,7 @@ def test_unknown_nick_returns_empty(cfg):
 
 
 def test_cache_hit_returns_items_without_calling_client(cfg, items):
+    """Cache hit returns items without calling client."""
     complete = collection_target_completer()
     with (
         patch.object(completions_module, "get_cached_prefix_match", return_value=items) as mock_get,
@@ -115,6 +123,7 @@ def test_cache_hit_returns_items_without_calling_client(cfg, items):
 
 
 def test_cache_miss_calls_client_and_sets_cache(cfg, items):
+    """Cache miss calls client and sets cache."""
     complete = collection_target_completer()
     client_instance = MagicMock()
     client_instance.list_child_names.return_value = items
@@ -140,6 +149,7 @@ def test_cache_miss_calls_client_and_sets_cache(cfg, items):
 
 
 def test_cache_miss_at_listing_limit_marks_cache_entry_truncated(cfg):
+    """Cache miss at listing limit marks cache entry truncated."""
     capped_items = [ResourceEntry(name=f"doc{i}.xml") for i in range(completions_module.DEFAULT_CHILD_NAMES_LIMIT)]
     complete = collection_target_completer()
     client_instance = MagicMock()
@@ -159,6 +169,7 @@ def test_cache_miss_at_listing_limit_marks_cache_entry_truncated(cfg):
 
 
 def test_cache_miss_non_empty_prefix_calls_client_and_sets_cache(cfg):
+    """Cache miss non empty prefix calls client and sets cache."""
     items = [CollectionEntry(name="alpha")]
     complete = collection_target_completer()
     client_instance = MagicMock()
@@ -184,6 +195,7 @@ def test_cache_miss_non_empty_prefix_calls_client_and_sets_cache(cfg):
 
 
 def test_listing_exception_returns_empty(cfg):
+    """Listing exception returns empty."""
     complete = collection_target_completer()
     with (
         patch.object(completions_module, "get_cached_prefix_match", return_value=None),
@@ -198,6 +210,7 @@ def test_listing_exception_returns_empty(cfg):
 
 
 def test_kind_collection_excludes_resources(cfg, items):
+    """Kind collection excludes resources."""
     complete = collection_target_completer(kind="collection")
     with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
         result = complete("myapp:/")
@@ -206,6 +219,7 @@ def test_kind_collection_excludes_resources(cfg, items):
 
 
 def test_kind_resource_excludes_collections(cfg, items):
+    """Kind resource excludes collections."""
     complete = collection_target_completer(kind="resource")
     with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
         result = complete("myapp:/")
@@ -214,6 +228,7 @@ def test_kind_resource_excludes_collections(cfg, items):
 
 
 def test_kind_any_includes_both(cfg, items):
+    """Kind any includes both."""
     complete = collection_target_completer(kind="any")
     with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
         result = complete("myapp:/")
@@ -227,6 +242,7 @@ def test_kind_any_includes_both(cfg, items):
 
 
 def test_prefix_filters_results(cfg):
+    """Prefix filters results."""
     all_items = [
         CollectionEntry(name="alpha"),
         CollectionEntry(name="beta"),
@@ -274,6 +290,7 @@ def test_partial_path_without_leading_slash_is_normalised(cfg, items):
 
 
 def test_collection_entry_has_trailing_slash(cfg):
+    """Collection entry has trailing slash."""
     items = [CollectionEntry(name="books")]
     complete = collection_target_completer()
     with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
@@ -282,6 +299,7 @@ def test_collection_entry_has_trailing_slash(cfg):
 
 
 def test_resource_entry_has_no_trailing_slash(cfg):
+    """Resource entry has no trailing slash."""
     items = [ResourceEntry(name="readme.xml")]
     complete = collection_target_completer()
     with patch.object(completions_module, "get_cached_prefix_match", return_value=items):
@@ -290,9 +308,11 @@ def test_resource_entry_has_no_trailing_slash(cfg):
 
 
 def test_out_dir_preserved_without_leading_slash(cfg):
-    """A dir prefix typed without a leading slash must stay slash-less in
-    candidates, matching the typed form ('books/ac', not '/books/ac') —
-    Typer/Click drops any candidate that isn't a literal prefix of `incomplete`.
+    """Preserve a dir prefix typed without a leading slash.
+
+    Candidates must stay slash-less to match the typed form ('books/ac',
+    not '/books/ac') — Typer/Click drops any candidate that isn't a
+    literal prefix of `incomplete`.
     """
     items = [ResourceEntry(name="academia.xml")]
     complete = collection_target_completer()
@@ -307,15 +327,18 @@ def test_out_dir_preserved_without_leading_slash(cfg):
 
 
 def test_user_arg_completer_no_at_returns_empty(cfg):
+    """User arg completer no at returns empty."""
     assert user_arg_completer("alice") == []
 
 
 def test_user_arg_completer_at_returns_all_servers(cfg):
+    """User arg completer at returns all servers."""
     results = user_arg_completer("alice@")
     assert "alice@local" in results
 
 
 def test_user_arg_completer_at_filters_by_prefix(cfg):
+    """User arg completer at filters by prefix."""
     Config.load().add_server(
         Server(nick="prod", host="prod.example.com", password=SecretStr(""))
     )
@@ -325,11 +348,13 @@ def test_user_arg_completer_at_filters_by_prefix(cfg):
 
 
 def test_user_arg_completer_exact_match_returns_candidate(cfg):
+    """User arg completer exact match returns candidate."""
     results = user_arg_completer("alice@local")
     assert results == ["alice@local"]
 
 
 def test_user_arg_completer_config_error_returns_empty():
+    """User arg completer config error returns empty."""
     with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert user_arg_completer("alice@") == []
 
@@ -340,16 +365,19 @@ def test_user_arg_completer_config_error_returns_empty():
 
 
 def test_server_at_completer_empty_returns_all(cfg):
+    """Server at completer empty returns all."""
     results = server_at_completer("")
     assert "@local" in results
 
 
 def test_server_at_completer_at_only_returns_all(cfg):
+    """Server at completer at only returns all."""
     results = server_at_completer("@")
     assert "@local" in results
 
 
 def test_server_at_completer_partial_filters(cfg):
+    """Server at completer partial filters."""
     Config.load().add_server(
         Server(nick="prod", host="prod.example.com", password=SecretStr(""))
     )
@@ -359,10 +387,12 @@ def test_server_at_completer_partial_filters(cfg):
 
 
 def test_server_at_completer_no_at_prefix_returns_empty(cfg):
+    """Server at completer no at prefix returns empty."""
     assert server_at_completer("local") == []
 
 
 def test_server_at_completer_config_error_returns_empty():
+    """Server at completer config error returns empty."""
     with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert server_at_completer("@") == []
 
@@ -373,18 +403,22 @@ def test_server_at_completer_config_error_returns_empty():
 
 
 def test_server_nick_completer_empty_returns_all(cfg):
+    """Server nick completer empty returns all."""
     assert server_nick_completer("") == ["local"]
 
 
 def test_server_nick_completer_matching_prefix(cfg):
+    """Server nick completer matching prefix."""
     assert server_nick_completer("lo") == ["local"]
 
 
 def test_server_nick_completer_non_matching_prefix(cfg):
+    """Server nick completer non matching prefix."""
     assert server_nick_completer("xyz") == []
 
 
 def test_server_nick_completer_config_error_returns_empty():
+    """Server nick completer config error returns empty."""
     with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert server_nick_completer("") == []
 
@@ -408,15 +442,18 @@ def _client_mock():
 
 
 def test_chown_spec_completer_config_error_returns_empty():
+    """Chown spec completer config error returns empty."""
     with patch.object(completions_module.Config, "load", side_effect=RuntimeError("boom")):
         assert chown_spec_completer("") == []
 
 
 def test_chown_spec_completer_no_servers_returns_empty(config_path):
+    """Chown spec completer no servers returns empty."""
     assert chown_spec_completer("") == []
 
 
 def test_chown_spec_completer_completes_users(cfg, _client_mock):
+    """Chown spec completer completes users."""
     ctx, _ = _client_mock
     with patch.object(completions_module, "get_cached_users", return_value=None), \
          patch.object(completions_module, "set_cached_users"), \
@@ -427,6 +464,7 @@ def test_chown_spec_completer_completes_users(cfg, _client_mock):
 
 
 def test_chown_spec_completer_users_cache_hit(cfg, _client_mock):
+    """Chown spec completer users cache hit."""
     ctx, client = _client_mock
     cached = [UserEntry(username="alice", groups=[]), UserEntry(username="admin", groups=[])]
     with patch.object(completions_module, "get_cached_users", return_value=cached), \
@@ -437,6 +475,7 @@ def test_chown_spec_completer_users_cache_hit(cfg, _client_mock):
 
 
 def test_chown_spec_completer_filters_users_by_prefix(cfg, _client_mock):
+    """Chown spec completer filters users by prefix."""
     ctx, _ = _client_mock
     with patch.object(completions_module, "get_cached_users", return_value=None), \
          patch.object(completions_module, "set_cached_users"), \
@@ -447,6 +486,7 @@ def test_chown_spec_completer_filters_users_by_prefix(cfg, _client_mock):
 
 
 def test_chown_spec_completer_colon_completes_groups(cfg, _client_mock):
+    """Chown spec completer colon completes groups."""
     ctx, _ = _client_mock
     with patch.object(completions_module, "get_cached_groups", return_value=None), \
          patch.object(completions_module, "set_cached_groups"), \
@@ -457,6 +497,7 @@ def test_chown_spec_completer_colon_completes_groups(cfg, _client_mock):
 
 
 def test_chown_spec_completer_groups_cache_hit(cfg, _client_mock):
+    """Chown spec completer groups cache hit."""
     ctx, client = _client_mock
     cached = [GroupEntry(name="editors", members=[]), GroupEntry(name="dba", members=[])]
     with patch.object(completions_module, "get_cached_groups", return_value=cached), \
@@ -467,6 +508,7 @@ def test_chown_spec_completer_groups_cache_hit(cfg, _client_mock):
 
 
 def test_chown_spec_completer_colon_filters_groups_by_prefix(cfg, _client_mock):
+    """Chown spec completer colon filters groups by prefix."""
     ctx, _ = _client_mock
     with patch.object(completions_module, "get_cached_groups", return_value=None), \
          patch.object(completions_module, "set_cached_groups"), \
@@ -477,6 +519,7 @@ def test_chown_spec_completer_colon_filters_groups_by_prefix(cfg, _client_mock):
 
 
 def test_chown_spec_completer_server_prefix_resolves_server(cfg, _client_mock):
+    """Chown spec completer server prefix resolves server."""
     ctx, _ = _client_mock
     with patch.object(completions_module, "get_cached_users", return_value=None), \
          patch.object(completions_module, "set_cached_users"), \
@@ -487,6 +530,7 @@ def test_chown_spec_completer_server_prefix_resolves_server(cfg, _client_mock):
 
 
 def test_chown_spec_completer_server_prefix_with_colon_completes_groups(cfg, _client_mock):
+    """Chown spec completer server prefix with colon completes groups."""
     ctx, _ = _client_mock
     with patch.object(completions_module, "get_cached_groups", return_value=None), \
          patch.object(completions_module, "set_cached_groups"), \
@@ -496,11 +540,13 @@ def test_chown_spec_completer_server_prefix_with_colon_completes_groups(cfg, _cl
 
 
 def test_chown_spec_completer_unknown_server_prefix_offers_server_nicks(cfg):
+    """Chown spec completer unknown server prefix offers server nicks."""
     result = chown_spec_completer("lo@")
     assert "local@" in result
 
 
 def test_chown_spec_completer_multiple_servers_offers_server_nicks(cfg, _client_mock):
+    """Chown spec completer multiple servers offers server nicks."""
     Config.load().add_server(
         Server(nick="prod", host="prod.example.com", password=SecretStr(""))
     )
@@ -514,6 +560,7 @@ def test_chown_spec_completer_multiple_servers_offers_server_nicks(cfg, _client_
 
 
 def test_chown_spec_completer_client_exception_returns_empty(cfg):
+    """Chown spec completer client exception returns empty."""
     with patch.object(completions_module, "get_cached_users", return_value=None), \
          patch.object(completions_module, "ExistClient", side_effect=OSError("refused")):
         assert chown_spec_completer("") == []
@@ -527,6 +574,7 @@ def test_chown_spec_completer_client_exception_returns_empty(cfg):
 
 
 def test_bash_template_patch_applies():
+    """Bash template patch applies."""
     completions_module.patch_bash_completion_template()
     from typer._completion_classes import BashComplete
     from typer._completion_shared import _completion_scripts
@@ -536,13 +584,16 @@ def test_bash_template_patch_applies():
 
 
 def test_bash_template_placeholders_render():
+    """Bash template placeholders render."""
     completions_module._FIXED_COMPLETION_SCRIPT_BASH % {
         "complete_func": "f", "autocomplete_var": "V", "prog_name": "exsh",
     }
 
 
 def test_bash_template_patch_swallows_import_error(monkeypatch):
-    """A future Typer release that moves/removes ``_completion_classes``
-    must degrade to stock completion, not crash the whole CLI."""
+    """Degrade to stock completion instead of crashing the CLI.
+
+    Simulates a future Typer release that moves/removes ``_completion_classes``.
+    """
     monkeypatch.setitem(sys.modules, "typer._completion_classes", None)
     completions_module.patch_bash_completion_template()
