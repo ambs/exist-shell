@@ -1,3 +1,5 @@
+"""Tests for the server subcommands (add, rename, rm) and default listing."""
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,18 +11,21 @@ from exist_shell.main import app
 
 @pytest.fixture
 def client_mock(monkeypatch):
+    """Mock ExistClient used by the server command."""
     mock = MagicMock()
     monkeypatch.setattr("exist_shell.commands.server.ExistClient", lambda _: mock)
     return mock.__enter__.return_value
 
 
 def test_server_ls_empty(config_path, runner):
+    """Server ls empty."""
     result = runner.invoke(app, ["server", "ls"])
     assert result.exit_code == 0
     assert result.output == ""
 
 
 def test_server_ls_lists_servers(config_path, a_server, runner):
+    """Server ls lists servers."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "ls"])
     assert result.exit_code == 0
@@ -29,18 +34,21 @@ def test_server_ls_lists_servers(config_path, a_server, runner):
 
 
 def test_server_add_success(config_path, client_mock, runner):
+    """Server add success."""
     result = runner.invoke(app, ["server", "add", "localhost"], input="\n")
     assert result.exit_code == 0
     assert "localhost" in Config.load().servers
 
 
 def test_server_add_uses_custom_nick(config_path, client_mock, runner):
+    """Server add uses custom nick."""
     result = runner.invoke(app, ["server", "add", "myserver.example.com", "--nick", "prod"], input="\n")
     assert result.exit_code == 0
     assert "prod" in Config.load().servers
 
 
 def test_server_add_duplicate_nick_fails(config_path, a_server, client_mock, runner):
+    """Server add duplicate nick fails."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "add", "localhost", "--nick", "local"], input="\n")
     assert result.exit_code == 1
@@ -48,6 +56,7 @@ def test_server_add_duplicate_nick_fails(config_path, a_server, client_mock, run
 
 
 def test_server_add_connection_error_fails(config_path, client_mock, runner):
+    """Server add connection error fails."""
     client_mock.check_connection.side_effect = ExistConnectionError("http://localhost:8080/exist/rest/db", Exception("refused"))
     result = runner.invoke(app, ["server", "add", "localhost"], input="\n")
     assert result.exit_code == 1
@@ -55,6 +64,7 @@ def test_server_add_connection_error_fails(config_path, client_mock, runner):
 
 
 def test_server_add_auth_error_fails(config_path, client_mock, runner):
+    """Server add auth error fails."""
     client_mock.check_connection.side_effect = ExistAuthError("http://localhost:8080/exist/rest/db")
     result = runner.invoke(app, ["server", "add", "localhost"], input="\n")
     assert result.exit_code == 1
@@ -67,6 +77,7 @@ def test_server_add_auth_error_fails(config_path, client_mock, runner):
 
 
 def test_server_rm_removes_server(config_path, a_server, runner):
+    """Server rm removes server."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "rm", "local"])
     assert result.exit_code == 0
@@ -75,12 +86,14 @@ def test_server_rm_removes_server(config_path, a_server, runner):
 
 
 def test_server_rm_unknown_nick_fails(config_path, runner):
+    """Server rm unknown nick fails."""
     result = runner.invoke(app, ["server", "rm", "ghost"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_server_rm_cascades_collections(config_path, a_server, runner):
+    """Server rm cascades collections."""
     config = Config.load()
     config.add_server(a_server)
     config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
@@ -93,6 +106,7 @@ def test_server_rm_cascades_collections(config_path, a_server, runner):
 
 
 def test_server_rm_cascade_message_singular(config_path, a_server, runner):
+    """Server rm cascade message singular."""
     config = Config.load()
     config.add_server(a_server)
     config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
@@ -101,6 +115,7 @@ def test_server_rm_cascade_message_singular(config_path, a_server, runner):
 
 
 def test_server_rm_cascade_message_plural(config_path, a_server, runner):
+    """Server rm cascade message plural."""
     config = Config.load()
     config.add_server(a_server)
     config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
@@ -110,12 +125,14 @@ def test_server_rm_cascade_message_plural(config_path, a_server, runner):
 
 
 def test_server_rm_no_cascade_message_when_no_collections(config_path, a_server, runner):
+    """Server rm no cascade message when no collections."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "rm", "local"])
     assert "Also removed" not in result.output
 
 
 def test_server_rm_keeps_other_server_collections(config_path, a_server, runner):
+    """Server rm keeps other server collections."""
     from pydantic import SecretStr
     from exist_shell.config import Server
     config = Config.load()
@@ -128,6 +145,7 @@ def test_server_rm_keeps_other_server_collections(config_path, a_server, runner)
 
 
 def test_server_rm_makes_no_http_call(config_path, a_server, client_mock, runner):
+    """Server rm makes no http call."""
     Config.load().add_server(a_server)
     runner.invoke(app, ["server", "rm", "local"])
     client_mock.check_connection.assert_not_called()
@@ -139,6 +157,7 @@ def test_server_rm_makes_no_http_call(config_path, a_server, client_mock, runner
 
 
 def test_server_rename_renames_server(config_path, a_server, runner):
+    """Server rename renames server."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "rename", "local", "prod"])
     assert result.exit_code == 0
@@ -148,12 +167,14 @@ def test_server_rename_renames_server(config_path, a_server, runner):
 
 
 def test_server_rename_updates_nick_field(config_path, a_server, runner):
+    """Server rename updates nick field."""
     Config.load().add_server(a_server)
     runner.invoke(app, ["server", "rename", "local", "prod"])
     assert Config.load().servers["prod"].nick == "prod"
 
 
 def test_server_rename_updates_collection_references(config_path, a_server, runner):
+    """Server rename updates collection references."""
     config = Config.load()
     config.add_server(a_server)
     config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
@@ -163,6 +184,7 @@ def test_server_rename_updates_collection_references(config_path, a_server, runn
 
 
 def test_server_rename_reports_updated_collections_singular(config_path, a_server, runner):
+    """Server rename reports updated collections singular."""
     config = Config.load()
     config.add_server(a_server)
     config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
@@ -171,6 +193,7 @@ def test_server_rename_reports_updated_collections_singular(config_path, a_serve
 
 
 def test_server_rename_reports_updated_collections_plural(config_path, a_server, runner):
+    """Server rename reports updated collections plural."""
     config = Config.load()
     config.add_server(a_server)
     config.add_collection(Collection(nick="myapp", server_nick="local", name="myapp"))
@@ -180,24 +203,28 @@ def test_server_rename_reports_updated_collections_plural(config_path, a_server,
 
 
 def test_server_rename_no_cascade_message_when_no_collections(config_path, a_server, runner):
+    """Server rename no cascade message when no collections."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "rename", "local", "prod"])
     assert "Also updated" not in result.output
 
 
 def test_server_rename_prints_success_message(config_path, a_server, runner):
+    """Server rename prints success message."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "rename", "local", "prod"])
     assert "Server 'local' renamed to 'prod'." in result.output
 
 
 def test_server_rename_unknown_old_nick_fails(config_path, runner):
+    """Server rename unknown old nick fails."""
     result = runner.invoke(app, ["server", "rename", "ghost", "prod"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_server_rename_duplicate_new_nick_fails(config_path, a_server, runner):
+    """Server rename duplicate new nick fails."""
     from pydantic import SecretStr
     from exist_shell.config import Server
     config = Config.load()
@@ -209,6 +236,7 @@ def test_server_rename_duplicate_new_nick_fails(config_path, a_server, runner):
 
 
 def test_server_rename_same_nick_fails(config_path, a_server, runner):
+    """Server rename same nick fails."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "rename", "local", "local"])
     assert result.exit_code == 1
@@ -216,6 +244,7 @@ def test_server_rename_same_nick_fails(config_path, a_server, runner):
 
 
 def test_server_rename_invalid_new_nick_fails(config_path, a_server, runner):
+    """Server rename invalid new nick fails."""
     Config.load().add_server(a_server)
     result = runner.invoke(app, ["server", "rename", "local", "invalid!nick"])
     assert result.exit_code == 1
@@ -223,12 +252,14 @@ def test_server_rename_invalid_new_nick_fails(config_path, a_server, runner):
 
 
 def test_server_rename_makes_no_http_call(config_path, a_server, client_mock, runner):
+    """Server rename makes no http call."""
     Config.load().add_server(a_server)
     runner.invoke(app, ["server", "rename", "local", "prod"])
     client_mock.check_connection.assert_not_called()
 
 
 def test_server_rename_keeps_other_server_collections(config_path, a_server, runner):
+    """Server rename keeps other server collections."""
     from pydantic import SecretStr
     from exist_shell.config import Server
     config = Config.load()
@@ -246,24 +277,28 @@ def test_server_rename_keeps_other_server_collections(config_path, a_server, run
 
 
 def test_complete_server_nick_returns_matching_nicks(config_path, a_server):
+    """Complete server nick returns matching nicks."""
     from exist_shell.commands.server import _complete_server_nick
     Config.load().add_server(a_server)
     assert _complete_server_nick("lo") == ["local"]
 
 
 def test_complete_server_nick_returns_all_when_empty_prefix(config_path, a_server):
+    """Complete server nick returns all when empty prefix."""
     from exist_shell.commands.server import _complete_server_nick
     Config.load().add_server(a_server)
     assert _complete_server_nick("") == ["local"]
 
 
 def test_complete_server_nick_returns_empty_when_no_match(config_path, a_server):
+    """Complete server nick returns empty when no match."""
     from exist_shell.commands.server import _complete_server_nick
     Config.load().add_server(a_server)
     assert _complete_server_nick("xyz") == []
 
 
 def test_complete_server_nick_returns_empty_on_config_error(monkeypatch):
+    """Complete server nick returns empty on config error."""
     from exist_shell.commands.server import _complete_server_nick
     monkeypatch.setattr("exist_shell.commands.server.Config.load", lambda: (_ for _ in ()).throw(Exception("fail")))
     assert _complete_server_nick("") == []

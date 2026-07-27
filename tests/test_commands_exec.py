@@ -32,6 +32,7 @@ def no_validation(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_list_validators_exits_zero(monkeypatch, runner):
+    """List validators exits zero."""
     monkeypatch.setattr(
         "exist_shell.commands.exec.list_validators",
         lambda: [("basex", "/usr/bin/basex"), ("saxon", None)],
@@ -44,6 +45,7 @@ def test_list_validators_exits_zero(monkeypatch, runner):
 
 
 def test_list_validators_does_not_require_target(monkeypatch, runner):
+    """List validators does not require target."""
     monkeypatch.setattr("exist_shell.commands.exec.list_validators", lambda: [])
     result = runner.invoke(app, ["exec", "--list-validators"])
     assert result.exit_code == 0
@@ -54,6 +56,7 @@ def test_list_validators_does_not_require_target(monkeypatch, runner):
 # ---------------------------------------------------------------------------
 
 def test_missing_target_exits_1(runner):
+    """Missing target exits 1."""
     result = runner.invoke(app, ["exec"])
     assert result.exit_code == 1
     assert "TARGET" in result.output
@@ -64,6 +67,7 @@ def test_missing_target_exits_1(runner):
 # ---------------------------------------------------------------------------
 
 def test_exec_from_file(config_with_collection, client_mock, no_validation, tmp_path, runner):
+    """Exec from file."""
     f = tmp_path / "query.xq"
     f.write_text('doc("test.xml")', encoding="utf-8")
     result = runner.invoke(app, ["exec", "myapp:/", "-f", str(f), "--no-fix"])
@@ -72,12 +76,14 @@ def test_exec_from_file(config_with_collection, client_mock, no_validation, tmp_
 
 
 def test_exec_from_stdin(config_with_collection, client_mock, no_validation, runner):
+    """Exec from stdin."""
     result = runner.invoke(app, ["exec", "myapp:/", "--no-fix"], input='doc("test.xml")')
     assert result.exit_code == 0
     client_mock.execute_query.assert_called_once()
 
 
 def test_exec_unreadable_file_exits_1(config_with_collection, client_mock, runner):
+    """Exec unreadable file exits 1."""
     result = runner.invoke(app, ["exec", "myapp:/", "-f", "/nonexistent/query.xq"])
     assert result.exit_code == 1
     assert "cannot read" in result.output
@@ -88,6 +94,7 @@ def test_exec_unreadable_file_exits_1(config_with_collection, client_mock, runne
 # ---------------------------------------------------------------------------
 
 def test_exec_preprocesses_by_default(config_with_collection, client_mock, no_validation, runner):
+    """Exec preprocesses by default."""
     result = runner.invoke(app, ["exec", "myapp:/"], input='doc("test.xml")')
     assert result.exit_code == 0
     sent_code = client_mock.execute_query.call_args[0][0]
@@ -95,6 +102,7 @@ def test_exec_preprocesses_by_default(config_with_collection, client_mock, no_va
 
 
 def test_exec_no_fix_skips_preprocessing(config_with_collection, client_mock, no_validation, runner):
+    """Exec no fix skips preprocessing."""
     result = runner.invoke(app, ["exec", "myapp:/", "--no-fix"], input='doc("test.xml")')
     assert result.exit_code == 0
     sent_code = client_mock.execute_query.call_args[0][0]
@@ -106,6 +114,7 @@ def test_exec_no_fix_skips_preprocessing(config_with_collection, client_mock, no
 # ---------------------------------------------------------------------------
 
 def test_exec_no_validate_skips_validation(config_with_collection, client_mock, monkeypatch, runner):
+    """Exec no validate skips validation."""
     called = []
     monkeypatch.setattr(
         "exist_shell.commands.exec.validate_locally",
@@ -116,6 +125,7 @@ def test_exec_no_validate_skips_validation(config_with_collection, client_mock, 
 
 
 def test_exec_validation_failure_exits_1(config_with_collection, client_mock, monkeypatch, runner):
+    """Exec validation failure exits 1."""
     monkeypatch.setattr(
         "exist_shell.commands.exec.validate_locally",
         lambda *a, **kw: ValidatorResult(ok=False, error="Unexpected token"),
@@ -126,6 +136,7 @@ def test_exec_validation_failure_exits_1(config_with_collection, client_mock, mo
 
 
 def test_exec_unknown_validator_exits_1(config_with_collection, client_mock, monkeypatch, runner):
+    """Exec unknown validator exits 1."""
     monkeypatch.setattr(
         "exist_shell.commands.exec.validate_locally",
         lambda *a, **kw: ValidatorResult(ok=False, error="unknown validator 'ghost'"),
@@ -140,6 +151,7 @@ def test_exec_unknown_validator_exits_1(config_with_collection, client_mock, mon
 # ---------------------------------------------------------------------------
 
 def test_exec_query_error_exits_1(config_with_collection, client_mock, no_validation, runner):
+    """Exec query error exits 1."""
     client_mock.execute_query.side_effect = ExistQueryError("Unexpected token at line 1")
     result = runner.invoke(app, ["exec", "myapp:/", "--no-fix"], input="invalid !!!")
     assert result.exit_code == 1
@@ -147,6 +159,7 @@ def test_exec_query_error_exits_1(config_with_collection, client_mock, no_valida
 
 
 def test_exec_auth_error_exits_1(config_with_collection, client_mock, no_validation, runner):
+    """Exec auth error exits 1."""
     client_mock.execute_query.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["exec", "myapp:/", "--no-fix"], input="1+1")
     assert result.exit_code == 1
@@ -154,12 +167,14 @@ def test_exec_auth_error_exits_1(config_with_collection, client_mock, no_validat
 
 
 def test_exec_connection_error_exits_1(config_with_collection, client_mock, no_validation, runner):
+    """Exec connection error exits 1."""
     client_mock.execute_query.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["exec", "myapp:/", "--no-fix"], input="1+1")
     assert result.exit_code == 1
 
 
 def test_exec_unknown_collection_exits_1(config_path, runner):
+    """Exec unknown collection exits 1."""
     result = runner.invoke(app, ["exec", "ghost:/"])
     assert result.exit_code == 1
     assert "not found" in result.output
@@ -170,6 +185,7 @@ def test_exec_unknown_collection_exits_1(config_path, runner):
 # ---------------------------------------------------------------------------
 
 def test_exec_prints_query_output(config_with_collection, client_mock, no_validation, runner):
+    """Exec prints query output."""
     client_mock.execute_query.return_value = "<answer>42</answer>"
     result = runner.invoke(app, ["exec", "myapp:/", "--no-fix"], input="1+1")
     assert result.exit_code == 0

@@ -18,6 +18,7 @@ def client_mock(monkeypatch):
 
 
 def test_find_lists_matches(config_with_collection, client_mock, runner):
+    """Find lists matches."""
     client_mock.find_documents.return_value = ["/db/myapp/a.xml", "/db/myapp/b.xml"]
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]'])
     assert result.exit_code == 0
@@ -28,6 +29,7 @@ def test_find_lists_matches(config_with_collection, client_mock, runner):
 
 
 def test_find_no_matches_prints_nothing(config_with_collection, client_mock, runner):
+    """Find no matches prints nothing."""
     client_mock.find_documents.return_value = []
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]'])
     assert result.exit_code == 0
@@ -35,6 +37,7 @@ def test_find_no_matches_prints_nothing(config_with_collection, client_mock, run
 
 
 def test_find_remove_with_yes_deletes_and_prints(config_with_collection, client_mock, runner):
+    """Find remove with yes deletes and prints."""
     client_mock.find_documents.return_value = ["/db/myapp/a.xml"]
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]', "--remove", "--yes"])
     assert result.exit_code == 0
@@ -43,6 +46,7 @@ def test_find_remove_with_yes_deletes_and_prints(config_with_collection, client_
 
 
 def test_find_remove_confirms_interactively(config_with_collection, client_mock, runner):
+    """Find remove confirms interactively."""
     client_mock.find_documents.return_value = ["/db/myapp/a.xml"]
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]', "--remove"], input="y\n")
     assert result.exit_code == 0
@@ -50,6 +54,7 @@ def test_find_remove_confirms_interactively(config_with_collection, client_mock,
 
 
 def test_find_remove_abort_on_no(config_with_collection, client_mock, runner):
+    """Find remove abort on no."""
     client_mock.find_documents.return_value = ["/db/myapp/a.xml"]
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]', "--remove"], input="n\n")
     assert result.exit_code != 0
@@ -57,6 +62,7 @@ def test_find_remove_abort_on_no(config_with_collection, client_mock, runner):
 
 
 def test_find_remove_no_matches_skips_prompt(config_with_collection, client_mock, runner):
+    """Find remove no matches skips prompt."""
     client_mock.find_documents.return_value = []
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]', "--remove"])
     assert result.exit_code == 0
@@ -64,6 +70,7 @@ def test_find_remove_no_matches_skips_prompt(config_with_collection, client_mock
 
 
 def test_find_remove_invalidates_cache(config_with_collection, client_mock, runner):
+    """Find remove invalidates cache."""
     client_mock.find_documents.return_value = ["/db/myapp/a.xml"]
     with patch.object(find_module, "invalidate") as mock_invalidate:
         result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]', "--remove", "--yes"])
@@ -72,6 +79,7 @@ def test_find_remove_invalidates_cache(config_with_collection, client_mock, runn
 
 
 def test_find_without_remove_does_not_invalidate_cache(config_with_collection, client_mock, runner):
+    """Find without remove does not invalidate cache."""
     client_mock.find_documents.return_value = ["/db/myapp/a.xml"]
     with patch.object(find_module, "invalidate") as mock_invalidate:
         result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]'])
@@ -80,12 +88,14 @@ def test_find_without_remove_does_not_invalidate_cache(config_with_collection, c
 
 
 def test_find_unknown_collection_fails(config_path, client_mock, runner):
+    """Find unknown collection fails."""
     result = runner.invoke(app, ["find", "ghost:/", "--query", 'foo[@type="draft"]'])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_find_query_error_exits_1(config_with_collection, client_mock, runner):
+    """Find query error exits 1."""
     client_mock.find_documents.side_effect = ExistQueryError("Unexpected token")
     result = runner.invoke(app, ["find", "myapp:/", "--query", "invalid !!!"])
     assert result.exit_code == 1
@@ -93,6 +103,7 @@ def test_find_query_error_exits_1(config_with_collection, client_mock, runner):
 
 
 def test_find_auth_error_exits_1(config_with_collection, client_mock, runner):
+    """Find auth error exits 1."""
     client_mock.find_documents.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]'])
     assert result.exit_code == 1
@@ -100,12 +111,14 @@ def test_find_auth_error_exits_1(config_with_collection, client_mock, runner):
 
 
 def test_find_connection_error_exits_1(config_with_collection, client_mock, runner):
+    """Find connection error exits 1."""
     client_mock.find_documents.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["find", "myapp:/", "--query", 'foo[@type="draft"]'])
     assert result.exit_code == 1
 
 
 def test_find_missing_query_option_fails(config_with_collection, client_mock, runner):
+    """Find missing query option fails."""
     result = runner.invoke(app, ["find", "myapp:/"])
     assert result.exit_code != 0
     client_mock.find_documents.assert_not_called()

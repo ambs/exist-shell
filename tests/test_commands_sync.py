@@ -58,6 +58,7 @@ def local_dir(tmp_path) -> Path:
 # ---------------------------------------------------------------------------
 
 def test_push_uploads_new_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push uploads new file."""
     content = b"<root/>"
     (local_dir / "doc.xml").write_bytes(content)
     client_mock.list_collection.return_value = []
@@ -69,6 +70,7 @@ def test_push_uploads_new_file(config_with_collection, client_mock, manifest_dir
 
 
 def test_push_skips_unchanged_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push skips unchanged file."""
     content = b"<root/>"
     local_file = local_dir / "doc.xml"
     local_file.write_bytes(content)
@@ -94,6 +96,7 @@ def test_push_skips_unchanged_file(config_with_collection, client_mock, manifest
 
 
 def test_push_uploads_modified_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push uploads modified file."""
     old_content = b"<old/>"
     new_content = b"<new/>"
     local_file = local_dir / "doc.xml"
@@ -115,6 +118,7 @@ def test_push_uploads_modified_file(config_with_collection, client_mock, manifes
 
 
 def test_push_detects_conflict(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push detects conflict."""
     local_file = local_dir / "doc.xml"
     local_file.write_bytes(b"<local/>")
 
@@ -161,6 +165,7 @@ def test_push_manifest_not_shared_across_local_dirs(
 
 
 def test_push_force_uploads_all(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push force uploads all."""
     content = b"<root/>"
     (local_dir / "a.xml").write_bytes(content)
     (local_dir / "b.xml").write_bytes(content)
@@ -172,6 +177,7 @@ def test_push_force_uploads_all(config_with_collection, client_mock, manifest_di
 
 
 def test_push_dry_run_does_not_upload(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push dry run does not upload."""
     (local_dir / "doc.xml").write_bytes(b"<root/>")
     client_mock.list_collection.return_value = []
 
@@ -186,6 +192,7 @@ def test_push_dry_run_does_not_upload(config_with_collection, client_mock, manif
 # ---------------------------------------------------------------------------
 
 def test_push_creates_missing_remote_collection(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push creates missing remote collection."""
     subdir = local_dir / "reports"
     subdir.mkdir()
     (subdir / "doc.xml").write_bytes(b"<r/>")
@@ -198,6 +205,7 @@ def test_push_creates_missing_remote_collection(config_with_collection, client_m
 
 
 def test_push_delete_removes_remote_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push delete removes remote extra."""
     # Local dir is empty; remote has a file that should be deleted
     client_mock.list_collection.return_value = [_resource("old.xml")]
 
@@ -208,6 +216,7 @@ def test_push_delete_removes_remote_extra(config_with_collection, client_mock, m
 
 
 def test_push_delete_removes_empty_remote_collection(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push delete removes empty remote collection."""
     from exist_shell.models import CollectionEntry
 
     empty_col = CollectionEntry(name="archive")
@@ -232,6 +241,7 @@ def test_push_delete_removes_empty_remote_collection(config_with_collection, cli
 
 
 def test_push_no_delete_leaves_remote_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push no delete leaves remote extra."""
     client_mock.list_collection.return_value = [_resource("old.xml")]
 
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
@@ -244,6 +254,7 @@ def test_push_no_delete_leaves_remote_extra(config_with_collection, client_mock,
 # ---------------------------------------------------------------------------
 
 def test_pull_downloads_new_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull downloads new file."""
     client_mock.list_collection.return_value = [_resource("doc.xml")]
     client_mock.get_document.return_value = DocumentResult(b"<root/>", "application/xml")
 
@@ -254,6 +265,7 @@ def test_pull_downloads_new_file(config_with_collection, client_mock, manifest_d
 
 
 def test_pull_skips_unchanged_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull skips unchanged file."""
     content = b"<root/>"
     local_file = local_dir / "doc.xml"
     local_file.write_bytes(content)
@@ -278,6 +290,7 @@ def test_pull_skips_unchanged_file(config_with_collection, client_mock, manifest
 
 
 def test_pull_downloads_missing_local_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull downloads missing local file."""
     # Manifest says file is synced but local file was deleted — must re-download.
     mtime = "2025-01-01T00:00:00.000"
     manifest_dir.mkdir(parents=True)
@@ -297,6 +310,7 @@ def test_pull_downloads_missing_local_file(config_with_collection, client_mock, 
 
 
 def test_pull_downloads_modified_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull downloads modified file."""
     content = b"<old/>"
     local_file = local_dir / "doc.xml"
     local_file.write_bytes(content)
@@ -317,6 +331,7 @@ def test_pull_downloads_modified_file(config_with_collection, client_mock, manif
 
 
 def test_pull_detects_conflict(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull detects conflict."""
     local_file = local_dir / "doc.xml"
     local_file.write_bytes(b"<local_edit/>")
 
@@ -336,6 +351,7 @@ def test_pull_detects_conflict(config_with_collection, client_mock, manifest_dir
 
 
 def test_pull_force_downloads_all(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull force downloads all."""
     client_mock.list_collection.return_value = [_resource("a.xml"), _resource("b.xml")]
     client_mock.get_document.return_value = DocumentResult(b"<x/>", "application/xml")
 
@@ -345,6 +361,7 @@ def test_pull_force_downloads_all(config_with_collection, client_mock, manifest_
 
 
 def test_pull_dry_run_does_not_download(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull dry run does not download."""
     client_mock.list_collection.return_value = [_resource("doc.xml")]
 
     result = runner.invoke(app, ["sync", "--dry-run", "myapp:/", str(local_dir)])
@@ -358,6 +375,7 @@ def test_pull_dry_run_does_not_download(config_with_collection, client_mock, man
 # ---------------------------------------------------------------------------
 
 def test_pull_creates_missing_local_dir(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull creates missing local dir."""
     from exist_shell.models import CollectionEntry
     col = CollectionEntry(name="reports")
     client_mock.list_collection.side_effect = [
@@ -372,6 +390,7 @@ def test_pull_creates_missing_local_dir(config_with_collection, client_mock, man
 
 
 def test_pull_delete_removes_local_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull delete removes local extra."""
     (local_dir / "stale.xml").write_bytes(b"<old/>")
     client_mock.list_collection.return_value = []
 
@@ -382,6 +401,7 @@ def test_pull_delete_removes_local_extra(config_with_collection, client_mock, ma
 
 
 def test_pull_delete_removes_empty_local_dir(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull delete removes empty local dir."""
     empty_subdir = local_dir / "archive"
     empty_subdir.mkdir()
     client_mock.list_collection.return_value = []
@@ -393,6 +413,7 @@ def test_pull_delete_removes_empty_local_dir(config_with_collection, client_mock
 
 
 def test_pull_no_delete_leaves_local_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull no delete leaves local extra."""
     (local_dir / "stale.xml").write_bytes(b"<old/>")
     client_mock.list_collection.return_value = []
 
@@ -406,18 +427,21 @@ def test_pull_no_delete_leaves_local_extra(config_with_collection, client_mock, 
 # ---------------------------------------------------------------------------
 
 def test_sync_both_remote_fails(config_with_collection, client_mock, runner):
+    """Sync both remote fails."""
     result = runner.invoke(app, ["sync", "myapp:/a", "myapp:/b"])
     assert result.exit_code == 1
     assert "both" in result.output
 
 
 def test_sync_both_local_fails(runner, tmp_path):
+    """Sync both local fails."""
     result = runner.invoke(app, ["sync", str(tmp_path), str(tmp_path)])
     assert result.exit_code == 1
     assert "remote" in result.output
 
 
 def test_sync_source_not_a_dir_fails(config_with_collection, client_mock, runner, tmp_path):
+    """Sync source not a dir fails."""
     f = tmp_path / "file.xml"
     f.write_bytes(b"<x/>")
     result = runner.invoke(app, ["sync", str(f), "myapp:/"])
@@ -426,6 +450,7 @@ def test_sync_source_not_a_dir_fails(config_with_collection, client_mock, runner
 
 
 def test_sync_unknown_collection_fails(config_path, client_mock, runner, tmp_path):
+    """Sync unknown collection fails."""
     d = tmp_path / "src"
     d.mkdir()
     result = runner.invoke(app, ["sync", str(d), "ghost:/"])
@@ -434,6 +459,7 @@ def test_sync_unknown_collection_fails(config_path, client_mock, runner, tmp_pat
 
 
 def test_sync_auth_error_fails(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Sync auth error fails."""
     client_mock.list_collection.side_effect = ExistAuthError("url")
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 1
@@ -441,6 +467,7 @@ def test_sync_auth_error_fails(config_with_collection, client_mock, manifest_dir
 
 
 def test_sync_connection_error_fails(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Sync connection error fails."""
     client_mock.list_collection.side_effect = ExistConnectionError("url", Exception("refused"))
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
     assert result.exit_code == 1
@@ -453,6 +480,7 @@ def test_sync_connection_error_fails(config_with_collection, client_mock, manife
 def test_push_checkpoints_manifest_periodically(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Push checkpoints manifest periodically."""
     for i in range(3):
         (local_dir / f"doc{i}.xml").write_bytes(b"<x/>")
     client_mock.list_collection.return_value = []
@@ -469,6 +497,7 @@ def test_push_checkpoints_manifest_periodically(
 def test_pull_checkpoints_manifest_periodically(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Pull checkpoints manifest periodically."""
     from exist_shell.models import DocumentResult
 
     client_mock.list_collection.return_value = [
@@ -490,6 +519,7 @@ def test_pull_checkpoints_manifest_periodically(
 def test_push_dry_run_skips_checkpoints(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Push dry run skips checkpoints."""
     for i in range(3):
         (local_dir / f"doc{i}.xml").write_bytes(b"<x/>")
     client_mock.list_collection.return_value = []
@@ -505,6 +535,7 @@ def test_push_dry_run_skips_checkpoints(
 def test_pull_dry_run_skips_checkpoints(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Pull dry run skips checkpoints."""
     client_mock.list_collection.return_value = [_resource("a.xml"), _resource("b.xml")]
 
     write_calls: list[None] = []
@@ -575,6 +606,7 @@ def test_push_skips_touched_file(config_with_collection, client_mock, manifest_d
 # ---------------------------------------------------------------------------
 
 def test_push_skips_malformed_xml(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push skips malformed xml."""
     (local_dir / "bad.xml").write_bytes(b"<unclosed>")
     client_mock.list_collection.return_value = []
 
@@ -587,6 +619,7 @@ def test_push_skips_malformed_xml(config_with_collection, client_mock, manifest_
 
 
 def test_push_non_xml_file_skips_validation(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push non xml file skips validation."""
     (local_dir / "image.png").write_bytes(b"\x89PNG\r\n")
     client_mock.list_collection.return_value = []
 
@@ -596,6 +629,7 @@ def test_push_non_xml_file_skips_validation(config_with_collection, client_mock,
 
 
 def test_push_fail_fast_stops_on_first_invalid(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push fail fast stops on first invalid."""
     (local_dir / "a.xml").write_bytes(b"<unclosed>")
     (local_dir / "b.xml").write_bytes(b"<valid/>")
     client_mock.list_collection.return_value = []
@@ -621,6 +655,7 @@ def test_push_fail_fast_saves_manifest_on_stop(config_with_collection, client_mo
 
 
 def test_push_fail_fast_exits_zero_when_no_invalid(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push fail fast exits zero when no invalid."""
     (local_dir / "doc.xml").write_bytes(b"<root/>")
     client_mock.list_collection.return_value = []
 
@@ -660,6 +695,7 @@ def test_push_fail_fast_stops_on_conflict(config_with_collection, client_mock, m
 def test_push_keyboard_interrupt_exits_cleanly(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Push keyboard interrupt exits cleanly."""
     import exist_shell.commands.sync as sync_mod
 
     (local_dir / "doc.xml").write_bytes(b"<x/>")
@@ -675,6 +711,7 @@ def test_push_keyboard_interrupt_exits_cleanly(
 def test_pull_keyboard_interrupt_exits_cleanly(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Pull keyboard interrupt exits cleanly."""
     import exist_shell.commands.sync as sync_mod
 
     client_mock.list_collection.return_value = [_resource("doc.xml")]
@@ -689,6 +726,7 @@ def test_pull_keyboard_interrupt_exits_cleanly(
 def test_push_keyboard_interrupt_during_listing_exits_cleanly(
     config_with_collection, client_mock, manifest_dir, local_dir, runner
 ):
+    """Push keyboard interrupt during listing exits cleanly."""
     client_mock.list_collection.side_effect = KeyboardInterrupt
 
     result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
@@ -700,6 +738,7 @@ def test_push_keyboard_interrupt_during_listing_exits_cleanly(
 def test_pull_keyboard_interrupt_during_listing_exits_cleanly(
     config_with_collection, client_mock, manifest_dir, local_dir, runner
 ):
+    """Pull keyboard interrupt during listing exits cleanly."""
     client_mock.list_collection.side_effect = KeyboardInterrupt
 
     result = runner.invoke(app, ["sync", "myapp:/", str(local_dir)])
@@ -711,6 +750,7 @@ def test_pull_keyboard_interrupt_during_listing_exits_cleanly(
 def test_push_keyboard_interrupt_saves_manifest(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Push keyboard interrupt saves manifest."""
     import exist_shell.commands.sync as sync_mod
 
     (local_dir / "doc.xml").write_bytes(b"<x/>")
@@ -726,6 +766,7 @@ def test_push_keyboard_interrupt_saves_manifest(
 def test_pull_keyboard_interrupt_saves_manifest(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Pull keyboard interrupt saves manifest."""
     import exist_shell.commands.sync as sync_mod
 
     client_mock.list_collection.return_value = [_resource("doc.xml")]
@@ -740,6 +781,7 @@ def test_pull_keyboard_interrupt_saves_manifest(
 def test_push_keyboard_interrupt_dry_run_skips_manifest_save(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Push keyboard interrupt dry run skips manifest save."""
     import exist_shell.commands.sync as sync_mod
 
     (local_dir / "doc.xml").write_bytes(b"<x/>")
@@ -757,6 +799,7 @@ def test_push_keyboard_interrupt_dry_run_skips_manifest_save(
 # ---------------------------------------------------------------------------
 
 def test_pull_continues_past_failed_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull continues past failed file."""
     client_mock.list_collection.return_value = [_resource("bad.xml"), _resource("good.xml")]
     client_mock.get_document.side_effect = [
         ExistConnectionError("url", Exception("boom")),
@@ -775,6 +818,7 @@ def test_pull_continues_past_failed_file(config_with_collection, client_mock, ma
 
 
 def test_push_continues_past_failed_file(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push continues past failed file."""
     (local_dir / "bad.xml").write_bytes(b"<bad/>")
     (local_dir / "good.xml").write_bytes(b"<good/>")
     client_mock.list_collection.return_value = []
@@ -875,6 +919,7 @@ def test_pull_walk_remote_root_failure_still_aborts(
 def test_push_jobs_flag_accepted(
     config_with_collection, client_mock, manifest_dir, local_dir, runner
 ):
+    """Push jobs flag accepted."""
     (local_dir / "doc.xml").write_bytes(b"<x/>")
     client_mock.list_collection.return_value = []
 
@@ -887,6 +932,7 @@ def test_push_jobs_flag_accepted(
 def test_pull_jobs_flag_accepted(
     config_with_collection, client_mock, manifest_dir, local_dir, runner
 ):
+    """Pull jobs flag accepted."""
     client_mock.list_collection.return_value = [_resource("doc.xml")]
     client_mock.get_document.return_value = DocumentResult(b"<x/>", "application/xml")
 
@@ -952,6 +998,7 @@ def test_pull_parallel_runs_tasks_concurrently(
 def test_push_corrupt_manifest_falls_back_to_empty(
     config_with_collection, client_mock, manifest_dir, local_dir, runner
 ):
+    """Push corrupt manifest falls back to empty."""
     manifest_dir.mkdir(parents=True)
     _manifest_path("myapp", "/", local_dir).write_text("THIS IS NOT JSON")
     (local_dir / "doc.xml").write_bytes(b"<x/>")
@@ -1251,6 +1298,7 @@ def test_pull_delete_dry_run_logs_local_extras_without_deleting(
 def test_pull_keyboard_interrupt_dry_run_skips_manifest_save(
     config_with_collection, client_mock, manifest_dir, local_dir, runner, monkeypatch
 ):
+    """Pull keyboard interrupt dry run skips manifest save."""
     import exist_shell.commands.sync as sync_mod
 
     client_mock.list_collection.return_value = [_resource("doc.xml")]

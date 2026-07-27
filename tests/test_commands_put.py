@@ -21,26 +21,31 @@ def client_mock(monkeypatch):
 # --- _resolve_mime unit tests ---
 
 def test_resolve_mime_explicit_overrides_all():
+    """Resolve mime explicit overrides all."""
     assert _resolve_mime(Path("doc.xml"), "--mime image/png") == "--mime image/png"
 
 
 def test_resolve_mime_guesses_from_extension(tmp_path):
+    """Resolve mime guesses from extension."""
     f = tmp_path / "image.png"
     assert _resolve_mime(f, None) == "image/png"
 
 
 def test_resolve_mime_unknown_extension_falls_back(tmp_path):
+    """Resolve mime unknown extension falls back."""
     f = tmp_path / "file.xyzunknown"
     assert _resolve_mime(f, None) == "application/octet-stream"
 
 
 def test_resolve_mime_stdin_defaults_to_xml():
+    """Resolve mime stdin defaults to xml."""
     assert _resolve_mime(None, None) == "application/xml"
 
 
 # --- command tests ---
 
 def test_put_from_file(config_with_collection, client_mock, tmp_path, runner):
+    """Put from file."""
     f = tmp_path / "doc.xml"
     f.write_bytes(b"<root/>")
     result = runner.invoke(app, ["put", "myapp:/doc.xml", "-f", str(f)])
@@ -49,6 +54,7 @@ def test_put_from_file(config_with_collection, client_mock, tmp_path, runner):
 
 
 def test_put_from_file_guesses_mime(config_with_collection, client_mock, tmp_path, runner):
+    """Put from file guesses mime."""
     f = tmp_path / "image.png"
     f.write_bytes(b"\x89PNG")
     result = runner.invoke(app, ["put", "myapp:/image.png", "-f", str(f)])
@@ -58,6 +64,7 @@ def test_put_from_file_guesses_mime(config_with_collection, client_mock, tmp_pat
 
 
 def test_put_explicit_mime_overrides_guess(config_with_collection, client_mock, tmp_path, runner):
+    """Put explicit mime overrides guess."""
     f = tmp_path / "image.png"
     f.write_bytes(b"\x89PNG")
     result = runner.invoke(app, ["put", "myapp:/image.png", "-f", str(f), "--mime", "image/jpeg"])
@@ -67,18 +74,21 @@ def test_put_explicit_mime_overrides_guess(config_with_collection, client_mock, 
 
 
 def test_put_missing_path_fails(config_with_collection, client_mock, runner):
+    """Put missing path fails."""
     result = runner.invoke(app, ["put", "myapp"])
     assert result.exit_code == 1
     assert "path is required" in result.output
 
 
 def test_put_unknown_collection_fails(config_path, client_mock, runner):
+    """Put unknown collection fails."""
     result = runner.invoke(app, ["put", "ghost:/doc.xml"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
 def test_put_not_found_fails(config_with_collection, client_mock, tmp_path, runner):
+    """Put not found fails."""
     f = tmp_path / "doc.xml"
     f.write_bytes(b"<root/>")
     client_mock.put_document.side_effect = ExistNotFoundError("/db/myapp/missing/doc.xml")
@@ -88,6 +98,7 @@ def test_put_not_found_fails(config_with_collection, client_mock, tmp_path, runn
 
 
 def test_put_auth_error_fails(config_with_collection, client_mock, tmp_path, runner):
+    """Put auth error fails."""
     f = tmp_path / "doc.xml"
     f.write_bytes(b"<root/>")
     client_mock.put_document.side_effect = ExistAuthError("url")
@@ -97,6 +108,7 @@ def test_put_auth_error_fails(config_with_collection, client_mock, tmp_path, run
 
 
 def test_put_connection_error_fails(config_with_collection, client_mock, tmp_path, runner):
+    """Put connection error fails."""
     f = tmp_path / "doc.xml"
     f.write_bytes(b"<root/>")
     client_mock.put_document.side_effect = ExistConnectionError("url", Exception("refused"))
@@ -105,12 +117,14 @@ def test_put_connection_error_fails(config_with_collection, client_mock, tmp_pat
 
 
 def test_put_unreadable_file_fails(config_with_collection, client_mock, runner):
+    """Put unreadable file fails."""
     result = runner.invoke(app, ["put", "myapp:/doc.xml", "-f", "/nonexistent/path/doc.xml"])
     assert result.exit_code == 1
     assert "cannot read" in result.output
 
 
 def test_put_rejects_path_traversal(config_with_collection, client_mock, runner):
+    """Put rejects path traversal."""
     result = runner.invoke(app, ["put", "myapp:/../other/doc.xml"])
     assert result.exit_code == 1
     assert "traversal" in result.output
@@ -119,6 +133,7 @@ def test_put_rejects_path_traversal(config_with_collection, client_mock, runner)
 # --- XML well-formedness ---
 
 def test_put_rejects_malformed_xml(config_with_collection, client_mock, tmp_path, runner):
+    """Put rejects malformed xml."""
     f = tmp_path / "bad.xml"
     f.write_bytes(b"<unclosed>")
     result = runner.invoke(app, ["put", "myapp:/bad.xml", "-f", str(f)])
@@ -129,6 +144,7 @@ def test_put_rejects_malformed_xml(config_with_collection, client_mock, tmp_path
 
 
 def test_put_non_xml_mime_skips_validation(config_with_collection, client_mock, tmp_path, runner):
+    """Put non xml mime skips validation."""
     f = tmp_path / "data.bin"
     f.write_bytes(b"\x00\x01\x02not xml")
     result = runner.invoke(app, ["put", "myapp:/data.bin", "-f", str(f), "--mime", "application/octet-stream"])
@@ -137,6 +153,7 @@ def test_put_non_xml_mime_skips_validation(config_with_collection, client_mock, 
 
 
 def test_put_rejects_malformed_xml_from_stdin(config_with_collection, client_mock, runner):
+    """Put rejects malformed xml from stdin."""
     result = runner.invoke(app, ["put", "myapp:/bad.xml"], input="<unclosed>")
     assert result.exit_code == 1
     assert "stdin" in result.output
