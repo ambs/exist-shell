@@ -54,6 +54,7 @@ def test_check_connection_raises_auth_error_on_401(httpx_mock, a_server):
 
 
 def test_check_connection_raises_server_error_on_403(httpx_mock, a_server):
+    """Check connection raises server error on 403."""
     httpx_mock.add_response(url="http://localhost:8080/exist/rest/db", status_code=403, text="Permission denied")
     with ExistClient(a_server) as client:
         with pytest.raises(ExistServerError) as exc_info:
@@ -134,6 +135,7 @@ def test_list_collection_raises_auth_error_on_401(httpx_mock, a_server):
 
 
 def test_list_collection_raises_server_error_on_403(httpx_mock, a_server):
+    """List collection raises server error on 403."""
     httpx_mock.add_response(url="http://localhost:8080/exist/rest/db/myapp", status_code=403, text="Permission denied")
     with ExistClient(a_server) as client:
         with pytest.raises(ExistServerError) as exc_info:
@@ -286,6 +288,7 @@ def test_put_document_raises_not_found_on_404(httpx_mock, a_server):
 
 
 def test_put_document_raises_server_error_on_403(httpx_mock, a_server):
+    """Put document raises server error on 403."""
     httpx_mock.add_response(
         url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="PUT", status_code=403, text="Permission denied"
     )
@@ -404,6 +407,7 @@ def test_get_document_raises_auth_error_on_401_for_xql(httpx_mock, a_server):
 
 
 def test_get_document_raises_server_error_on_403(httpx_mock, a_server):
+    """Get document raises server error on 403."""
     httpx_mock.add_response(
         url="http://localhost:8080/exist/rest/db/myapp/doc.xml", status_code=403, text="Permission denied"
     )
@@ -494,6 +498,7 @@ def test_delete_document_raises_not_found_on_404(httpx_mock, a_server):
 
 
 def test_delete_document_raises_server_error_on_403(httpx_mock, a_server):
+    """Delete document raises server error on 403."""
     httpx_mock.add_response(
         url="http://localhost:8080/exist/rest/db/myapp/doc.xml", method="DELETE", status_code=403, text="Permission denied"
     )
@@ -541,6 +546,7 @@ def test_delete_collection_raises_not_found_on_404(httpx_mock, a_server):
 
 
 def test_delete_collection_raises_server_error_on_403(httpx_mock, a_server):
+    """Delete collection raises server error on 403."""
     httpx_mock.add_response(
         url="http://localhost:8080/exist/rest/db/myapp", method="DELETE", status_code=403, text="Permission denied"
     )
@@ -614,6 +620,7 @@ def test_execute_query_raises_query_error_on_500(httpx_mock, a_server):
 
 
 def test_execute_query_raises_server_error_on_403(httpx_mock, a_server):
+    """Execute query raises server error on 403."""
     httpx_mock.add_response(
         url="http://localhost:8080/exist/rest/db",
         method="POST",

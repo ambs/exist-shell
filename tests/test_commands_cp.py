@@ -65,6 +65,7 @@ def test_local_to_remote_unreadable_source_fails(config_with_collection, client_
 
 
 def test_local_to_remote_rejects_malformed_xml(config_with_collection, client_mock, tmp_path, runner):
+    """Local to remote rejects malformed xml."""
     f = tmp_path / "bad.xml"
     f.write_bytes(b"<unclosed>")
     result = runner.invoke(app, ["cp", str(f), "myapp:/bad.xml"])
@@ -74,6 +75,7 @@ def test_local_to_remote_rejects_malformed_xml(config_with_collection, client_mo
 
 
 def test_local_to_remote_non_xml_mime_skips_validation(config_with_collection, client_mock, tmp_path, runner):
+    """Local to remote non xml mime skips validation."""
     f = tmp_path / "data.bin"
     f.write_bytes(b"\x00\x01\x02not xml")
     result = runner.invoke(app, ["cp", str(f), "myapp:/data.bin"])

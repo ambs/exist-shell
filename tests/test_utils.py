@@ -225,6 +225,7 @@ def test_parse_user_at_server_multiple_at_uses_last():
 
 
 def test_handle_exist_errors_reports_not_found(capsys):
+    """Handle exist errors reports not found."""
     with pytest.raises(typer.Exit):
         with handle_exist_errors("/doc.xml", "myapp", "prod"):
             raise ExistNotFoundError("/doc.xml")
@@ -232,6 +233,7 @@ def test_handle_exist_errors_reports_not_found(capsys):
 
 
 def test_handle_exist_errors_reports_auth_failure(capsys):
+    """Handle exist errors reports auth failure."""
     with pytest.raises(typer.Exit):
         with handle_exist_errors("/doc.xml", "myapp", "prod"):
             raise ExistAuthError("http://example.com")
@@ -249,6 +251,7 @@ def test_handle_exist_errors_reports_server_error_instead_of_traceback(capsys):
 
 
 def test_handle_exist_errors_reports_query_error(capsys):
+    """Handle exist errors reports query error."""
     with pytest.raises(typer.Exit):
         with handle_exist_errors("/doc.xml", "myapp", "prod"):
             raise ExistQueryError("bad syntax")

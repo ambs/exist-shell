@@ -42,6 +42,7 @@ def test_read_error_message_falls_back_to_cannot_connect():
 
 
 def test_server_error_message_includes_status_code_and_detail():
+    """Server error message includes status code and detail."""
     err = ExistServerError(403, "Permission denied")
     assert str(err) == "Server returned HTTP 403: Permission denied"
     assert err.status_code == 403
@@ -49,5 +50,6 @@ def test_server_error_message_includes_status_code_and_detail():
 
 
 def test_server_error_message_omits_colon_when_detail_empty():
+    """Server error message omits colon when detail empty."""
     err = ExistServerError(409, "")
     assert str(err) == "Server returned HTTP 409"
