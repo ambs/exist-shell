@@ -3,12 +3,12 @@
 import hashlib
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from exist_shell.commands.sync import Manifest, _manifest_path
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError
+from exist_shell.commands.sync import Manifest, _is_excluded, _load_manifest, _manifest_path
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError
 from exist_shell.main import app
 from exist_shell.models import DocumentResult, ResourceEntry
 
@@ -1308,3 +1308,484 @@ def test_pull_keyboard_interrupt_dry_run_skips_manifest_save(
 
     assert result.exit_code == 130
     assert not manifest_dir.exists() or not any(manifest_dir.rglob("*.json"))
+
+
+# ---------------------------------------------------------------------------
+# Exclude pattern matching
+# ---------------------------------------------------------------------------
+
+def test_is_excluded_segment_pattern_matches_any_depth():
+    """A bare pattern excludes a matching path segment at any depth."""
+    assert _is_excluded("build", ["build"])
+    assert _is_excluded("build/x.xml", ["build"])
+    assert _is_excluded("a/build/y.xml", ["build"])
+    assert not _is_excluded("builder/x.xml", ["build"])
+
+
+def test_is_excluded_wildcard_segment_pattern():
+    """A bare wildcard pattern matches file segments at any depth."""
+    assert _is_excluded("c.tmp", ["*.tmp"])
+    assert _is_excluded("a/b/c.tmp", ["*.tmp"])
+    assert not _is_excluded("a/b/c.xml", ["*.tmp"])
+
+
+def test_is_excluded_full_path_pattern_excludes_subtree():
+    """A pattern with a slash matches the full relative path and everything below it."""
+    assert _is_excluded("build/sub", ["build/sub"])
+    assert _is_excluded("build/sub/x.xml", ["build/sub"])
+    assert not _is_excluded("a/build/sub/x.xml", ["build/sub"])
+    assert not _is_excluded("build/subset/x.xml", ["build/sub"])
+
+
+def test_is_excluded_multiple_and_empty_patterns():
+    """Any matching pattern excludes; an empty pattern list excludes nothing."""
+    assert _is_excluded("a/b/c.tmp", ["build", "*.tmp"])
+    assert not _is_excluded("a/b/c.xml", ["build", "*.tmp"])
+    assert not _is_excluded("build/x.xml", [])
+
+
+# ---------------------------------------------------------------------------
+# Manifest format — excludes round-trip and backward compatibility
+# ---------------------------------------------------------------------------
+
+def test_manifest_wrapper_format_roundtrip(manifest_dir, local_dir):
+    """Saved manifest stores entries and excludes in the wrapper format and reloads them."""
+    manifest = _load_manifest("myapp", "/", local_dir, 100)
+    manifest.set("doc.xml", {"local_sha256": "abc"})
+    manifest.excludes = ["build", "*.tmp"]
+    manifest.save()
+
+    raw = json.loads(next(manifest_dir.glob("*.json")).read_text())
+    assert raw == {"excludes": ["build", "*.tmp"], "entries": {"doc.xml": {"local_sha256": "abc"}}}
+
+    reloaded = _load_manifest("myapp", "/", local_dir, 100)
+    assert reloaded.get("doc.xml") == {"local_sha256": "abc"}
+    assert reloaded.excludes == ["build", "*.tmp"]
+    assert reloaded.rel_paths() == ["doc.xml"]
+
+
+def test_manifest_flat_format_backward_compat(manifest_dir, local_dir):
+    """A legacy flat-format manifest loads its entries with an empty exclude list."""
+    path = _manifest_path("myapp", "/", local_dir)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"doc.xml": {"local_sha256": "abc"}}))
+
+    manifest = _load_manifest("myapp", "/", local_dir, 100)
+    assert manifest.get("doc.xml") == {"local_sha256": "abc"}
+    assert manifest.excludes == []
+
+
+def test_manifest_wrapper_format_missing_excludes_key(manifest_dir, local_dir):
+    """A wrapper-format manifest without an excludes key loads with an empty list."""
+    path = _manifest_path("myapp", "/", local_dir)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"entries": {"doc.xml": {"local_sha256": "abc"}}}))
+
+    manifest = _load_manifest("myapp", "/", local_dir, 100)
+    assert manifest.get("doc.xml") == {"local_sha256": "abc"}
+    assert manifest.excludes == []
+
+
+def test_manifest_flat_format_with_entries_filename(manifest_dir, local_dir):
+    """A legacy flat manifest tracking a file literally named entries still loads as flat."""
+    path = _manifest_path("myapp", "/", local_dir)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"entries": {"local_sha256": "abc"}}))
+
+    manifest = _load_manifest("myapp", "/", local_dir, 100)
+    assert manifest.get("entries") == {"local_sha256": "abc"}
+    assert manifest.excludes == []
+
+
+# ---------------------------------------------------------------------------
+# Exclude list resolution — merge, clear, persistence
+# ---------------------------------------------------------------------------
+
+def _stored_excludes(local_dir: Path) -> list[str]:
+    return json.loads(_manifest_path("myapp", "/", local_dir).read_text())["excludes"]
+
+
+def test_exclude_persists_across_runs(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Exclude patterns given on one run are stored and survive a later run without flags."""
+    client_mock.list_collection.return_value = []
+
+    assert runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build"]).exit_code == 0
+    assert _stored_excludes(local_dir) == ["build"]
+
+    assert runner.invoke(app, ["sync", str(local_dir), "myapp:/"]).exit_code == 0
+    assert _stored_excludes(local_dir) == ["build"]
+
+
+def test_exclude_merges_into_stored_list(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """A new --exclude pattern is merged into the stored list, not replacing it."""
+    client_mock.list_collection.return_value = []
+
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build"])
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp"])
+    assert _stored_excludes(local_dir) == ["*.tmp", "build"]
+
+
+def test_clear_exclude_wipes_stored_list(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """--clear-exclude empties the stored exclude list."""
+    client_mock.list_collection.return_value = []
+
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build"])
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--clear-exclude"])
+    assert _stored_excludes(local_dir) == []
+
+
+def test_clear_exclude_with_exclude_replaces_list(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """--clear-exclude combined with --exclude replaces the stored list in one run."""
+    client_mock.list_collection.return_value = []
+
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build", "--exclude", "*.tmp"])
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--clear-exclude", "--exclude", "*.bak"])
+    assert _stored_excludes(local_dir) == ["*.bak"]
+
+
+def test_exclude_dry_run_not_persisted(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Exclude changes on a dry run are honored for the run but not persisted."""
+    client_mock.list_collection.return_value = []
+
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build"])
+    runner.invoke(app, ["sync", "--dry-run", str(local_dir), "myapp:/", "--exclude", "*.tmp"])
+    assert _stored_excludes(local_dir) == ["build"]
+
+
+def test_exclude_merge_notice_shown_on_tty(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Merging new patterns into a non-empty stored list prints a notice when stdout is a TTY."""
+    import exist_shell.utils as utils_mod
+
+    client_mock.list_collection.return_value = []
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build"])
+
+    fake_sys = MagicMock()
+    fake_sys.stdout.isatty.return_value = True
+    with patch.object(utils_mod, "sys", fake_sys):
+        result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp"])
+    assert "Merging 1 new exclude pattern into stored list (now: *.tmp, build)." in result.output
+
+
+def test_exclude_merge_notice_suppressed_when_not_tty(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """The merge notice is suppressed when stdout is not a TTY."""
+    client_mock.list_collection.return_value = []
+
+    runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build"])
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp"])
+    assert "Merging" not in result.output
+    assert _stored_excludes(local_dir) == ["*.tmp", "build"]
+
+
+def test_exclude_no_notice_when_stored_list_empty(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """No merge notice is printed when the stored list was empty before the run."""
+    import exist_shell.utils as utils_mod
+
+    client_mock.list_collection.return_value = []
+    fake_sys = MagicMock()
+    fake_sys.stdout.isatty.return_value = True
+    with patch.object(utils_mod, "sys", fake_sys):
+        result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build"])
+    assert "Merging" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# Exclude filtering — push and pull transfers, --delete symmetry
+# ---------------------------------------------------------------------------
+
+def test_push_exclude_skips_matching_local_files(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push does not upload local files matching an exclude pattern."""
+    (local_dir / "doc.xml").write_bytes(b"<a/>")
+    (local_dir / "junk.tmp").write_bytes(b"not xml")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp"])
+    assert result.exit_code == 0
+    client_mock.put_document.assert_called_once()
+    assert "junk.tmp" not in result.output
+
+
+def test_push_exclude_skips_directory_subtree(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push neither uploads files under an excluded directory nor creates the collection."""
+    (local_dir / "doc.xml").write_bytes(b"<a/>")
+    (local_dir / "build").mkdir()
+    (local_dir / "build" / "x.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "build"])
+    assert result.exit_code == 0
+    client_mock.create_collection.assert_not_called()
+    client_mock.put_document.assert_called_once()
+    assert "build" not in result.output
+
+
+def test_push_delete_keeps_excluded_remote_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push --delete does not delete an excluded remote file with no local counterpart."""
+    client_mock.list_collection.return_value = [_resource("old.tmp")]
+
+    result = runner.invoke(app, ["sync", "--delete", str(local_dir), "myapp:/", "--exclude", "*.tmp"])
+    assert result.exit_code == 0
+    client_mock.delete_document.assert_not_called()
+    assert "old.tmp" not in result.output
+
+
+def test_push_delete_keeps_excluded_remote_collection(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Push --delete does not delete an excluded remote collection or its contents."""
+    from exist_shell.models import CollectionEntry
+
+    build_col = CollectionEntry(name="build")
+    client_mock.list_collection.side_effect = [
+        [build_col], [_resource("y.xml")],  # initial walk: root, then build/
+        [build_col], [_resource("y.xml")],  # empty-dir cleanup re-walk
+    ]
+
+    result = runner.invoke(app, ["sync", "--delete", str(local_dir), "myapp:/", "--exclude", "build"])
+    assert result.exit_code == 0
+    client_mock.delete_document.assert_not_called()
+    client_mock.delete_collection.assert_not_called()
+
+
+def test_pull_exclude_skips_matching_remote_files(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull does not download remote files matching an exclude pattern."""
+    client_mock.list_collection.return_value = [_resource("doc.xml"), _resource("junk.tmp")]
+    client_mock.get_document.return_value = DocumentResult(b"<root/>", "application/xml")
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir), "--exclude", "*.tmp"])
+    assert result.exit_code == 0
+    client_mock.get_document.assert_called_once()
+    assert (local_dir / "doc.xml").exists()
+    assert not (local_dir / "junk.tmp").exists()
+
+
+def test_pull_exclude_skips_remote_directory_subtree(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull does not create a local directory for an excluded remote collection."""
+    from exist_shell.models import CollectionEntry
+
+    client_mock.list_collection.side_effect = [[CollectionEntry(name="build")], [_resource("y.xml")]]
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir), "--exclude", "build"])
+    assert result.exit_code == 0
+    client_mock.get_document.assert_not_called()
+    assert not (local_dir / "build").exists()
+
+
+def test_pull_delete_keeps_excluded_local_extra(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull --delete does not delete an excluded local file with no remote counterpart."""
+    (local_dir / "notes.tmp").write_bytes(b"keep me")
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", "--delete", "myapp:/", str(local_dir), "--exclude", "*.tmp"])
+    assert result.exit_code == 0
+    assert (local_dir / "notes.tmp").exists()
+    assert "notes.tmp" not in result.output
+
+
+def test_pull_delete_keeps_excluded_empty_local_dir(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull --delete does not delete an excluded local directory even when empty."""
+    (local_dir / "build").mkdir()
+    client_mock.list_collection.return_value = []
+
+    result = runner.invoke(app, ["sync", "--delete", "myapp:/", str(local_dir), "--exclude", "build"])
+    assert result.exit_code == 0
+    assert (local_dir / "build").is_dir()
+    assert "build" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# Cleanup of newly excluded, previously synced files
+# ---------------------------------------------------------------------------
+
+def _manifest_entries(local_dir: Path) -> dict:
+    return json.loads(_manifest_path("myapp", "/", local_dir).read_text())["entries"]
+
+
+def _synced_pair(local_dir, client_mock, runner) -> None:
+    """Run a first push so doc.xml and junk.tmp are both tracked in the manifest."""
+    (local_dir / "doc.xml").write_bytes(b"<a/>")
+    (local_dir / "junk.tmp").write_bytes(b"<t/>")
+    client_mock.list_collection.return_value = []
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/"])
+    assert result.exit_code == 0
+    assert set(_manifest_entries(local_dir)) == {"doc.xml", "junk.tmp"}
+
+
+def test_exclude_cleanup_yes_deletes_both_sides(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """A newly excluded, previously synced file is deleted locally and remotely with --yes."""
+    _synced_pair(local_dir, client_mock, runner)
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp", "--yes"])
+    assert result.exit_code == 0
+    assert not (local_dir / "junk.tmp").exists()
+    client_mock.delete_document.assert_called_once()
+    assert "✗ junk.tmp  (excluded, deleted)" in result.output
+    assert "1 deleted" in result.output
+    assert set(_manifest_entries(local_dir)) == {"doc.xml"}
+
+
+def test_exclude_cleanup_declined_prompt_keeps_files_but_untracks(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Declining the cleanup prompt keeps the files on both sides but drops the entry."""
+    import exist_shell.commands.sync as sync_mod
+
+    _synced_pair(local_dir, client_mock, runner)
+
+    fake_sys = MagicMock()
+    fake_sys.stdin.isatty.return_value = True
+    with patch.object(sync_mod, "sys", fake_sys):
+        result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp"], input="n\n")
+    assert result.exit_code == 0
+    assert "Delete 1 previously-synced file(s)" in result.output
+    assert (local_dir / "junk.tmp").exists()
+    client_mock.delete_document.assert_not_called()
+    assert set(_manifest_entries(local_dir)) == {"doc.xml"}
+
+
+def test_exclude_cleanup_accepted_prompt_deletes(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Accepting the cleanup prompt deletes the newly excluded file."""
+    import exist_shell.commands.sync as sync_mod
+
+    _synced_pair(local_dir, client_mock, runner)
+
+    fake_sys = MagicMock()
+    fake_sys.stdin.isatty.return_value = True
+    with patch.object(sync_mod, "sys", fake_sys):
+        result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp"], input="y\n")
+    assert result.exit_code == 0
+    assert not (local_dir / "junk.tmp").exists()
+    client_mock.delete_document.assert_called_once()
+
+
+def test_exclude_cleanup_keep_excluded_untracks_silently(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """--keep-excluded drops tracking without prompting or deleting anything."""
+    _synced_pair(local_dir, client_mock, runner)
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp", "--keep-excluded"])
+    assert result.exit_code == 0
+    assert "Untracked 1 excluded file(s), kept in place." in result.output
+    assert (local_dir / "junk.tmp").exists()
+    client_mock.delete_document.assert_not_called()
+    assert set(_manifest_entries(local_dir)) == {"doc.xml"}
+
+
+def test_exclude_cleanup_dry_run_reports_only(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """--dry-run reports the would-be cleanup without deleting or persisting anything."""
+    _synced_pair(local_dir, client_mock, runner)
+
+    result = runner.invoke(app, ["sync", "--dry-run", str(local_dir), "myapp:/", "--exclude", "*.tmp"])
+    assert result.exit_code == 0
+    assert "✗ junk.tmp  (excluded, would delete)" in result.output
+    assert (local_dir / "junk.tmp").exists()
+    client_mock.delete_document.assert_not_called()
+    assert set(_manifest_entries(local_dir)) == {"doc.xml", "junk.tmp"}
+
+
+def test_exclude_cleanup_non_tty_without_yes_skips_deletion(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Without a TTY and without --yes the cleanup keeps the files but drops tracking."""
+    _synced_pair(local_dir, client_mock, runner)
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp"])
+    assert result.exit_code == 0
+    assert (local_dir / "junk.tmp").exists()
+    client_mock.delete_document.assert_not_called()
+    assert set(_manifest_entries(local_dir)) == {"doc.xml"}
+
+
+def test_exclude_cleanup_removes_empty_excluded_dirs(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Cleanup removes an excluded directory once its synced contents are deleted."""
+    (local_dir / "old").mkdir()
+    (local_dir / "old" / "x.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+    assert runner.invoke(app, ["sync", str(local_dir), "myapp:/"]).exit_code == 0
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "old", "--yes"])
+    assert result.exit_code == 0
+    assert not (local_dir / "old").exists()
+    client_mock.delete_document.assert_called_once()
+    client_mock.delete_collection.assert_called_once()
+
+
+def test_exclude_cleanup_pull_direction_deletes(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Pull-direction cleanup with --yes deletes the newly excluded file and counts it."""
+    client_mock.list_collection.return_value = [_resource("doc.xml"), _resource("junk.tmp")]
+    client_mock.get_document.return_value = DocumentResult(b"<root/>", "application/xml")
+    assert runner.invoke(app, ["sync", "myapp:/", str(local_dir)]).exit_code == 0
+    assert set(_manifest_entries(local_dir)) == {"doc.xml", "junk.tmp"}
+
+    result = runner.invoke(app, ["sync", "myapp:/", str(local_dir), "--exclude", "*.tmp", "--yes"])
+    assert result.exit_code == 0
+    assert not (local_dir / "junk.tmp").exists()
+    client_mock.delete_document.assert_called_once()
+    assert "✗ junk.tmp  (excluded, deleted)" in result.output
+    assert "1 deleted" in result.output
+    assert set(_manifest_entries(local_dir)) == {"doc.xml"}
+
+
+def test_exclude_cleanup_remote_already_gone(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """Cleanup tolerates the remote copy of a stale file being already gone."""
+    _synced_pair(local_dir, client_mock, runner)
+    client_mock.delete_document.side_effect = ExistNotFoundError("/db/junk.tmp")
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp", "--yes"])
+    assert result.exit_code == 0
+    assert not (local_dir / "junk.tmp").exists()
+    assert "✗ junk.tmp  (excluded, deleted)" in result.output
+    assert set(_manifest_entries(local_dir)) == {"doc.xml"}
+
+
+def test_exclude_cleanup_dir_sweep_tolerates_exist_error(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Cleanup continues when listing an excluded collection fails during dir removal."""
+    (local_dir / "old").mkdir()
+    (local_dir / "old" / "x.xml").write_bytes(b"<x/>")
+    client_mock.list_collection.return_value = []
+    assert runner.invoke(app, ["sync", str(local_dir), "myapp:/"]).exit_code == 0
+
+    client_mock.list_collection.side_effect = [ExistNotFoundError("/db/old"), []]
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "old", "--yes"])
+    assert result.exit_code == 0
+    assert "✗ old/x.xml  (excluded, deleted)" in result.output
+    assert not (local_dir / "old").exists()
+    client_mock.delete_collection.assert_not_called()
+
+
+def test_exclude_cleanup_tolerates_local_dir_at_tracked_path(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """Cleanup survives a tracked path that has since become a local directory."""
+    _synced_pair(local_dir, client_mock, runner)
+    (local_dir / "junk.tmp").unlink()
+    (local_dir / "junk.tmp").mkdir()
+
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", "*.tmp", "--yes"])
+    assert result.exit_code == 0
+    client_mock.delete_document.assert_called_once()
+    assert set(_manifest_entries(local_dir)) == {"doc.xml"}
+
+
+def test_exclude_cleanup_keep_excluded_dry_run_message(
+    config_with_collection, client_mock, manifest_dir, local_dir, runner
+):
+    """--keep-excluded with --dry-run reports the would-be untrack and persists nothing."""
+    _synced_pair(local_dir, client_mock, runner)
+
+    result = runner.invoke(
+        app, ["sync", "--dry-run", str(local_dir), "myapp:/", "--exclude", "*.tmp", "--keep-excluded"]
+    )
+    assert result.exit_code == 0
+    assert "Would untrack 1 excluded file(s), kept in place." in result.output
+    assert set(_manifest_entries(local_dir)) == {"doc.xml", "junk.tmp"}
+
+
+def test_exclude_empty_pattern_rejected(config_with_collection, client_mock, manifest_dir, local_dir, runner):
+    """An empty --exclude pattern is rejected before any sync work happens."""
+    result = runner.invoke(app, ["sync", str(local_dir), "myapp:/", "--exclude", ""])
+    assert result.exit_code == 1
+    assert "cannot be empty" in result.output
+    client_mock.list_collection.assert_not_called()

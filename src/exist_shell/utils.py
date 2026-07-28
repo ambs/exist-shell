@@ -1,6 +1,7 @@
 """Shared utilities for exist-shell commands."""
 
 import mimetypes
+import sys
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from collections.abc import Generator
@@ -10,6 +11,19 @@ import typer
 
 from exist_shell.config import Collection, Config, Server
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistError, ExistNotFoundError
+
+
+def echo_tty(message: str) -> None:
+    """Print a message only when stdout is a TTY.
+
+    Used for interactive heads-up lines that would pollute piped or
+    scripted output.
+
+    Args:
+        message: The message to print.
+    """
+    if sys.stdout.isatty():
+        typer.echo(message)
 
 
 def xq_escape(value: str) -> str:

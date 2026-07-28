@@ -198,6 +198,9 @@ exsh sync --dry-run ./reports mydata:reports
 # Push and remove files on the server that no longer exist locally
 exsh sync --delete ./reports mydata:reports
 
+# Sync everything except temp files and the build folder (remembered for later runs)
+exsh sync --exclude '*.tmp' --exclude build ./reports mydata:reports
+
 # Change owner and group of a document
 exsh chown alice:editors mydata:reports/annual.xml
 
@@ -224,6 +227,13 @@ exsh chmod -R 0644 mydata:data
 
 **Conflicts** (both sides changed since last sync) are reported and skipped — use `--force` to override.
 
+**Excludes:** `--exclude`/`-e <pattern>` (repeatable) skips matching paths on both sides of the sync — they are neither transferred nor ever deleted by `--delete`. Patterns are `fnmatch`-style (`*`, `?`, `[seq]`), matched against the path relative to the sync root:
+
+- A pattern containing `/` matches that relative path and everything below it (`build/sub` also excludes `build/sub/x.xml`). Note that `*` in such a pattern also crosses `/` (plain `fnmatch`, unlike gitignore): `build/*.xml` matches `build/sub/x.xml` too.
+- A pattern without `/` matches any single path segment at any depth — `build` excludes `build/`, `a/build/`, and their contents; `*.tmp` excludes temp files everywhere.
+
+Patterns are persisted in the sync manifest, per (server, remote path, local folder), so later runs keep excluding without repeating the flag. New `--exclude` patterns are merged into the stored list; `--clear-exclude` wipes it (combine both to replace the list in one run). Files that were synced before becoming excluded are deleted **on both sides** after a confirmation prompt — `--yes` skips the prompt, declining (or running non-interactively without `--yes`) keeps the files, and `--keep-excluded` keeps them without asking. In every case they stop being tracked.
+
 **Options:**
 
 | Flag | Effect |
@@ -231,6 +241,10 @@ exsh chmod -R 0644 mydata:data
 | `--force` / `-f` | Transfer all files, bypassing change detection |
 | `--dry-run` / `-n` | Show what would happen without transferring |
 | `--delete` | Remove files and empty folders on the destination that no longer exist on the source |
+| `--exclude PATTERN` / `-e` | Skip matching paths on both sides (repeatable); merged into the list stored for this sync pair |
+| `--clear-exclude` | Wipe the stored exclude list before applying any `--exclude` given in the same run |
+| `--keep-excluded` | Keep previously synced copies of newly excluded paths; only stop tracking them |
+| `--yes` / `-y` | Skip the confirmation prompt when deleting previously synced, newly excluded files |
 | `--verbose` / `-v` | Also print unchanged (skipped) files |
 | `--checkpoint-every N` | Flush the manifest every N files (default: 100); allows interrupted syncs to resume near the point of failure |
 
