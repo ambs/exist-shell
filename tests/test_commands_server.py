@@ -7,7 +7,7 @@ import pytest
 from pydantic import SecretStr
 
 from exist_shell.config import Collection, Config, Server
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistServerError
 from exist_shell.main import app
 
 
@@ -342,6 +342,15 @@ def test_server_status_auth_failure_exits_1(config_path, a_server, client_mock, 
     result = runner.invoke(app, ["server", "status", "local"])
     assert result.exit_code == 1
     assert "FAIL (authentication failed)" in result.output
+
+
+def test_server_status_other_exist_error_exits_1(config_path, a_server, client_mock, runner):
+    """Server status exits 1 and reports FAIL for an ExistError not more specifically handled."""
+    Config.load().add_server(a_server)
+    client_mock.server_version.side_effect = ExistServerError(403, "Permission denied")
+    result = runner.invoke(app, ["server", "status", "local"])
+    assert result.exit_code == 1
+    assert "FAIL (Server returned HTTP 403: Permission denied)" in result.output
 
 
 def test_server_status_unknown_nick_fails(config_path, a_server, runner):
