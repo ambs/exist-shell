@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # T12 — sync (push, unchanged, modified, dry-run, pull, --delete, conflict, --force,
-#             subdirectory tree, pull --dry-run, pull --delete, pull --force, errors)
+#             subdirectory tree, pull --dry-run, pull --delete, pull --force, errors,
+#             --exclude / --clear-exclude / --keep-excluded)
 # Sourced by scripts/e2e.sh — do not execute directly.
 
 section_T12_sync() {
@@ -232,4 +233,96 @@ section_T12_sync() {
     else
         fail "T12.28 dryextra.xml still present on server after --delete --dry-run (got HTTP ${_dryextra_status})"
     fi
+
+    # ---------------------------------------------------------------------------
+    # Excludes: --exclude / persistence / --delete symmetry / cleanup /
+    # --keep-excluded / --clear-exclude
+    # ---------------------------------------------------------------------------
+
+    # T12.32 — push with --exclude: matching local file is not uploaded
+    printf '<t/>' > "${TMPDIR_E2E}/syncdir/scratch.tmp"
+    assert_output_absent "scratch.tmp" \
+        "T12.32 push --exclude '*.tmp' does not upload scratch.tmp" \
+        "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot --exclude '*.tmp'
+    assert_output_absent "scratch.tmp" \
+        "T12.32 ls syncroot does not show scratch.tmp" \
+        "${EXSH[@]}" ls testcol:/syncroot
+
+    # T12.33 — persistence: a later run without the flag still excludes
+    assert_output_absent "scratch.tmp" \
+        "T12.33 stored exclude still applies without the flag" \
+        "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot
+    assert_output_absent "scratch.tmp" \
+        "T12.33 ls syncroot still does not show scratch.tmp" \
+        "${EXSH[@]}" ls testcol:/syncroot
+
+    # T12.34 — excluded remote extra survives push --delete
+    # (the leftover dryextra.xml from T12.28 is not excluded and gets deleted here)
+    curl -sf -u "${ADMIN_AUTH}" -X PUT \
+        -H "Content-Type: application/xml" \
+        --data-binary '<extra/>' \
+        "${EXIST_URL}/db/testcol/syncroot/extra.tmp" >/dev/null
+    assert_output_absent "extra.tmp" \
+        "T12.34 push --delete does not touch excluded remote extra.tmp" \
+        "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot --delete
+    local _extra_status
+    _extra_status="$(curl -s -o /dev/null -w "%{http_code}" -u "${ADMIN_AUTH}" "${EXIST_URL}/db/testcol/syncroot/extra.tmp")"
+    if [[ "${_extra_status}" == "200" ]]; then
+        ok "T12.34 extra.tmp still present on server after push --delete"
+    else
+        fail "T12.34 extra.tmp still present on server after push --delete (got HTTP ${_extra_status})"
+    fi
+
+    # T12.35 — cleanup: a previously synced folder that becomes excluded is
+    # deleted on both sides with --yes
+    mkdir -p "${TMPDIR_E2E}/syncdir/oldstuff"
+    printf '<o/>' > "${TMPDIR_E2E}/syncdir/oldstuff/o.xml"
+    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot
+    assert_in_last "↑ oldstuff/o.xml  (new)" "T12.35 setup: oldstuff/o.xml synced"
+    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot --exclude oldstuff --yes
+    assert_in_last "✗ oldstuff/o.xml  (excluded, deleted)" "T12.35 --exclude --yes deletes tracked file"
+    if [[ ! -e "${TMPDIR_E2E}/syncdir/oldstuff" ]]; then
+        ok "T12.35 local oldstuff/ removed after cleanup"
+    else
+        fail "T12.35 local oldstuff/ removed after cleanup (still present)"
+    fi
+    assert_output_absent "oldstuff" \
+        "T12.35 remote oldstuff/ removed after cleanup" \
+        "${EXSH[@]}" ls testcol:/syncroot
+
+    # T12.36 — non-interactive run without --yes: cleanup warns and keeps the files
+    printf '<k/>' > "${TMPDIR_E2E}/syncdir/keepme.xml"
+    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot
+    assert_in_last "↑ keepme.xml  (new)" "T12.36 setup: keepme.xml synced"
+    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot --exclude keepme.xml
+    assert_in_last "Skipping deletion of newly excluded file(s)" "T12.36 non-TTY without --yes warns and skips deletion"
+    if [[ -f "${TMPDIR_E2E}/syncdir/keepme.xml" ]]; then
+        ok "T12.36 keepme.xml kept locally"
+    else
+        fail "T12.36 keepme.xml kept locally (file deleted)"
+    fi
+    assert_output "keepme.xml" \
+        "T12.36 keepme.xml kept on server" \
+        "${EXSH[@]}" ls testcol:/syncroot
+
+    # T12.37 — --keep-excluded: untracks without prompting or deleting
+    printf '<w/>' > "${TMPDIR_E2E}/syncdir/w.xml"
+    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot
+    assert_in_last "↑ w.xml  (new)" "T12.37 setup: w.xml synced"
+    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot --exclude w.xml --keep-excluded
+    assert_in_last "Untracked 1 excluded file(s), kept in place." "T12.37 --keep-excluded reports the untrack"
+    if [[ -f "${TMPDIR_E2E}/syncdir/w.xml" ]]; then
+        ok "T12.37 w.xml kept locally"
+    else
+        fail "T12.37 w.xml kept locally (file deleted)"
+    fi
+    assert_output "w.xml" \
+        "T12.37 w.xml kept on server" \
+        "${EXSH[@]}" ls testcol:/syncroot
+
+    # T12.38 — --clear-exclude: wiping the stored list makes scratch.tmp sync again
+    _run "${EXSH[@]}" sync "${TMPDIR_E2E}/syncdir" testcol:/syncroot --clear-exclude
+    assert_in_last "↑ scratch.tmp  (new)" "T12.38 --clear-exclude re-syncs previously excluded file"
+    # Clean up exclude test files
+    rm -f "${TMPDIR_E2E}/syncdir/scratch.tmp" "${TMPDIR_E2E}/syncdir/keepme.xml" "${TMPDIR_E2E}/syncdir/w.xml"
 }

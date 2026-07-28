@@ -20,6 +20,7 @@
 - **Clean Ctrl+C handling**: interrupting a sync now exits with code 130, saves the manifest (so the next run can resume), and prints a single `Interrupted.` message instead of a Python traceback.
 - **`exsh find`**: locate documents by XPath expression anywhere in their content (`exsh find <nick>[:<path>] --query 'foo[@type="draft"]'`), with `--remove`/`--yes` to delete every match in one step.
 - **`exsh exec --resource <nick>:<path.xql>`**: execute a stored `.xql`/`.xqm` resource in place (a plain `GET`, matching how eXist runs these resources natively) instead of downloading it and re-running it locally. Repeat `-p/--param NAME=VALUE` to forward query-string parameters as external variables.
+- **`exsh sync --exclude`**: repeatable glob patterns to skip paths on both sides of a sync (`--exclude '*.tmp' --exclude build`). A pattern with `/` matches that relative path and its subtree; one without `/` matches any path segment at any depth. Patterns persist in the sync manifest per (server, remote path, local folder), so later runs keep excluding without the flag; new patterns merge into the stored list and `--clear-exclude` resets it. Excluded paths are never transferred and never deleted by `--delete`. Files synced before becoming excluded are deleted on both sides after confirmation (`--yes` skips the prompt, declining keeps the files, `--keep-excluded` keeps them without asking); either way they stop being tracked.
 
 ## 0.1.2 - 2026-06-23
 

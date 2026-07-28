@@ -1,7 +1,9 @@
 """sync command — sync a local folder with a remote eXist collection."""
 
+import fnmatch
 import hashlib
 import json
+import sys
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from enum import Enum
 from pathlib import Path
@@ -14,9 +16,11 @@ from exist_shell.cache import invalidate
 from exist_shell.client import ExistClient
 from exist_shell.completions import collection_target_completer
 from exist_shell.config import Config
+from exist_shell.exceptions import ExistError, ExistNotFoundError
 from exist_shell.models import CollectionEntry, ResourceEntry
 from exist_shell.utils import (
     check_xml_wellformed,
+    echo_tty,
     guess_mime,
     handle_exist_errors,
     is_remote,
@@ -91,20 +95,28 @@ class RemoteTree(NamedTuple):
 
 
 class Manifest:
-    """Sync manifest: tracks per-file state and handles checkpoint writes."""
+    """Sync manifest: tracks per-file state, exclude patterns, and checkpoint writes."""
 
-    def __init__(self, data: dict[str, ManifestEntry], checkpoint_every: int, path: Path) -> None:
+    def __init__(
+        self,
+        data: dict[str, ManifestEntry],
+        checkpoint_every: int,
+        path: Path,
+        excludes: list[str],
+    ) -> None:
         """Initialize the manifest.
 
         Args:
             data: Per-file state loaded from disk (or empty for a fresh manifest).
             checkpoint_every: Mutation count between automatic checkpoint writes.
             path: File path this manifest is persisted to.
+            excludes: Exclude patterns persisted alongside the file entries.
         """
         self._data = data
         self._dirty = 0
         self._checkpoint_every = checkpoint_every
         self._path = path
+        self.excludes = excludes
 
     def get(self, rel_path: str) -> ManifestEntry:
         """Return the manifest entry for rel_path, or an empty entry if absent.
@@ -127,6 +139,15 @@ class Manifest:
             True if an entry exists for rel_path, False otherwise.
         """
         return rel_path in self._data
+
+    def rel_paths(self) -> list[str]:
+        """Return the relative paths of all tracked files.
+
+        Returns:
+            List of rel_paths with a manifest entry, safe to iterate while
+            mutating the manifest.
+        """
+        return list(self._data)
 
     def set(self, rel_path: str, entry: ManifestEntry) -> None:
         """Upsert an entry and mark the manifest dirty.
@@ -161,7 +182,7 @@ class Manifest:
         """Atomically write manifest data to disk."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self._data))
+        tmp.write_text(json.dumps({"excludes": self.excludes, "entries": self._data}))
         tmp.rename(self._path)
 
 
@@ -175,6 +196,33 @@ def _sha256(path: Path) -> str:
         Lowercase hex digest string.
     """
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _is_excluded(rel_path: str, patterns: list[str]) -> bool:
+    """Return True if a relative path matches any exclude pattern.
+
+    Patterns use ``fnmatch`` syntax (``*``, ``?``, ``[seq]``). A pattern
+    containing ``/`` is matched against the full relative path and each of
+    its ancestor prefixes, so a directory match excludes everything below
+    it. A pattern without ``/`` is matched against every individual path
+    segment, excluding the path at any depth.
+
+    Args:
+        rel_path: POSIX-style path relative to the sync root.
+        patterns: Exclude patterns to test against.
+
+    Returns:
+        True if the path is excluded by at least one pattern.
+    """
+    segments = rel_path.split("/")
+    prefixes = ["/".join(segments[: i + 1]) for i in range(len(segments))]
+    for pattern in patterns:
+        if "/" in pattern:
+            if any(fnmatch.fnmatchcase(prefix, pattern) for prefix in prefixes):
+                return True
+        elif any(fnmatch.fnmatchcase(segment, pattern) for segment in segments):
+            return True
+    return False
 
 
 def _manifest_path(nick: str, remote_path: str, local_dir: Path) -> Path:
@@ -200,6 +248,10 @@ def _manifest_path(nick: str, remote_path: str, local_dir: Path) -> Path:
 def _load_manifest(nick: str, remote_path: str, local_dir: Path, checkpoint_every: int) -> Manifest:
     """Load the sync manifest, returning an empty manifest if the file is missing.
 
+    Reads both manifest formats: the current wrapper format
+    ``{"excludes": [...], "entries": {rel_path: entry}}`` and the legacy flat
+    ``{rel_path: entry}`` format, which is loaded with an empty exclude list.
+
     Args:
         nick: Collection nickname.
         remote_path: Remote collection path.
@@ -211,11 +263,47 @@ def _load_manifest(nick: str, remote_path: str, local_dir: Path, checkpoint_ever
     """
     p = _manifest_path(nick, remote_path, local_dir)
     if not p.exists():
-        return Manifest({}, checkpoint_every, p)
+        return Manifest({}, checkpoint_every, p, [])
     try:
-        return Manifest(json.loads(p.read_text()), checkpoint_every, p)
+        raw = json.loads(p.read_text())
+        if "entries" in raw:
+            return Manifest(raw["entries"], checkpoint_every, p, raw.get("excludes", []))
+        return Manifest(raw, checkpoint_every, p, [])
     except Exception:
-        return Manifest({}, checkpoint_every, p)
+        return Manifest({}, checkpoint_every, p, [])
+
+
+def _resolve_excludes(manifest: Manifest, exclude: list[str], clear_exclude: bool) -> list[str]:
+    """Resolve the effective exclude patterns for this run.
+
+    Starts from the list stored in the manifest (emptied first when
+    ``clear_exclude`` is set) and merges in any newly passed patterns
+    (set union). The merged list is stored back on ``manifest.excludes``,
+    so the next manifest save persists it; dry runs never save, so their
+    merges and clears are honored for the run but not persisted.
+
+    When the merge adds new patterns to a non-empty stored list, a short
+    heads-up naming the resulting set is printed on interactive (TTY) runs,
+    so the merge isn't a silent surprise. Piped/scripted runs stay silent.
+
+    Args:
+        manifest: Loaded sync manifest for this pair.
+        exclude: Patterns passed via ``--exclude`` (possibly empty).
+        clear_exclude: If True, discard the stored list before merging.
+
+    Returns:
+        The effective exclude pattern list for this run, sorted.
+    """
+    stored = [] if clear_exclude else manifest.excludes
+    new = set(exclude) - set(stored)
+    merged = sorted(set(stored) | set(exclude))
+    if stored and new:
+        plural = "s" if len(new) != 1 else ""
+        echo_tty(
+            f"Merging {len(new)} new exclude pattern{plural} into stored list (now: {', '.join(merged)})."
+        )
+    manifest.excludes = merged
+    return merged
 
 
 def _walk_remote(client: ExistClient, base_path: str, max_workers: int = 4) -> RemoteTree:
@@ -274,6 +362,29 @@ def _walk_remote(client: ExistClient, base_path: str, max_workers: int = 4) -> R
             root_level = False
 
     return RemoteTree(resources, subcollections, failed)
+
+
+def _filter_tree(tree: RemoteTree, excludes: list[str]) -> RemoteTree:
+    """Return a copy of a remote tree with excluded paths removed.
+
+    Filters both resources and subcollections, so everything below an
+    excluded directory disappears from the tree along with the directory
+    itself. Failed subcollections are kept as-is.
+
+    Args:
+        tree: The remote tree to filter.
+        excludes: Exclude patterns to apply.
+
+    Returns:
+        A RemoteTree without the excluded resources and subcollections.
+    """
+    if not excludes:
+        return tree
+    return RemoteTree(
+        [r for r in tree.resources if not _is_excluded(r.rel_path, excludes)],
+        [c for c in tree.subcollections if not _is_excluded(c, excludes)],
+        tree.failed,
+    )
 
 
 def _push_file_task(
@@ -503,14 +614,20 @@ def _delete_local_extras(
     dest: Path,
     remote_resources: list[RemoteResource],
     manifest: Manifest,
+    excludes: list[str],
     dry_run: bool,
 ) -> int:
     """Delete local files that have no corresponding remote resource.
 
+    Excluded paths are never treated as extras: the remote listing is
+    already filtered, so without this skip every excluded local file
+    would look like it has no remote counterpart and be deleted.
+
     Args:
         dest: Local destination directory.
-        remote_resources: All remote resources from the current listing.
+        remote_resources: Remote resources from the current (filtered) listing.
         manifest: Sync manifest (mutated in place on deletion).
+        excludes: Exclude patterns; matching local files are left alone.
         dry_run: If True, log but do not delete.
 
     Returns:
@@ -522,6 +639,8 @@ def _delete_local_extras(
         if not local_file.is_file():
             continue
         rel_path = local_file.relative_to(dest).as_posix()
+        if _is_excluded(rel_path, excludes):
+            continue
         if rel_path not in remote_set:
             typer.echo(f"✗ {rel_path}  (deleted)")
             if not dry_run:
@@ -535,6 +654,7 @@ def _delete_empty_remote_dirs(
     client: ExistClient,
     full_path: str,
     source: Path,
+    excludes: list[str],
     dry_run: bool,
     max_workers: int = 4,
 ) -> int:
@@ -542,12 +662,16 @@ def _delete_empty_remote_dirs(
 
     Re-fetches the remote tree so the check reflects the state after file
     deletions. Processes deepest collections first so parents become empty
-    naturally as children are removed.
+    naturally as children are removed. Excluded collections are never
+    deletion candidates, but the emptiness check uses the unfiltered
+    re-walk, so a collection holding only excluded resources is not
+    considered empty.
 
     Args:
         client: Active ExistClient.
         full_path: Full eXist base path of the collection.
         source: Local source directory (used to check for local counterparts).
+        excludes: Exclude patterns; matching collections are left alone.
         dry_run: If True, log but do not delete.
         max_workers: Number of concurrent listing requests for the re-walk.
 
@@ -559,6 +683,8 @@ def _delete_empty_remote_dirs(
     by_depth = sorted(tree.subcollections, key=lambda c: c.count("/"), reverse=True)
     count = 0
     for rel_col in by_depth:
+        if _is_excluded(rel_col, excludes):
+            continue
         if (source / rel_col).is_dir():
             continue
         if any(rp.startswith(f"{rel_col}/") or rp == rel_col for rp in resource_paths):
@@ -570,14 +696,16 @@ def _delete_empty_remote_dirs(
     return count
 
 
-def _delete_empty_local_dirs(dest: Path, dry_run: bool) -> int:
+def _delete_empty_local_dirs(dest: Path, excludes: list[str], dry_run: bool) -> int:
     """Delete local subdirectories that are empty after file deletions.
 
     Processes deepest directories first so parents become empty naturally
-    as children are removed.
+    as children are removed. Excluded directories are never deleted, even
+    when empty.
 
     Args:
         dest: Local destination directory.
+        excludes: Exclude patterns; matching directories are left alone.
         dry_run: If True, log but do not delete.
 
     Returns:
@@ -587,6 +715,8 @@ def _delete_empty_local_dirs(dest: Path, dry_run: bool) -> int:
     by_depth = sorted(dirs, key=lambda p: len(p.parts), reverse=True)
     count = 0
     for d in by_depth:
+        if _is_excluded(d.relative_to(dest).as_posix(), excludes):
+            continue
         if not any(d.iterdir()):
             rel = d.relative_to(dest).as_posix()
             typer.echo(f"✗ {rel}/  (empty directory deleted)")
@@ -594,6 +724,120 @@ def _delete_empty_local_dirs(dest: Path, dry_run: bool) -> int:
                 d.rmdir()
             count += 1
     return count
+
+
+def _cleanup_newly_excluded(
+    client: ExistClient,
+    full_path: str,
+    local_root: Path,
+    manifest: Manifest,
+    excludes: list[str],
+    yes: bool,
+    keep_excluded: bool,
+    dry_run: bool,
+) -> int:
+    """Handle previously synced files that are now covered by exclude patterns.
+
+    A file with a manifest entry was synced through this pair before; once it
+    becomes excluded, its copies are deleted on both sides (local and remote)
+    so excluding a folder retires it everywhere, not just from tracking.
+    Deletion is confirmed interactively unless ``yes`` is set; declining (or
+    running without a TTY and without ``yes``) keeps the files, and
+    ``keep_excluded`` does the same without prompting. In every case the
+    stale manifest entries are dropped, making this a one-time cleanup:
+    excluded paths recreated later are left alone.
+
+    After deleting files, excluded ancestor directories that ended up empty
+    are removed as well — locally via ``rmdir`` and remotely only after an
+    explicit emptiness check, so never-synced content inside an excluded
+    directory always survives.
+
+    Args:
+        client: Active ExistClient.
+        full_path: Full eXist base path of the collection.
+        local_root: Local side of the sync (source for push, dest for pull).
+        manifest: Sync manifest (mutated in place).
+        excludes: Effective exclude patterns for this run.
+        yes: If True, skip the confirmation prompt.
+        keep_excluded: If True, keep the files and only drop tracking.
+        dry_run: If True, report what would be deleted without doing it.
+
+    Returns:
+        Number of files deleted (or that would be deleted on a dry run).
+    """
+    stale = sorted(rp for rp in manifest.rel_paths() if _is_excluded(rp, excludes))
+    if not stale:
+        return 0
+
+    if keep_excluded:
+        # Dropped entries are only persisted by a later manifest save, which
+        # dry runs never do — so no dry_run guard is needed here.
+        for rel_path in stale:
+            manifest.pop(rel_path)
+        typer.echo(f"Untracked {len(stale)} excluded file(s), kept in place.")
+        return 0
+
+    if dry_run:
+        for rel_path in stale:
+            typer.echo(f"✗ {rel_path}  (excluded, would delete)")
+        return len(stale)
+
+    if yes:
+        confirmed = True
+    elif sys.stdin.isatty():
+        confirmed = typer.confirm(
+            f"Delete {len(stale)} previously-synced file(s) matching excluded patterns (local and remote)?"
+        )
+    else:
+        # Non-interactive run without --yes: never delete silently.
+        typer.echo(
+            "Skipping deletion of newly excluded file(s) (no TTY; use --yes to delete or --keep-excluded to silence this).",
+            err=True,
+        )
+        confirmed = False
+
+    # Entries are dropped even when deletion was declined: the files stay,
+    # but they are excluded now, so they must stop being tracked.
+    for rel_path in stale:
+        manifest.pop(rel_path)
+
+    if not confirmed:
+        return 0
+
+    for rel_path in stale:
+        (local_root / rel_path).unlink(missing_ok=True)
+        try:
+            client.delete_document(f"{full_path}/{rel_path}")
+        except ExistNotFoundError:
+            pass  # already gone remotely — deletion is idempotent
+        typer.echo(f"✗ {rel_path}  (excluded, deleted)")
+
+    # The deleted files may leave empty directories behind. Only ancestor
+    # directories that are themselves excluded are candidates for removal:
+    # a non-excluded parent may legitimately hold other synced content.
+    excluded_dirs = set()
+    for rel_path in stale:
+        parts = rel_path.split("/")[:-1]
+        for i in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:i])
+            if _is_excluded(prefix, excludes):
+                excluded_dirs.add(prefix)
+
+    # Deepest first, so a parent becomes empty once its children are gone.
+    # Both removals are strictly empty-only: never-synced files inside an
+    # excluded directory must survive. Remotely that requires an explicit
+    # listing check, because delete_collection deletes recursively.
+    for rel_col in sorted(excluded_dirs, key=lambda c: c.count("/"), reverse=True):
+        local_dir = local_root / rel_col
+        if local_dir.is_dir() and not any(local_dir.iterdir()):
+            local_dir.rmdir()
+        try:
+            if not client.list_collection(f"{full_path}/{rel_col}"):
+                client.delete_collection(f"{full_path}/{rel_col}")
+        except ExistError:
+            pass  # best-effort: a leftover empty collection is harmless
+
+    return len(stale)
 
 
 def _print_summary(counts: dict[SyncAction, int]) -> None:
@@ -917,6 +1161,10 @@ def _push(
     fail_fast: bool,
     dry_run: bool,
     delete: bool,
+    exclude: list[str],
+    clear_exclude: bool,
+    yes: bool,
+    keep_excluded: bool,
     checkpoint_every: int,
     verbose: bool,
     jobs: int,
@@ -933,22 +1181,36 @@ def _push(
             the first failure is transferred.
         dry_run: If True, print actions without performing them.
         delete: If True, remove remote files absent from the local tree.
+        exclude: Patterns to merge into the stored exclude list for this pair.
+        clear_exclude: If True, clear the stored exclude list before merging.
+        yes: If True, skip the confirmation prompt when deleting previously
+            synced files that are now excluded.
+        keep_excluded: If True, keep previously synced copies of newly
+            excluded paths and only stop tracking them.
         checkpoint_every: Save the manifest after every N mutations.
         verbose: If True, also print unchanged (skipped) files.
         jobs: Number of parallel upload workers.
     """
     collection, server, full_path = resolve_collection(nick, path)
     manifest = _load_manifest(nick, path, source, checkpoint_every)
+    excludes = _resolve_excludes(manifest, exclude, clear_exclude)
     counts: dict[SyncAction, int] = {}
     fail_fast_triggered = False
 
     try:
         with handle_exist_errors(path, nick, collection.server_nick):
             with ExistClient(server) as client:
-                tree = _walk_remote(client, full_path, max_workers=jobs)
+                excluded_deleted = _cleanup_newly_excluded(
+                    client, full_path, source, manifest, excludes, yes, keep_excluded, dry_run
+                )
+
+                tree = _filter_tree(_walk_remote(client, full_path, max_workers=jobs), excludes)
                 remote_index = {r.rel_path: r.entry for r in tree.resources}
 
-                all_paths = list(source.rglob("*"))
+                all_paths = [
+                    p for p in source.rglob("*")
+                    if not _is_excluded(p.relative_to(source).as_posix(), excludes)
+                ]
                 local_files = sorted(p for p in all_paths if p.is_file())
                 local_dirs = {p.relative_to(source).as_posix() for p in all_paths if p.is_dir()}
                 local_file_rels = {p.relative_to(source).as_posix() for p in local_files}
@@ -974,9 +1236,12 @@ def _push(
                         client, full_path, local_file_rels, tree.resources, manifest, dry_run
                     )
                     deleted += _delete_empty_remote_dirs(
-                        client, full_path, source, dry_run, max_workers=jobs
+                        client, full_path, source, excludes, dry_run, max_workers=jobs
                     )
                     counts[SyncAction.DELETED] = deleted
+
+                if excluded_deleted:
+                    counts[SyncAction.DELETED] = counts.get(SyncAction.DELETED, 0) + excluded_deleted
 
                 if not dry_run and counts.get(SyncAction.UPLOADED, 0):
                     _refresh_remote_mtimes(client, full_path, manifest, jobs)
@@ -1003,6 +1268,10 @@ def _pull(
     force: bool,
     dry_run: bool,
     delete: bool,
+    exclude: list[str],
+    clear_exclude: bool,
+    yes: bool,
+    keep_excluded: bool,
     checkpoint_every: int,
     verbose: bool,
     jobs: int,
@@ -1016,18 +1285,29 @@ def _pull(
         force: If True, download all files regardless of manifest state.
         dry_run: If True, print actions without performing them.
         delete: If True, remove local files absent from the remote collection.
+        exclude: Patterns to merge into the stored exclude list for this pair.
+        clear_exclude: If True, clear the stored exclude list before merging.
+        yes: If True, skip the confirmation prompt when deleting previously
+            synced files that are now excluded.
+        keep_excluded: If True, keep previously synced copies of newly
+            excluded paths and only stop tracking them.
         checkpoint_every: Save the manifest after every N mutations.
         verbose: If True, also print unchanged (skipped) files.
         jobs: Number of parallel download workers.
     """
     collection, server, full_path = resolve_collection(nick, path)
     manifest = _load_manifest(nick, path, dest, checkpoint_every)
+    excludes = _resolve_excludes(manifest, exclude, clear_exclude)
     counts: dict[SyncAction, int] = {}
 
     try:
         with handle_exist_errors(path, nick, collection.server_nick):
             with ExistClient(server) as client:
-                tree = _walk_remote(client, full_path, max_workers=jobs)
+                excluded_deleted = _cleanup_newly_excluded(
+                    client, full_path, dest, manifest, excludes, yes, keep_excluded, dry_run
+                )
+
+                tree = _filter_tree(_walk_remote(client, full_path, max_workers=jobs), excludes)
                 _ensure_local_dirs(dest, tree.subcollections, dry_run)
 
                 counts = _run_pull_parallel(
@@ -1039,9 +1319,12 @@ def _pull(
                     counts[SyncAction.FAILED] = counts.get(SyncAction.FAILED, 0) + len(tree.failed)
 
                 if delete:
-                    deleted = _delete_local_extras(dest, tree.resources, manifest, dry_run)
-                    deleted += _delete_empty_local_dirs(dest, dry_run)
+                    deleted = _delete_local_extras(dest, tree.resources, manifest, excludes, dry_run)
+                    deleted += _delete_empty_local_dirs(dest, excludes, dry_run)
                     counts[SyncAction.DELETED] = counts.get(SyncAction.DELETED, 0) + deleted
+
+                if excluded_deleted:
+                    counts[SyncAction.DELETED] = counts.get(SyncAction.DELETED, 0) + excluded_deleted
     except KeyboardInterrupt:
         if not dry_run:
             manifest.save()
@@ -1070,6 +1353,10 @@ def sync(
     fail_fast: bool = typer.Option(False, "--fail-fast", help="Stop on the first conflict or XML validation failure (manifest is saved so the run can resume)."),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would be transferred without doing it."),
     delete: bool = typer.Option(False, "--delete", help="Remove destination files absent from the source."),
+    exclude: list[str] = typer.Option([], "--exclude", "-e", help="Glob pattern to exclude from the sync (repeatable); merged into the list stored for this sync pair."),
+    clear_exclude: bool = typer.Option(False, "--clear-exclude", help="Clear the stored exclude list before applying any --exclude patterns."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt when deleting previously synced files that are now excluded."),
+    keep_excluded: bool = typer.Option(False, "--keep-excluded", help="Keep previously synced copies of newly excluded paths on both sides (only stop tracking them)."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show unchanged (skipped) files in addition to transfers."),
     jobs: int = typer.Option(4, "--jobs", "-j", help="Number of parallel transfer workers."),
     checkpoint_every: int = typer.Option(
@@ -1093,7 +1380,13 @@ def sync(
             typer.echo(f"Error: '{source}' is not a directory.", err=True)
             raise typer.Exit(1)
         nick, path = parse_target(dest, path_required=False)
-        _push(source_path, nick, path, force, fail_fast, dry_run, delete, checkpoint_every, verbose, jobs)
+        _push(
+            source_path, nick, path, force, fail_fast, dry_run, delete,
+            exclude, clear_exclude, yes, keep_excluded, checkpoint_every, verbose, jobs,
+        )
     else:
         nick, path = parse_target(source, path_required=False)
-        _pull(nick, path, Path(dest), force, dry_run, delete, checkpoint_every, verbose, jobs)
+        _pull(
+            nick, path, Path(dest), force, dry_run, delete,
+            exclude, clear_exclude, yes, keep_excluded, checkpoint_every, verbose, jobs,
+        )

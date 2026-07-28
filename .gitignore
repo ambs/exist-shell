@@ -8,3 +8,5 @@ dist/
 .ty/
 .coverage
 coverage.xml
+plans/
+CLAUDE.local.md
