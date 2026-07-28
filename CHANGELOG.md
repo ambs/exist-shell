@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Enhancements
+
+- **`exsh ping [nick]` / `exsh server status [nick]`**: check connectivity to a configured server, reporting its URL, version, and round-trip latency. Without a nick, every configured server is checked, one row each. Exits 1 on connection or auth failure (or when any server in the sweep fails), so scripts and CI can gate on it (#38)
+
 ## 0.2.0 - 2026-07-28
 
 ### Fixes

@@ -111,7 +111,9 @@ Configuration is stored at `~/.config/exsh/config.toml`.
 | `exsh exec <nick>[:<path>]` | Execute an XQuery script on a server |
 | `exsh exec --resource <nick>:<path.xql>` | Execute a stored resource in place, forwarding `-p name=value` params |
 | `exsh find <nick>[:<path>] --query <xpath>` | Find documents matching an XPath expression, with optional `--remove` |
+| `exsh ping [nick]` | Check server connectivity, reporting version and latency |
 | `exsh server add <host>` | Register a server |
+| `exsh server status [nick]` | Same as `exsh ping` |
 | `exsh server ls` | List registered servers |
 | `exsh server rm <nick>` | Remove a server (and its collections) |
 | `exsh server rename <old> <new>` | Rename a server nick (updates collection references) |
@@ -200,6 +202,12 @@ exsh sync --delete ./reports mydata:reports
 
 # Sync everything except temp files and the build folder (remembered for later runs)
 exsh sync --exclude '*.tmp' --exclude build ./reports mydata:reports
+
+# Check one server is reachable (exit code 1 on failure — handy in scripts/CI)
+exsh ping localhost
+
+# Check every configured server, one row each
+exsh ping
 
 # Change owner and group of a document
 exsh chown alice:editors mydata:reports/annual.xml

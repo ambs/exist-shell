@@ -32,7 +32,7 @@ class ExistClientBase:
         write_timeout: float = 10.0,
     ) -> None:
         """Initialize the client and open an HTTP connection."""
-        self._base = f"http://{server.host}:{server.port}/exist"
+        self._base = server.base_url
         self._http = httpx.Client(
             auth=(server.user, server.password.get_secret_value()),
             timeout=httpx.Timeout(

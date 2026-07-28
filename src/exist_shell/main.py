@@ -47,6 +47,7 @@ app.command("find", help="Find documents by XPath expression, with optional dele
 app.command("mkdir", help="Create a collection at a path inside a registered collection.")(mkdir)
 app.command("sync", help="Sync a local folder and a remote collection.")(sync)
 app.command("exec", help="Execute an XQuery script on an eXist-db server.")(exec_query)
+app.command("ping", help="Check server connectivity, reporting version and latency (all servers if no nick).")(server.server_status)
 
 
 def _version_callback(value: bool) -> None:
