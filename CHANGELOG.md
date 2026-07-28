@@ -1,9 +1,13 @@
 # Changelog
 
-## unreleased
+## 0.2.0 - 2026-07-28
 
 ### Fixes
 
+- `config.toml` (which stores server passwords in plaintext) was written with default umask permissions — typically world-readable on multi-user machines. It is now written `0600` with the config directory at `0700`, and `exsh` warns on stderr when an existing config file is group/world-readable
+- Non-401/404 HTTP errors (most notably `403 Forbidden`) leaked a raw `httpx` traceback; they now exit cleanly with a one-line error message. `cp` local→remote also gained the XML well-formedness check that `put` and `sync` already had
+- The sync manifest was keyed only by the remote path, so syncing the same remote collection against two different local directories shared one manifest and silently corrupted each other's per-file state (false conflicts, wrong skip decisions). The manifest key now includes the resolved local directory; existing manifests are re-keyed via a one-time full recheck on the next sync
+- A single failed transfer during sync left the rest of the queue finishing silently in the background with no progress output, ending in a generic unattributed error. Failures are now reported per file (`! <path>  (error: ...)`) as they happen, the remaining queue keeps draining, the summary shows a `failed` count, and sync exits non-zero when anything failed
 - `is_remote()` classified any argument containing `:` as a `nick:path` remote target, so Windows paths (`C:\data\doc.xml`) and any local path with a colon in a directory component were always misparsed as a remote nick. A prefix is now only treated as a nick when it matches a configured collection, isn't a single-letter drive prefix (`C:\`, `C:/`), and doesn't itself contain a path separator. Server/collection nicks must now be at least 2 characters, guaranteeing a configured nick can never collide with a Windows drive letter
 - `mv` of a collection onto itself (`exsh mv nick:/a nick:/a`) or into itself via a trailing slash (`exsh mv nick:/a nick:/a/`) copied the contents onto/into the source and then recursively deleted it, destroying the data. `mv` now aborts with an error when the target is the same as, or nested inside, the source, for both collections and single documents
 - `cat`/`cp`/`mv`/`edit`/`sync` downloading an executable resource (`.xql`, `.xqm`) ran the query on the server and returned its result instead of the document's raw source
@@ -14,6 +18,7 @@
 
 ### Enhancements
 
+- **Independent client timeouts**: connect (10s), read (30s), and write (10s) now have separate budgets instead of one flat 30s timeout for every phase, and timeout errors say which phase failed — "Cannot connect to ..." for handshake failures vs "Server at ... did not respond in time" for read/write timeouts.
 - **Faster, correct bash tab-completion for `nick:path` targets**: the generated bash completion script now handles the `:` word-break correctly (no more `dlp:dlp:...` insertions), completing a collection no longer needs an extra backspace before continuing into it, and completion listings are filtered and capped server-side and cached per prefix so progressive typing reuses a single fetch. Re-run `exsh --install-completion bash` after upgrading to pick up the new script.
 - **Exit code 130 on Ctrl+C** for the whole CLI (previously sync-only), including during shell completion itself, which Typer/click don't handle on their own.
 - **Parallel sync (`--jobs N`)**: uploads, downloads, and remote directory listings now run concurrently. The `--jobs N` flag (default: 4) controls the number of parallel workers. Use `--jobs 1` to restore fully sequential behaviour.

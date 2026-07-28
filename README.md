@@ -240,6 +240,8 @@ Patterns are persisted in the sync manifest, per (server, remote path, local fol
 |------|--------|
 | `--force` / `-f` | Transfer all files, bypassing change detection |
 | `--dry-run` / `-n` | Show what would happen without transferring |
+| `--fail-fast` | Stop on the first conflict, invalid XML, or transfer error (runs sequentially; the manifest is saved so the run can resume) |
+| `--jobs N` / `-j` | Number of parallel transfer workers (default: 4); `--jobs 1` for fully sequential behaviour |
 | `--delete` | Remove files and empty folders on the destination that no longer exist on the source |
 | `--exclude PATTERN` / `-e` | Skip matching paths on both sides (repeatable); merged into the list stored for this sync pair |
 | `--clear-exclude` | Wipe the stored exclude list before applying any `--exclude` given in the same run |
