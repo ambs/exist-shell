@@ -4,8 +4,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from exist_shell.config import Collection, Config
-from exist_shell.exceptions import ExistAuthError, ExistConnectionError
+from pydantic import SecretStr
+
+from exist_shell.config import Collection, Config, Server
+from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistServerError
 from exist_shell.main import app
 
 
@@ -302,3 +304,104 @@ def test_complete_server_nick_returns_empty_on_config_error(monkeypatch):
     from exist_shell.commands.server import _complete_server_nick
     monkeypatch.setattr("exist_shell.commands.server.Config.load", lambda: (_ for _ in ()).throw(Exception("fail")))
     assert _complete_server_nick("") == []
+
+
+# ---------------------------------------------------------------------------
+# server status / ping
+# ---------------------------------------------------------------------------
+
+
+def test_server_status_single_ok(config_path, a_server, client_mock, runner):
+    """Server status prints URL, version, and OK with latency for one server."""
+    Config.load().add_server(a_server)
+    client_mock.server_version.return_value = "6.2.0"
+    result = runner.invoke(app, ["server", "status", "local"])
+    assert result.exit_code == 0
+    assert "Server:   http://localhost:8080/exist" in result.output
+    assert "Version:  6.2.0" in result.output
+    assert "Status:   OK (" in result.output
+    assert "ms)" in result.output
+
+
+def test_server_status_connection_failure_exits_1(config_path, a_server, client_mock, runner):
+    """Server status exits 1 and reports FAIL on connection failure."""
+    Config.load().add_server(a_server)
+    client_mock.server_version.side_effect = ExistConnectionError(
+        "http://localhost:8080/exist/rest/db", Exception("refused")
+    )
+    result = runner.invoke(app, ["server", "status", "local"])
+    assert result.exit_code == 1
+    assert "FAIL (cannot connect: refused)" in result.output
+    assert "Version:  -" in result.output
+
+
+def test_server_status_auth_failure_exits_1(config_path, a_server, client_mock, runner):
+    """Server status exits 1 and reports FAIL on authentication failure."""
+    Config.load().add_server(a_server)
+    client_mock.server_version.side_effect = ExistAuthError("http://localhost:8080/exist/rest/db")
+    result = runner.invoke(app, ["server", "status", "local"])
+    assert result.exit_code == 1
+    assert "FAIL (authentication failed)" in result.output
+
+
+def test_server_status_other_exist_error_exits_1(config_path, a_server, client_mock, runner):
+    """Server status exits 1 and reports FAIL for an ExistError not more specifically handled."""
+    Config.load().add_server(a_server)
+    client_mock.server_version.side_effect = ExistServerError(403, "Permission denied")
+    result = runner.invoke(app, ["server", "status", "local"])
+    assert result.exit_code == 1
+    assert "FAIL (Server returned HTTP 403: Permission denied)" in result.output
+
+
+def test_server_status_unknown_nick_fails(config_path, a_server, runner):
+    """Server status exits 1 on an unknown server nick."""
+    Config.load().add_server(a_server)
+    result = runner.invoke(app, ["server", "status", "ghost"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_server_status_no_servers_fails(config_path, runner):
+    """Server status exits 1 when no servers are configured."""
+    result = runner.invoke(app, ["server", "status"])
+    assert result.exit_code == 1
+    assert "no servers configured" in result.output
+
+
+def test_server_status_all_servers_mixed_exits_1(config_path, a_server, client_mock, runner):
+    """Server status without a nick reports every server and exits 1 on any failure."""
+    config = Config.load()
+    config.add_server(a_server)
+    config.add_server(Server(nick="prod", host="prod.example.com", port=8080, user="admin", password=SecretStr("")))
+    client_mock.server_version.side_effect = [
+        "6.2.0",
+        ExistConnectionError("http://prod.example.com:8080/exist/rest/db", Exception("refused")),
+    ]
+    result = runner.invoke(app, ["server", "status"])
+    assert result.exit_code == 1
+    assert "local" in result.output
+    assert "6.2.0" in result.output
+    assert "OK (" in result.output
+    assert "prod" in result.output
+    assert "FAIL (cannot connect: refused)" in result.output
+
+
+def test_server_status_all_servers_ok_exits_0(config_path, a_server, client_mock, runner):
+    """Server status without a nick exits 0 when every server is reachable."""
+    config = Config.load()
+    config.add_server(a_server)
+    config.add_server(Server(nick="prod", host="prod.example.com", port=8080, user="admin", password=SecretStr("")))
+    client_mock.server_version.side_effect = ["6.2.0", "5.4.1"]
+    result = runner.invoke(app, ["server", "status"])
+    assert result.exit_code == 0
+    assert "6.2.0" in result.output
+    assert "5.4.1" in result.output
+
+
+def test_ping_top_level_alias(config_path, a_server, client_mock, runner):
+    """Ping works as a top-level alias for server status."""
+    Config.load().add_server(a_server)
+    client_mock.server_version.return_value = "6.2.0"
+    result = runner.invoke(app, ["ping", "local"])
+    assert result.exit_code == 0
+    assert "Version:  6.2.0" in result.output

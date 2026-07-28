@@ -664,6 +664,45 @@ def test_execute_query_read_timeout_message_differs_from_connect_timeout(httpx_m
 
 
 # ---------------------------------------------------------------------------
+# server_version
+# ---------------------------------------------------------------------------
+
+def test_server_version_returns_stripped_version(httpx_mock, a_server):
+    """Server version returns the stripped version string."""
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        text="6.2.0\n",
+    )
+    with ExistClient(a_server) as client:
+        version = client.server_version()
+    assert version == "6.2.0"
+    request = httpx_mock.get_request()
+    body = parse_qs(request.read().decode())
+    assert body["_query"] == ["system:get-version()"]
+
+
+def test_server_version_raises_auth_error_on_401(httpx_mock, a_server):
+    """Server version raises auth error on 401."""
+    httpx_mock.add_response(
+        url="http://localhost:8080/exist/rest/db",
+        method="POST",
+        status_code=401,
+    )
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistAuthError):
+            client.server_version()
+
+
+def test_server_version_raises_connection_error_on_network_failure(httpx_mock, a_server):
+    """Server version raises connection error on network failure."""
+    httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
+    with ExistClient(a_server) as client:
+        with pytest.raises(ExistConnectionError):
+            client.server_version()
+
+
+# ---------------------------------------------------------------------------
 # execute_resource
 # ---------------------------------------------------------------------------
 

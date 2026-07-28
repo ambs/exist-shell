@@ -69,6 +69,23 @@ class QueryMixin(ExistClientBase):
         self._check_response(r, path)
         return r.text
 
+    def server_version(self) -> str:
+        """Fetch the eXist-db server version.
+
+        A single query round-trip that exercises connectivity and
+        credentials at the same time, so it doubles as a health check.
+
+        Returns:
+            The server version string (e.g. ``6.2.0``).
+
+        Raises:
+            ExistConnectionError: If the server cannot be reached.
+            ExistAuthError: If the server returns HTTP 401.
+            ExistQueryError: If the server rejects the query.
+            ExistServerError: If the server returns any other error status.
+        """
+        return self.execute_query("system:get-version()").strip()
+
     def find_documents(self, path: str, expression: str) -> list[str]:
         """Find documents under a collection whose content matches an XPath expression.
 

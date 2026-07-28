@@ -165,4 +165,28 @@ section_T02_server() {
     assert_output "Server 'newname' removed." \
         "T02.29 server rm newname (cleanup; renamecol cascade-removed)" \
         "${EXSH[@]}" server rm newname
+
+    # ---------------------------------------------------------------------------
+    # server status / ping
+    # ---------------------------------------------------------------------------
+
+    # T02.30 — status of one server: URL, version, and OK with latency (single run)
+    _run "${EXSH[@]}" server status localhost
+    assert_in_last "Server:   http://localhost:8080/exist" "T02.30 server status shows URL"
+    assert_in_last "Version:  " "T02.30 server status shows version"
+    assert_in_last "Status:   OK (" "T02.30 server status reports OK with latency"
+
+    # T02.31 — top-level ping alias exits 0
+    assert_exit0 "T02.31 ping alias exits 0" \
+        "${EXSH[@]}" ping localhost
+
+    # T02.32 — no nick: every configured server checked, one row each
+    _run "${EXSH[@]}" server status
+    assert_in_last "localhost" "T02.32 status sweep lists localhost"
+    assert_in_last "local2" "T02.32 status sweep lists local2"
+    assert_in_last "OK (" "T02.32 status sweep reports OK"
+
+    # T02.33 — unknown nick exits 1
+    assert_exit1 "T02.33 server status unknown nick exits non-zero" \
+        "${EXSH[@]}" server status ghost
 }

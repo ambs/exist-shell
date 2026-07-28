@@ -404,6 +404,47 @@ exsh find mydata:reports --query 'foo[@type="draft"]' --remove --yes
 
 ---
 
+## ping
+
+Check connectivity to a configured server, reporting its version and round-trip latency. `exsh server status` is the same command.
+
+```
+exsh ping [nick]
+exsh server status [nick]
+```
+
+With a nick, prints a three-line report:
+
+```
+Server:   http://localhost:8080/exist
+Version:  6.2.0
+Status:   OK (42ms)
+```
+
+Without a nick, every configured server is checked, one row per server:
+
+```
+localhost  http://localhost:8080/exist    6.2.0  OK (42ms)
+staging    http://staging.example.com:8080/exist  -  FAIL (cannot connect: ...)
+```
+
+The exit code is 0 only when every checked server responds; a connection failure, an authentication failure, or an unknown nick exits 1, making it a cheap sanity check in scripts and CI before longer operations.
+
+### Examples
+
+```bash
+# Quick health check of one server
+exsh ping localhost
+
+# Check every configured server
+exsh ping
+
+# Gate a script on server availability
+exsh ping localhost || exit 1
+```
+
+---
+
 ## user
 
 Manage user accounts on an eXist-db server.

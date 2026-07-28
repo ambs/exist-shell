@@ -26,10 +26,13 @@ uv tool install exist-shell
 # 2. Register your server
 exsh server add localhost --port 8080 --user admin
 
-# 3. Register a collection
+# 3. Check it is reachable
+exsh ping localhost
+
+# 4. Register a collection
 exsh collection add mydata@localhost
 
-# 4. Browse
+# 5. Browse
 exsh ls mydata
 ```
 
@@ -50,10 +53,12 @@ See [Installation](installation.md) and [Configuration](configuration.md) for fu
 | `exsh chown <spec> <nick>:<path>` | Change owner and/or group; `-R` for recursive |
 | `exsh sync <src> <dst>` | Sync a local folder and a remote collection |
 | `exsh exec <nick>[:<path>]` | Execute an XQuery script on the server |
+| `exsh ping [nick]` | Check server connectivity, version, and latency |
 | `exsh server add <host>` | Register a server |
 | `exsh server ls` | List registered servers |
 | `exsh server rm <nick>` | Remove a server |
 | `exsh server rename <old> <new>` | Rename a server nick |
+| `exsh server status [nick]` | Same as `exsh ping` |
 | `exsh collection add <name>[@<server>]` | Register a collection |
 | `exsh collection new <name>[@<server>]` | Create and register a collection |
 | `exsh collection ls` | List registered collections |

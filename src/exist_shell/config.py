@@ -88,6 +88,18 @@ class Server(BaseModel):
     user: str = "admin"
     password: SecretStr = SecretStr("")
 
+    @property
+    def base_url(self) -> str:
+        """Base URL of the eXist instance on this server.
+
+        Single construction site for the server URL — scheme support
+        (HTTPS) plugs in here.
+
+        Returns:
+            The base URL, e.g. ``http://localhost:8080/exist``.
+        """
+        return f"http://{self.host}:{self.port}/exist"
+
 
 class Collection(BaseModel):
     """A named collection on an eXist-db server."""

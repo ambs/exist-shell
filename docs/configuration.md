@@ -28,6 +28,16 @@ exsh server add 192.168.1.10 --port 8080 --user admin --nick myserver
 exsh server ls
 ```
 
+### Check a server
+
+Verify a registered server is reachable and see its version and round-trip latency:
+
+```bash
+exsh server status <nick>    # or: exsh ping <nick>
+```
+
+Without a nick, every registered server is checked, one row each. Exits 1 when any check fails — see [ping](commands.md#ping).
+
 ### Rename a server
 
 Rename a server's nick. All collections registered against it are updated automatically — no collections are lost and no re-registration is needed.
