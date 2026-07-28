@@ -266,8 +266,13 @@ def _load_manifest(nick: str, remote_path: str, local_dir: Path, checkpoint_ever
         return Manifest({}, checkpoint_every, p, [])
     try:
         raw = json.loads(p.read_text())
-        if "entries" in raw:
-            return Manifest(raw["entries"], checkpoint_every, p, raw.get("excludes", []))
+        entries = raw.get("entries")
+        # Shape check, not just key presence: a legacy flat manifest that
+        # tracks a file literally named "entries" maps it to a ManifestEntry
+        # (str/int values), whereas wrapper-format entries map rel_paths to
+        # dicts.
+        if isinstance(entries, dict) and all(isinstance(v, dict) for v in entries.values()):
+            return Manifest(entries, checkpoint_every, p, raw.get("excludes", []))
         return Manifest(raw, checkpoint_every, p, [])
     except Exception:
         return Manifest({}, checkpoint_every, p, [])
@@ -771,10 +776,11 @@ def _cleanup_newly_excluded(
 
     if keep_excluded:
         # Dropped entries are only persisted by a later manifest save, which
-        # dry runs never do — so no dry_run guard is needed here.
+        # dry runs never do — so popping is safe here either way.
         for rel_path in stale:
             manifest.pop(rel_path)
-        typer.echo(f"Untracked {len(stale)} excluded file(s), kept in place.")
+        verb = "Would untrack" if dry_run else "Untracked"
+        typer.echo(f"{verb} {len(stale)} excluded file(s), kept in place.")
         return 0
 
     if dry_run:
@@ -805,7 +811,10 @@ def _cleanup_newly_excluded(
         return 0
 
     for rel_path in stale:
-        (local_root / rel_path).unlink(missing_ok=True)
+        try:
+            (local_root / rel_path).unlink(missing_ok=True)
+        except OSError:
+            pass  # e.g. the tracked path is now a local directory — leave it
         try:
             client.delete_document(f"{full_path}/{rel_path}")
         except ExistNotFoundError:
@@ -1364,6 +1373,10 @@ def sync(
     ),
 ) -> None:
     """Sync a local folder and a remote collection, transferring only changed files."""
+    if any(not pattern for pattern in exclude):
+        typer.echo("Error: --exclude pattern cannot be empty.", err=True)
+        raise typer.Exit(1)
+
     src_remote = is_remote(source)
     dst_remote = is_remote(dest)
 

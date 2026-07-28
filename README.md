@@ -229,7 +229,7 @@ exsh chmod -R 0644 mydata:data
 
 **Excludes:** `--exclude`/`-e <pattern>` (repeatable) skips matching paths on both sides of the sync — they are neither transferred nor ever deleted by `--delete`. Patterns are `fnmatch`-style (`*`, `?`, `[seq]`), matched against the path relative to the sync root:
 
-- A pattern containing `/` matches that relative path and everything below it (`build/sub` also excludes `build/sub/x.xml`).
+- A pattern containing `/` matches that relative path and everything below it (`build/sub` also excludes `build/sub/x.xml`). Note that `*` in such a pattern also crosses `/` (plain `fnmatch`, unlike gitignore): `build/*.xml` matches `build/sub/x.xml` too.
 - A pattern without `/` matches any single path segment at any depth — `build` excludes `build/`, `a/build/`, and their contents; `*.tmp` excludes temp files everywhere.
 
 Patterns are persisted in the sync manifest, per (server, remote path, local folder), so later runs keep excluding without repeating the flag. New `--exclude` patterns are merged into the stored list; `--clear-exclude` wipes it (combine both to replace the list in one run). Files that were synced before becoming excluded are deleted **on both sides** after a confirmation prompt — `--yes` skips the prompt, declining (or running non-interactively without `--yes`) keeps the files, and `--keep-excluded` keeps them without asking. In every case they stop being tracked.
