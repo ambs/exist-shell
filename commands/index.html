@@ -1,0 +1,3445 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A command-line tool to interact with eXist-db via its REST API">
+      
+      
+      
+        <link rel="canonical" href="https://ambs.github.io/exist-shell/commands/">
+      
+      
+        <link rel="prev" href="../completion/">
+      
+      
+        <link rel="next" href="../sync/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Overview - exsh — eXist-db Shell</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-commands" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="exsh — eXist-db Shell" class="md-header__button md-logo" aria-label="exsh — eXist-db Shell" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            exsh — eXist-db Shell
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ambs/exist-shell" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ambs/exist-shell
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="exsh — eXist-db Shell" class="md-nav__button md-logo" aria-label="exsh — eXist-db Shell" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    exsh — eXist-db Shell
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ambs/exist-shell" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ambs/exist-shell
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shell Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#ls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cat
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#put" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        put
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="put">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cp
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cp">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#copy-directions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Copy directions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        edit
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="edit">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rm
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mkdir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mkdir
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="mkdir">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sync
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="sync">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quick-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        exec
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="exec">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#executing-a-stored-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executing a stored resource
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#options_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#find" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="find">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#user-ls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user ls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user ls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-add" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user add
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user add">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-rm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user rm
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user rm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user info
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user info">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-passwd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user passwd
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user passwd">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mv
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="mv">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#group" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        group
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="group">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#group-ls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        group ls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="group ls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-add" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        group add
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="group add">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-rm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        group rm
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="group rm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        chown
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="chown">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chmod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        chmod
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="chmod">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    sync
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#ls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cat
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#put" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        put
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="put">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cp
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cp">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#copy-directions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Copy directions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        edit
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="edit">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rm
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mkdir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mkdir
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="mkdir">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sync
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="sync">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quick-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        exec
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="exec">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#executing-a-stored-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executing a stored resource
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#options_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#find" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="find">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#user-ls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user ls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user ls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-add" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user add
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user add">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-rm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user rm
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user rm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user info
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user info">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-passwd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        user passwd
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="user passwd">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mv
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="mv">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#group" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        group
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="group">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#group-ls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        group ls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="group ls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-add" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        group add
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="group add">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-rm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        group rm
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="group rm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        chown
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="chown">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chmod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        chmod
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="chmod">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cli-commands">CLI Commands<a class="headerlink" href="#cli-commands" title="Permanent link">&para;</a></h1>
+<p>All commands follow the pattern <code>exsh &lt;command&gt; [options]</code>. Paths to remote documents and collections are written as <code>&lt;nick&gt;:&lt;path&gt;</code> (e.g. <code>mydata:reports/2025/summary.xml</code>), where <code>&lt;nick&gt;</code> is the short name you gave to a registered collection.</p>
+<h2 id="ls">ls<a class="headerlink" href="#ls" title="Permanent link">&para;</a></h2>
+<p>List subcollections and documents at a collection path.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>exsh ls &lt;nick&gt;[:&lt;path&gt;] [--sort name|time] [--reverse] [--names-only]
+</code></pre></div>
+<p>Output has one entry per line with columns separated by two spaces. Subcollections are shown with a trailing <code>/</code>. Empty fields (e.g. size for a collection) are omitted.</p>
+<p><strong>Columns for collections:</strong> <code>name/</code>, <code>permissions</code>, <code>owner</code>, <code>created</code></p>
+<p><strong>Columns for resources:</strong> <code>name</code>, <code>permissions</code>, <code>owner</code>, <code>size (bytes)</code>, <code>mime-type</code>, <code>last-modified</code></p>
+<h3 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--sort name</code></td>
+<td>Sort entries alphabetically by name (default)</td>
+</tr>
+<tr>
+<td><code>--sort time</code></td>
+<td>Sort by modification time (oldest first)</td>
+</tr>
+<tr>
+<td><code>--reverse / -r</code></td>
+<td>Reverse the sort order</td>
+</tr>
+<tr>
+<td><code>--names-only</code></td>
+<td>Print only names, one per line — useful for piping</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># List the root of a registered collection</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>exsh<span class="w"> </span>ls<span class="w"> </span>mydata
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># List a subdirectory</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>exsh<span class="w"> </span>ls<span class="w"> </span>mydata:reports/2025
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Sort by modification time, newest first</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>exsh<span class="w"> </span>ls<span class="w"> </span>mydata:reports/2025<span class="w"> </span>--sort<span class="w"> </span><span class="nb">time</span><span class="w"> </span>--reverse
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Pipe only filenames into another command</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>exsh<span class="w"> </span>ls<span class="w"> </span>mydata:reports/2025<span class="w"> </span>--names-only<span class="w"> </span><span class="p">|</span><span class="w"> </span>xargs<span class="w"> </span>-I<span class="o">{}</span><span class="w"> </span>exsh<span class="w"> </span>cat<span class="w"> </span>mydata:reports/2025/<span class="o">{}</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># Pipe into grep</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>exsh<span class="w"> </span>ls<span class="w"> </span>mydata:reports/2025<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;.xml&quot;</span>
+</code></pre></div>
+<hr />
+<h2 id="cat">cat<a class="headerlink" href="#cat" title="Permanent link">&para;</a></h2>
+<p>Print the content of a document to stdout.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>exsh cat &lt;nick&gt;:&lt;path&gt; [--raw]
+</code></pre></div>
+<p>By default <code>cat</code> refuses to print binary content and shows an error. Use <code>--raw</code> to write raw bytes to stdout instead.</p>
+<h3 id="options_1">Options<a class="headerlink" href="#options_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--raw</code></td>
+<td>Write raw bytes to stdout regardless of MIME type</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples_1">Examples<a class="headerlink" href="#examples_1" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Print an XML document</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>exsh<span class="w"> </span>cat<span class="w"> </span>mydata:reports/2025/summary.xml
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Pipe into xmllint</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>exsh<span class="w"> </span>cat<span class="w"> </span>mydata:reports/2025/summary.xml<span class="w"> </span><span class="p">|</span><span class="w"> </span>xmllint<span class="w"> </span>--format<span class="w"> </span>-
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Download a binary to a file</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>exsh<span class="w"> </span>cat<span class="w"> </span>--raw<span class="w"> </span>mydata:images/logo.png<span class="w"> </span>&gt;<span class="w"> </span>logo.png
+</code></pre></div>
+<hr />
+<h2 id="put">put<a class="headerlink" href="#put" title="Permanent link">&para;</a></h2>
+<p>Upload a local file (or stdin) to a collection path.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>exsh put &lt;nick&gt;:&lt;path&gt; [-f FILE] [--mime MIME]
+</code></pre></div>
+<p>If the target document already exists it is silently overwritten. The MIME type is guessed from the file extension when not specified; it falls back to <code>application/xml</code>.</p>
+<p>Before uploading, <code>exsh</code> checks that the content is well-formed XML whenever the resolved MIME type is an XML type (<code>application/xml</code>, <code>text/xml</code>, or any type ending in <code>+xml</code>). If the check fails, the upload is refused and the parse error is printed. Non-XML MIME types (e.g. <code>image/png</code>, <code>application/json</code>) are uploaded without any validation.</p>
+<h3 id="options_2">Options<a class="headerlink" href="#options_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-f / --file FILE</code></td>
+<td>Local file to upload. When omitted, stdin is read.</td>
+</tr>
+<tr>
+<td><code>--mime MIME</code></td>
+<td>Explicit MIME type. Overrides guessed value.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples_2">Examples<a class="headerlink" href="#examples_2" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Upload a file</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>exsh<span class="w"> </span>put<span class="w"> </span>mydata:reports/2025/report.xml<span class="w"> </span>-f<span class="w"> </span>report.xml
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Upload from stdin</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>cat<span class="w"> </span>report.xml<span class="w"> </span><span class="p">|</span><span class="w"> </span>exsh<span class="w"> </span>put<span class="w"> </span>mydata:reports/2025/report.xml
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Override MIME type</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>exsh<span class="w"> </span>put<span class="w"> </span>mydata:data/config.json<span class="w"> </span>-f<span class="w"> </span>config.json<span class="w"> </span>--mime<span class="w"> </span>application/json
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Upload binary</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>exsh<span class="w"> </span>put<span class="w"> </span>mydata:images/logo.png<span class="w"> </span>-f<span class="w"> </span>logo.png<span class="w"> </span>--mime<span class="w"> </span>image/png
+</code></pre></div>
+<hr />
+<h2 id="cp">cp<a class="headerlink" href="#cp" title="Permanent link">&para;</a></h2>
+<p>Copy a document between local paths and remote eXist collections. All three directions are supported.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>exsh cp &lt;source&gt; &lt;target&gt;
+</code></pre></div>
+<p>If the target is an existing local directory, the source filename is appended automatically. If the target path ends with <code>/</code>, the source filename is also appended.</p>
+<h3 id="copy-directions">Copy directions<a class="headerlink" href="#copy-directions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Target</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nick:path</code></td>
+<td>local path</td>
+<td>Download remote document to local file</td>
+</tr>
+<tr>
+<td>local path</td>
+<td><code>nick:path</code></td>
+<td>Upload local file to remote collection</td>
+</tr>
+<tr>
+<td><code>nick:path</code></td>
+<td><code>nick:path</code></td>
+<td>Copy between two remote locations (may be different servers)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples_3">Examples<a class="headerlink" href="#examples_3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Remote to local (into a specific file)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>exsh<span class="w"> </span>cp<span class="w"> </span>mydata:reports/2025/summary.xml<span class="w"> </span>./summary.xml
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Remote to local (into a directory — filename preserved)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>exsh<span class="w"> </span>cp<span class="w"> </span>mydata:reports/2025/summary.xml<span class="w"> </span>./downloads/
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Local to remote</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>exsh<span class="w"> </span>cp<span class="w"> </span>./report.xml<span class="w"> </span>mydata:reports/2025/report.xml
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># Remote to remote (same or different servers)</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>exsh<span class="w"> </span>cp<span class="w"> </span>mydata:reports/2025/summary.xml<span class="w"> </span>archive:reports/2025/summary.xml
+</code></pre></div>
+<hr />
+<h2 id="edit">edit<a class="headerlink" href="#edit" title="Permanent link">&para;</a></h2>
+<p>Download a document, open it in your editor, and automatically re-upload if the content changed.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>exsh edit &lt;nick&gt;:&lt;path&gt;
+</code></pre></div>
+<p>The editor is resolved from the <code>$VISUAL</code> environment variable, then <code>$EDITOR</code>, falling back to <code>vi</code>. If you use VS Code, set <code>EDITOR="code --wait"</code>.</p>
+<p>If the file is not modified, <code>exsh</code> prints <code>No changes.</code> and exits without uploading.</p>
+<p>For XML documents, the content is checked for well-formedness before uploading. If the check fails, <code>exsh</code> prints the parse error, prompts you to press Enter, and re-opens the editor so you can fix the problem in place. Quitting the editor without making further changes aborts the upload.</p>
+<h3 id="examples_4">Examples<a class="headerlink" href="#examples_4" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Edit with whatever $EDITOR is set to</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>exsh<span class="w"> </span>edit<span class="w"> </span>mydata:reports/2025/summary.xml
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Temporarily override the editor</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="nv">EDITOR</span><span class="o">=</span>nano<span class="w"> </span>exsh<span class="w"> </span>edit<span class="w"> </span>mydata:config.xml
+</code></pre></div>
+<hr />
+<h2 id="rm">rm<a class="headerlink" href="#rm" title="Permanent link">&para;</a></h2>
+<p>Delete one or more documents from an eXist collection.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>exsh rm [--recursive] [--yes] &lt;nick&gt;:&lt;path&gt;...
+</code></pre></div>
+<p>Multiple paths can be supplied in a single invocation. Deletion is permanent — there is no undo.</p>
+<p>A target that is itself a collection is refused by default (<code>Error: '&lt;nick&gt;:&lt;path&gt;' is a collection; use -r/--recursive to delete it and everything under it.</code>) rather than silently deleting the whole subtree. Pass <code>--recursive</code> to allow it; unless <code>--yes</code> is also given, <code>rm</code> first prompts for confirmation naming the collection being removed.</p>
+<h3 id="options_3">Options<a class="headerlink" href="#options_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--recursive / -r</code></td>
+<td>Allow a target that is a collection to be deleted, along with everything under it.</td>
+</tr>
+<tr>
+<td><code>--yes / -y</code></td>
+<td>Skip the confirmation prompt when deleting a collection.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples_5">Examples<a class="headerlink" href="#examples_5" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Delete a single document</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>exsh<span class="w"> </span>rm<span class="w"> </span>mydata:reports/2025/old.xml
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Delete multiple documents at once</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>exsh<span class="w"> </span>rm<span class="w"> </span>mydata:reports/2025/a.xml<span class="w"> </span>mydata:reports/2025/b.xml
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Delete a whole collection (prompts for confirmation)</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>exsh<span class="w"> </span>rm<span class="w"> </span>--recursive<span class="w"> </span>mydata:reports/2025
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="c1"># Delete a whole collection without prompting</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>exsh<span class="w"> </span>rm<span class="w"> </span>--recursive<span class="w"> </span>--yes<span class="w"> </span>mydata:reports/2025
+</code></pre></div>
+<hr />
+<h2 id="mkdir">mkdir<a class="headerlink" href="#mkdir" title="Permanent link">&para;</a></h2>
+<p>Create a subcollection inside a registered collection.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>exsh mkdir &lt;nick&gt;:&lt;path&gt;
+</code></pre></div>
+<p>Parent collections must already exist. Use multiple <code>mkdir</code> calls to create nested paths.</p>
+<h3 id="examples_6">Examples<a class="headerlink" href="#examples_6" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Create a subcollection</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>exsh<span class="w"> </span>mkdir<span class="w"> </span>mydata:reports/2026
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># Create a nested path (parents must exist first)</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>exsh<span class="w"> </span>mkdir<span class="w"> </span>mydata:reports
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>exsh<span class="w"> </span>mkdir<span class="w"> </span>mydata:reports/2026
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>exsh<span class="w"> </span>mkdir<span class="w"> </span>mydata:reports/2026/q1
+</code></pre></div>
+<hr />
+<h2 id="sync">sync<a class="headerlink" href="#sync" title="Permanent link">&para;</a></h2>
+<p>Synchronise a local directory tree and a remote collection, transferring only changed files.</p>
+<p>See the dedicated <a href="../sync/">sync page</a> for full details.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>exsh sync &lt;source&gt; &lt;dest&gt; [--force] [--fail-fast] [--dry-run] [--delete] [--verbose]
+</code></pre></div>
+<p>Direction is inferred from argument order: local-first means push, remote-first means pull.</p>
+<h3 id="options_4">Options<a class="headerlink" href="#options_4" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--force / -f</code></td>
+<td>Transfer all files, bypassing conflict detection</td>
+</tr>
+<tr>
+<td><code>--fail-fast</code></td>
+<td>Stop on the first conflict or XML validation failure; manifest is saved so the run can resume (push only)</td>
+</tr>
+<tr>
+<td><code>--dry-run / -n</code></td>
+<td>Show what would happen without transferring anything</td>
+</tr>
+<tr>
+<td><code>--delete</code></td>
+<td>Remove files on the destination that no longer exist on the source</td>
+</tr>
+<tr>
+<td><code>--verbose / -v</code></td>
+<td>Also print unchanged (skipped) files</td>
+</tr>
+</tbody>
+</table>
+<h3 id="quick-examples">Quick examples<a class="headerlink" href="#quick-examples" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Push local folder to server</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>exsh<span class="w"> </span>sync<span class="w"> </span>./reports<span class="w"> </span>mydata:reports
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Pull remote collection to local folder</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>exsh<span class="w"> </span>sync<span class="w"> </span>mydata:reports<span class="w"> </span>./reports
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># Preview a push without doing anything</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>exsh<span class="w"> </span>sync<span class="w"> </span>--dry-run<span class="w"> </span>./reports<span class="w"> </span>mydata:reports
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="c1"># Push and delete server-side extras</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>exsh<span class="w"> </span>sync<span class="w"> </span>--delete<span class="w"> </span>./reports<span class="w"> </span>mydata:reports
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="c1"># Push but stop immediately if any XML file is malformed</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>exsh<span class="w"> </span>sync<span class="w"> </span>--fail-fast<span class="w"> </span>./reports<span class="w"> </span>mydata:reports
+</code></pre></div>
+<hr />
+<h2 id="exec">exec<a class="headerlink" href="#exec" title="Permanent link">&para;</a></h2>
+<p>Execute an XQuery script on an eXist-db server and print the result to stdout.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>exsh exec &lt;nick&gt;[:&lt;path&gt;] [-f FILE] [--no-fix] [--no-validate] [--validator NAME]
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>exsh exec --resource &lt;nick&gt;:&lt;path.xql&gt; [-p NAME=VALUE ...]
+</code></pre></div>
+<p>The query is read from <code>--file</code> or from stdin. Before sending, <code>exsh</code> optionally preprocesses the source and validates it locally:</p>
+<p><strong>Preprocessing</strong> (enabled by default, skip with <code>--no-fix</code>):</p>
+<ul>
+<li>Adds <code>xquery version "3.1";</code> if no version declaration is present.</li>
+<li>Adds the <code>functx</code> module import if <code>functx:</code> functions are referenced but not declared.</li>
+</ul>
+<p><strong>Local validation</strong> (enabled when a supported validator is installed, skip with <code>--no-validate</code>):</p>
+<p>The first installed validator found on <code>PATH</code> is used automatically. Use <code>--validator</code> to choose a specific one. Supported validators:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>basex</code></td>
+<td><a href="https://basex.org">BaseX</a></td>
+</tr>
+<tr>
+<td><code>saxon</code></td>
+<td><a href="https://www.saxonica.com">Saxon</a> (requires a <code>saxon</code> wrapper script on PATH)</td>
+</tr>
+</tbody>
+</table>
+<p>Run <code>exsh exec --list-validators</code> to see which validators are available on the current machine.</p>
+<h3 id="executing-a-stored-resource">Executing a stored resource<a class="headerlink" href="#executing-a-stored-resource" title="Permanent link">&para;</a></h3>
+<p><code>--resource &lt;nick&gt;:&lt;path.xql&gt;</code> runs a <code>.xql</code>/<code>.xqm</code> script that's already stored on the server in place, instead of sending local source. This is a plain <code>GET</code> on the resource — the same mechanism eXist uses to execute these MIME types automatically — so it relies on the resource being invoked in its own stored collection context, which matters for scripts that assume that context (e.g. relative <code>doc()</code>/<code>collection()</code> lookups).</p>
+<p><code>--resource</code> is mutually exclusive with the <code>&lt;nick&gt;[:&lt;path&gt;]</code> argument, and skips local preprocessing/validation entirely, since there's no local source to fix up or check. Repeat <code>-p/--param NAME=VALUE</code> to forward query-string parameters, which the resource can read as external variables.</p>
+<h3 id="options_5">Options<a class="headerlink" href="#options_5" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--resource &lt;nick&gt;:&lt;path.xql&gt;</code></td>
+<td>Execute a stored resource in place instead of local code.</td>
+</tr>
+<tr>
+<td><code>-p / --param NAME=VALUE</code></td>
+<td>Query-string parameter to forward with <code>--resource</code> (repeatable).</td>
+</tr>
+<tr>
+<td><code>-f / --file FILE</code></td>
+<td>XQuery file to execute. When omitted, stdin is read.</td>
+</tr>
+<tr>
+<td><code>--no-fix</code></td>
+<td>Skip preprocessing (version declaration, namespace imports).</td>
+</tr>
+<tr>
+<td><code>--no-validate</code></td>
+<td>Skip local validation even if a validator is installed.</td>
+</tr>
+<tr>
+<td><code>--validator NAME</code></td>
+<td>Use a specific local validator by name.</td>
+</tr>
+<tr>
+<td><code>--list-validators</code></td>
+<td>List known validators and their install status, then exit.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples_7">Examples<a class="headerlink" href="#examples_7" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Execute a query file against the root of a collection</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>mydata:/<span class="w"> </span>-f<span class="w"> </span>query.xq
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Execute from stdin</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;count(collection(&quot;/db/mydata&quot;))&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>mydata:/
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># Pipe the result into xmllint for pretty-printing</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>mydata:/<span class="w"> </span>-f<span class="w"> </span>query.xq<span class="w"> </span><span class="p">|</span><span class="w"> </span>xmllint<span class="w"> </span>--format<span class="w"> </span>-
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># Execute in the context of a subcollection</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>mydata:reports/2025<span class="w"> </span>-f<span class="w"> </span>summary.xq
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="c1"># Skip preprocessing and validation (e.g. for already-complete scripts)</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>mydata:/<span class="w"> </span>--no-fix<span class="w"> </span>--no-validate<span class="w"> </span>-f<span class="w"> </span>query.xq
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="c1"># Force a specific validator</span>
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>mydata:/<span class="w"> </span>--validator<span class="w"> </span>basex<span class="w"> </span>-f<span class="w"> </span>query.xq
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a>
+<a id="__codelineno-17-19" name="__codelineno-17-19" href="#__codelineno-17-19"></a><span class="c1"># Check which validators are available locally</span>
+<a id="__codelineno-17-20" name="__codelineno-17-20" href="#__codelineno-17-20"></a>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--list-validators
+<a id="__codelineno-17-21" name="__codelineno-17-21" href="#__codelineno-17-21"></a>
+<a id="__codelineno-17-22" name="__codelineno-17-22" href="#__codelineno-17-22"></a><span class="c1"># Execute a stored resource in place, rather than downloading it first</span>
+<a id="__codelineno-17-23" name="__codelineno-17-23" href="#__codelineno-17-23"></a>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--resource<span class="w"> </span>mydata:/report.xql
+<a id="__codelineno-17-24" name="__codelineno-17-24" href="#__codelineno-17-24"></a>
+<a id="__codelineno-17-25" name="__codelineno-17-25" href="#__codelineno-17-25"></a><span class="c1"># ...forwarding query-string parameters as external variables</span>
+<a id="__codelineno-17-26" name="__codelineno-17-26" href="#__codelineno-17-26"></a>exsh<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--resource<span class="w"> </span>mydata:/report.xql<span class="w"> </span>-p<span class="w"> </span><span class="nv">from</span><span class="o">=</span><span class="m">2026</span>-01-01<span class="w"> </span>-p<span class="w"> </span><span class="nv">to</span><span class="o">=</span><span class="m">2026</span>-12-31
+</code></pre></div>
+<hr />
+<h2 id="find">find<a class="headerlink" href="#find" title="Permanent link">&para;</a></h2>
+<p>Locate documents whose content matches an XPath expression, and optionally delete every match in one step.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>exsh find &lt;nick&gt;[:&lt;path&gt;] --query &lt;xpath&gt; [--remove] [--yes]
+</code></pre></div>
+<p>The expression given to <code>--query</code> is evaluated recursively under the target collection (equivalent to <code>collection(...)//(QUERY)</code>), and each matching document is printed as a <code>&lt;nick&gt;:&lt;path&gt;</code> target — the same format <code>rm</code> and every other command accepts. Because <code>rm</code> takes its targets as arguments (not from standard input), pipe <code>find</code> output through <code>xargs</code> to feed it into <code>rm</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>exsh<span class="w"> </span>find<span class="w"> </span>mydata:reports<span class="w"> </span>--query<span class="w"> </span><span class="s1">&#39;foo[@type=&quot;draft&quot;]&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>xargs<span class="w"> </span>-r<span class="w"> </span>exsh<span class="w"> </span>rm
+</code></pre></div>
+<p>Deleting matches directly with <code>--remove</code> is usually simpler; the pipe form is useful when you want to filter the list first.</p>
+<p>Without <code>--remove</code>, <code>find</code> only lists matches — this is inherently a dry run. With <code>--remove</code>, matches are deleted as they're printed; unless <code>--yes</code> is also given, <code>find</code> first prompts for confirmation showing the number of matching documents. If a document reported by the search has already disappeared by the time it is deleted, <code>find</code> warns and continues, then exits non-zero.</p>
+<blockquote>
+<p><strong>Security note:</strong> the <code>--query</code> expression is embedded into a server-side XQuery without validation or sandboxing, so it can execute arbitrary XQuery with your configured server credentials (the same trust model as <code>exsh exec</code>). Only pass expressions from a trusted source.</p>
+</blockquote>
+<h3 id="options_6">Options<a class="headerlink" href="#options_6" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--query / -q XPATH</code></td>
+<td>XPath expression to match, evaluated recursively under the target (required).</td>
+</tr>
+<tr>
+<td><code>--remove</code></td>
+<td>Delete matching documents instead of just listing them.</td>
+</tr>
+<tr>
+<td><code>--yes / -y</code></td>
+<td>Skip the confirmation prompt when used with <code>--remove</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples_8">Examples<a class="headerlink" href="#examples_8" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># List documents containing a matching element anywhere in their tree</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>exsh<span class="w"> </span>find<span class="w"> </span>mydata:reports<span class="w"> </span>--query<span class="w"> </span><span class="s1">&#39;foo[@type=&quot;draft&quot;]&#39;</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="c1"># Match on an attribute nested deeper in the document</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>exsh<span class="w"> </span>find<span class="w"> </span>mydata:/<span class="w"> </span>--query<span class="w"> </span><span class="s1">&#39;section/foo[@type=&quot;draft&quot;]&#39;</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="c1"># Delete every match, with a confirmation prompt showing the match count</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>exsh<span class="w"> </span>find<span class="w"> </span>mydata:reports<span class="w"> </span>--query<span class="w"> </span><span class="s1">&#39;foo[@type=&quot;draft&quot;]&#39;</span><span class="w"> </span>--remove
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="c1"># Delete every match, skipping the confirmation prompt</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>exsh<span class="w"> </span>find<span class="w"> </span>mydata:reports<span class="w"> </span>--query<span class="w"> </span><span class="s1">&#39;foo[@type=&quot;draft&quot;]&#39;</span><span class="w"> </span>--remove<span class="w"> </span>--yes
+</code></pre></div>
+<hr />
+<h2 id="ping">ping<a class="headerlink" href="#ping" title="Permanent link">&para;</a></h2>
+<p>Check connectivity to a configured server, reporting its version and round-trip latency. <code>exsh server status</code> is the same command.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>exsh ping [nick]
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>exsh server status [nick]
+</code></pre></div>
+<p>With a nick, prints a three-line report:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>Server:   http://localhost:8080/exist
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>Version:  6.2.0
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>Status:   OK (42ms)
+</code></pre></div>
+<p>Without a nick, every configured server is checked, one row per server:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>localhost  http://localhost:8080/exist    6.2.0  OK (42ms)
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>staging    http://staging.example.com:8080/exist  -  FAIL (cannot connect: ...)
+</code></pre></div>
+<p>The exit code is 0 only when every checked server responds; a connection failure, an authentication failure, or an unknown nick exits 1, making it a cheap sanity check in scripts and CI before longer operations.</p>
+<h3 id="examples_9">Examples<a class="headerlink" href="#examples_9" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Quick health check of one server</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>exsh<span class="w"> </span>ping<span class="w"> </span>localhost
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="c1"># Check every configured server</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>exsh<span class="w"> </span>ping
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="c1"># Gate a script on server availability</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>exsh<span class="w"> </span>ping<span class="w"> </span>localhost<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+</code></pre></div>
+<hr />
+<h2 id="user">user<a class="headerlink" href="#user" title="Permanent link">&para;</a></h2>
+<p>Manage user accounts on an eXist-db server.</p>
+<h3 id="user-ls">user ls<a class="headerlink" href="#user-ls" title="Permanent link">&para;</a></h3>
+<p>List all user accounts and their group memberships.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>exsh user ls [--server NICK]
+</code></pre></div>
+<p>Output has one line per user with two tab-separated columns: username and comma-separated group list.</p>
+<h4 id="options_7">Options<a class="headerlink" href="#options_7" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--server NICK</code></td>
+<td>Server to query. Auto-selected when only one server is configured.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_10">Examples<a class="headerlink" href="#examples_10" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># List all users on the only configured server</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>exsh<span class="w"> </span>user<span class="w"> </span>ls
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># List users on a specific server</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>exsh<span class="w"> </span>user<span class="w"> </span>ls<span class="w"> </span>--server<span class="w"> </span>localhost
+</code></pre></div>
+<hr />
+<h3 id="user-add">user add<a class="headerlink" href="#user-add" title="Permanent link">&para;</a></h3>
+<p>Create a new user account on the server.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>exsh user add &lt;username&gt; [--group GROUPS] [--password PASSWORD] [--server NICK]
+</code></pre></div>
+<p>Prompts for a password when <code>--password</code> is not supplied so the credential is never written to shell history. The first group in the comma-separated list becomes the primary group.</p>
+<h4 id="options_8">Options<a class="headerlink" href="#options_8" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--group GROUPS</code></td>
+<td>Comma-separated group names. The first is the primary group. Defaults to <code>guest</code>.</td>
+</tr>
+<tr>
+<td><code>--password PASSWORD</code></td>
+<td>Plaintext password. Prompted interactively when omitted.</td>
+</tr>
+<tr>
+<td><code>--server NICK</code></td>
+<td>Server to target. Auto-selected when only one server is configured.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_11">Examples<a class="headerlink" href="#examples_11" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Create a user, prompt for password</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>exsh<span class="w"> </span>user<span class="w"> </span>add<span class="w"> </span>alice<span class="w"> </span>--group<span class="w"> </span>editors
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># Create a user with an explicit password and multiple groups</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>exsh<span class="w"> </span>user<span class="w"> </span>add<span class="w"> </span>alice<span class="w"> </span>--group<span class="w"> </span>editors,users<span class="w"> </span>--password<span class="w"> </span>s3cr3t
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="c1"># Create a user on a specific server</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>exsh<span class="w"> </span>user<span class="w"> </span>add<span class="w"> </span>alice<span class="w"> </span>--server<span class="w"> </span>prod<span class="w"> </span>--group<span class="w"> </span>editors
+</code></pre></div>
+<hr />
+<h3 id="user-rm">user rm<a class="headerlink" href="#user-rm" title="Permanent link">&para;</a></h3>
+<p>Remove a user account from the server.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>exsh user rm &lt;username&gt; [--yes] [--server NICK]
+</code></pre></div>
+<p>Prompts for confirmation unless <code>--yes</code> is supplied.</p>
+<h4 id="options_9">Options<a class="headerlink" href="#options_9" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--yes / -y</code></td>
+<td>Skip the confirmation prompt.</td>
+</tr>
+<tr>
+<td><code>--server NICK</code></td>
+<td>Server to target. Auto-selected when only one server is configured.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_12">Examples<a class="headerlink" href="#examples_12" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Remove a user interactively</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>exsh<span class="w"> </span>user<span class="w"> </span>rm<span class="w"> </span>alice
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Remove without confirmation (e.g. in a script)</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>exsh<span class="w"> </span>user<span class="w"> </span>rm<span class="w"> </span>alice<span class="w"> </span>--yes
+</code></pre></div>
+<hr />
+<h3 id="user-info">user info<a class="headerlink" href="#user-info" title="Permanent link">&para;</a></h3>
+<p>Show detailed information about a user account.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>exsh user info &lt;username&gt; [--server NICK]
+</code></pre></div>
+<p>Prints username, full name (when set), group memberships, and enabled status.</p>
+<h4 id="options_10">Options<a class="headerlink" href="#options_10" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--server NICK</code></td>
+<td>Server to query. Auto-selected when only one server is configured.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_13">Examples<a class="headerlink" href="#examples_13" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Inspect the admin account</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>exsh<span class="w"> </span>user<span class="w"> </span>info<span class="w"> </span>admin
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Inspect a user on a specific server</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>exsh<span class="w"> </span>user<span class="w"> </span>info<span class="w"> </span>alice<span class="w"> </span>--server<span class="w"> </span>prod
+</code></pre></div>
+<hr />
+<h3 id="user-passwd">user passwd<a class="headerlink" href="#user-passwd" title="Permanent link">&para;</a></h3>
+<p>Change a user's password on the server.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>exsh user passwd &lt;username[@server]&gt; [--stdin] [--server NICK]
+</code></pre></div>
+<p>Prompts for the new password interactively (with confirmation) unless <code>--stdin</code> is supplied. The password is never accepted directly on the command line to avoid shell history exposure.</p>
+<h4 id="options_11">Options<a class="headerlink" href="#options_11" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--stdin</code></td>
+<td>Read the new password from stdin — useful for scripting and pipelines.</td>
+</tr>
+<tr>
+<td><code>--server NICK</code></td>
+<td>Server to target. Auto-selected when only one server is configured.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_14">Examples<a class="headerlink" href="#examples_14" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># Change password interactively (prompted with confirmation)</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>exsh<span class="w"> </span>user<span class="w"> </span>passwd<span class="w"> </span>alice
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># Change password from stdin (for scripting)</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;newpassword&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>exsh<span class="w"> </span>user<span class="w"> </span>passwd<span class="w"> </span>alice<span class="w"> </span>--stdin
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="c1"># Using @server syntax</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>exsh<span class="w"> </span>user<span class="w"> </span>passwd<span class="w"> </span>alice@prod<span class="w"> </span>--stdin
+</code></pre></div>
+<hr />
+<h2 id="mv">mv<a class="headerlink" href="#mv" title="Permanent link">&para;</a></h2>
+<p>Move or rename a document or collection on the server.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>exsh mv &lt;source&gt; &lt;target&gt;
+</code></pre></div>
+<p>Both <code>&lt;source&gt;</code> and <code>&lt;target&gt;</code> must be remote paths (<code>nick:path</code>). Local paths are not accepted — use <code>cp</code> + <code>rm</code> for local↔remote operations.</p>
+<p>If <code>&lt;target&gt;</code> ends with a trailing <code>/</code>, the source name is preserved and the item is moved <em>into</em> that collection. Without a trailing slash, the source is moved <em>and</em> renamed to the target path in one step.</p>
+<p>Moving a collection recursively copies all its contents to the destination, then deletes the source — the source is left intact if any upload fails.</p>
+<p>Cross-server moves are not supported; both paths must resolve to the same server. Use <code>cp</code> + <code>rm</code> for cross-server transfers.</p>
+<h3 id="examples_15">Examples<a class="headerlink" href="#examples_15" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="c1"># Rename a document</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>exsh<span class="w"> </span>mv<span class="w"> </span>mydata:reports/old.xml<span class="w"> </span>mydata:reports/new.xml
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="c1"># Move a document into a subcollection (filename preserved)</span>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>exsh<span class="w"> </span>mv<span class="w"> </span>mydata:reports/draft.xml<span class="w"> </span>mydata:archive/
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="c1"># Move and rename in one step</span>
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>exsh<span class="w"> </span>mv<span class="w"> </span>mydata:reports/draft.xml<span class="w"> </span>mydata:archive/final.xml
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a>
+<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a><span class="c1"># Rename a collection</span>
+<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a>exsh<span class="w"> </span>mv<span class="w"> </span>mydata:drafts<span class="w"> </span>mydata:archive
+<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a>
+<a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a><span class="c1"># Move a collection into another collection (trailing slash)</span>
+<a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a>exsh<span class="w"> </span>mv<span class="w"> </span>mydata:drafts<span class="w"> </span><span class="s2">&quot;mydata:archive/&quot;</span>
+</code></pre></div>
+<hr />
+<h2 id="group">group<a class="headerlink" href="#group" title="Permanent link">&para;</a></h2>
+<p>Manage groups on an eXist-db server.</p>
+<h3 id="group-ls">group ls<a class="headerlink" href="#group-ls" title="Permanent link">&para;</a></h3>
+<p>List all groups and their members.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>exsh group ls [@server] [--server NICK]
+</code></pre></div>
+<p>Output has one line per group with two tab-separated columns: group name and comma-separated member list.</p>
+<p>The server may be specified as a positional <code>@nick</code> argument or via <code>--server</code>. When only one server is configured it is selected automatically.</p>
+<h4 id="options_12">Options<a class="headerlink" href="#options_12" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--server NICK</code></td>
+<td>Server to query. Auto-selected when only one server is configured.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_16">Examples<a class="headerlink" href="#examples_16" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="c1"># List all groups on the only configured server</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>exsh<span class="w"> </span>group<span class="w"> </span>ls
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a><span class="c1"># List groups on a specific server</span>
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>exsh<span class="w"> </span>group<span class="w"> </span>ls<span class="w"> </span>--server<span class="w"> </span>localhost
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>
+<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a><span class="c1"># Using @server syntax</span>
+<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>exsh<span class="w"> </span>group<span class="w"> </span>ls<span class="w"> </span>@prod
+</code></pre></div>
+<hr />
+<h3 id="group-add">group add<a class="headerlink" href="#group-add" title="Permanent link">&para;</a></h3>
+<p>Create a new group on the server.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>exsh group add &lt;groupname[@server]&gt; [--server NICK]
+</code></pre></div>
+<h4 id="options_13">Options<a class="headerlink" href="#options_13" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--server NICK</code></td>
+<td>Server to target. Auto-selected when only one server is configured.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_17">Examples<a class="headerlink" href="#examples_17" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="c1"># Create a group</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>exsh<span class="w"> </span>group<span class="w"> </span>add<span class="w"> </span>editors
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="c1"># Create a group on a specific server</span>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>exsh<span class="w"> </span>group<span class="w"> </span>add<span class="w"> </span>editors<span class="w"> </span>--server<span class="w"> </span>prod
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="c1"># Using @server syntax</span>
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>exsh<span class="w"> </span>group<span class="w"> </span>add<span class="w"> </span>editors@prod
+</code></pre></div>
+<hr />
+<h3 id="group-rm">group rm<a class="headerlink" href="#group-rm" title="Permanent link">&para;</a></h3>
+<p>Remove a group from the server.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>exsh group rm &lt;groupname[@server]&gt; [--yes] [--server NICK]
+</code></pre></div>
+<p>Prompts for confirmation unless <code>--yes</code> is supplied.</p>
+<h4 id="options_14">Options<a class="headerlink" href="#options_14" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--yes / -y</code></td>
+<td>Skip the confirmation prompt.</td>
+</tr>
+<tr>
+<td><code>--server NICK</code></td>
+<td>Server to target. Auto-selected when only one server is configured.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_18">Examples<a class="headerlink" href="#examples_18" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="c1"># Remove a group interactively</span>
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>exsh<span class="w"> </span>group<span class="w"> </span>rm<span class="w"> </span>editors
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>
+<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="c1"># Remove without confirmation (e.g. in a script)</span>
+<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>exsh<span class="w"> </span>group<span class="w"> </span>rm<span class="w"> </span>editors<span class="w"> </span>--yes
+<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a>
+<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a><span class="c1"># Using @server syntax</span>
+<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a>exsh<span class="w"> </span>group<span class="w"> </span>rm<span class="w"> </span>editors@prod<span class="w"> </span>--yes
+</code></pre></div>
+<hr />
+<h2 id="chown">chown<a class="headerlink" href="#chown" title="Permanent link">&para;</a></h2>
+<p>Change the owner and/or group of a remote document or collection.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>exsh chown &lt;spec&gt; &lt;nick&gt;:&lt;path&gt; [--recursive]
+</code></pre></div>
+<p>The <code>&lt;spec&gt;</code> argument follows Unix <code>chown</code> conventions:</p>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>owner</code></td>
+<td>Change the owner only</td>
+</tr>
+<tr>
+<td><code>:group</code></td>
+<td>Change the group only</td>
+</tr>
+<tr>
+<td><code>owner:group</code></td>
+<td>Change both owner and group</td>
+</tr>
+</tbody>
+</table>
+<p>At least one of owner or group must be specified. The named user and group are validated against the server before the change is applied — if either does not exist, the command exits with an error and no change is made.</p>
+<p>For tab completion, prefix the spec with a server nick to pin a specific server:
+<code>prod@alice:editors</code>. The prefix is used only for completion and is discarded before the ownership change is applied.</p>
+<h3 id="options_15">Options<a class="headerlink" href="#options_15" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--recursive / -R</code></td>
+<td>Apply the ownership change to the collection and all its contents recursively. Only valid when the target is a collection.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples_19">Examples<a class="headerlink" href="#examples_19" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a><span class="c1"># Change owner only</span>
+<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>exsh<span class="w"> </span>chown<span class="w"> </span>alice<span class="w"> </span>mydata:reports/annual.xml
+<a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a>
+<a id="__codelineno-44-4" name="__codelineno-44-4" href="#__codelineno-44-4"></a><span class="c1"># Change group only</span>
+<a id="__codelineno-44-5" name="__codelineno-44-5" href="#__codelineno-44-5"></a>exsh<span class="w"> </span>chown<span class="w"> </span>:editors<span class="w"> </span>mydata:drafts/
+<a id="__codelineno-44-6" name="__codelineno-44-6" href="#__codelineno-44-6"></a>
+<a id="__codelineno-44-7" name="__codelineno-44-7" href="#__codelineno-44-7"></a><span class="c1"># Change both owner and group</span>
+<a id="__codelineno-44-8" name="__codelineno-44-8" href="#__codelineno-44-8"></a>exsh<span class="w"> </span>chown<span class="w"> </span>alice:editors<span class="w"> </span>mydata:reports/annual.xml
+<a id="__codelineno-44-9" name="__codelineno-44-9" href="#__codelineno-44-9"></a>
+<a id="__codelineno-44-10" name="__codelineno-44-10" href="#__codelineno-44-10"></a><span class="c1"># Change the root collection itself (non-recursive)</span>
+<a id="__codelineno-44-11" name="__codelineno-44-11" href="#__codelineno-44-11"></a>exsh<span class="w"> </span>chown<span class="w"> </span>admin<span class="w"> </span>mydata:
+<a id="__codelineno-44-12" name="__codelineno-44-12" href="#__codelineno-44-12"></a>
+<a id="__codelineno-44-13" name="__codelineno-44-13" href="#__codelineno-44-13"></a><span class="c1"># Recursively reassign an entire collection tree</span>
+<a id="__codelineno-44-14" name="__codelineno-44-14" href="#__codelineno-44-14"></a>exsh<span class="w"> </span>chown<span class="w"> </span>-R<span class="w"> </span>alice<span class="w"> </span>mydata:reports
+</code></pre></div>
+<hr />
+<h2 id="chmod">chmod<a class="headerlink" href="#chmod" title="Permanent link">&para;</a></h2>
+<p>Change the POSIX permissions of a remote document or collection.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>exsh chmod &lt;mode&gt; &lt;nick&gt;:&lt;path&gt; [--recursive]
+</code></pre></div>
+<p>The <code>&lt;mode&gt;</code> argument accepts both octal and symbolic Unix <code>chmod</code> notation:</p>
+<p><strong>Octal mode</strong> — a 1–4 digit octal number, with or without a leading <code>0</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0644</code></td>
+<td>Owner read/write; group and other read-only</td>
+</tr>
+<tr>
+<td><code>0755</code></td>
+<td>Owner read/write/execute; group and other read/execute</td>
+</tr>
+<tr>
+<td><code>644</code></td>
+<td>Same as <code>0644</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Symbolic mode</strong> — one or more comma-separated clauses of the form <code>[ugoa]*[+-=][rwxst]*</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Who</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>u</code></td>
+<td>User (owner)</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td>Group</td>
+</tr>
+<tr>
+<td><code>o</code></td>
+<td>Other</td>
+</tr>
+<tr>
+<td><code>a</code></td>
+<td>All (equivalent to <code>ugo</code>; default when no who is given)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>+</code></td>
+<td>Add the specified permissions</td>
+</tr>
+<tr>
+<td><code>-</code></td>
+<td>Remove the specified permissions</td>
+</tr>
+<tr>
+<td><code>=</code></td>
+<td>Set permissions exactly (clears unspecified bits for the given who)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>r</code></td>
+<td>Read</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td>Write</td>
+</tr>
+<tr>
+<td><code>x</code></td>
+<td>Execute</td>
+</tr>
+<tr>
+<td><code>s</code></td>
+<td>Set-user-ID / set-group-ID bit</td>
+</tr>
+<tr>
+<td><code>t</code></td>
+<td>Sticky bit</td>
+</tr>
+</tbody>
+</table>
+<p>For symbolic modes the server is queried for the current permissions before applying the change. With <code>--recursive</code> each item in the tree is queried and updated independently.</p>
+<h3 id="options_16">Options<a class="headerlink" href="#options_16" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--recursive / -R</code></td>
+<td>Apply the permission change to the collection and all its contents recursively. Only valid when the target is a collection.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples_20">Examples<a class="headerlink" href="#examples_20" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a><span class="c1"># Set a document to owner read/write, everyone else read-only</span>
+<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>exsh<span class="w"> </span>chmod<span class="w"> </span><span class="m">0644</span><span class="w"> </span>mydata:reports/annual.xml
+<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a>
+<a id="__codelineno-46-4" name="__codelineno-46-4" href="#__codelineno-46-4"></a><span class="c1"># Set a collection to rwxr-xr-x</span>
+<a id="__codelineno-46-5" name="__codelineno-46-5" href="#__codelineno-46-5"></a>exsh<span class="w"> </span>chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span>mydata:reports
+<a id="__codelineno-46-6" name="__codelineno-46-6" href="#__codelineno-46-6"></a>
+<a id="__codelineno-46-7" name="__codelineno-46-7" href="#__codelineno-46-7"></a><span class="c1"># Add execute permission for the owner</span>
+<a id="__codelineno-46-8" name="__codelineno-46-8" href="#__codelineno-46-8"></a>exsh<span class="w"> </span>chmod<span class="w"> </span>u+x<span class="w"> </span>mydata:scripts/run.xq
+<a id="__codelineno-46-9" name="__codelineno-46-9" href="#__codelineno-46-9"></a>
+<a id="__codelineno-46-10" name="__codelineno-46-10" href="#__codelineno-46-10"></a><span class="c1"># Remove write permission for group and other</span>
+<a id="__codelineno-46-11" name="__codelineno-46-11" href="#__codelineno-46-11"></a>exsh<span class="w"> </span>chmod<span class="w"> </span>go-w<span class="w"> </span>mydata:reports/annual.xml
+<a id="__codelineno-46-12" name="__codelineno-46-12" href="#__codelineno-46-12"></a>
+<a id="__codelineno-46-13" name="__codelineno-46-13" href="#__codelineno-46-13"></a><span class="c1"># Set all to read/write (clears execute bits)</span>
+<a id="__codelineno-46-14" name="__codelineno-46-14" href="#__codelineno-46-14"></a>exsh<span class="w"> </span>chmod<span class="w"> </span><span class="nv">a</span><span class="o">=</span>rw<span class="w"> </span>mydata:reports/annual.xml
+<a id="__codelineno-46-15" name="__codelineno-46-15" href="#__codelineno-46-15"></a>
+<a id="__codelineno-46-16" name="__codelineno-46-16" href="#__codelineno-46-16"></a><span class="c1"># Multiple clauses in one call</span>
+<a id="__codelineno-46-17" name="__codelineno-46-17" href="#__codelineno-46-17"></a>exsh<span class="w"> </span>chmod<span class="w"> </span>u+x,go-w<span class="w"> </span>mydata:scripts/run.xq
+<a id="__codelineno-46-18" name="__codelineno-46-18" href="#__codelineno-46-18"></a>
+<a id="__codelineno-46-19" name="__codelineno-46-19" href="#__codelineno-46-19"></a><span class="c1"># Recursively set a whole collection to 0644</span>
+<a id="__codelineno-46-20" name="__codelineno-46-20" href="#__codelineno-46-20"></a>exsh<span class="w"> </span>chmod<span class="w"> </span>-R<span class="w"> </span><span class="m">0644</span><span class="w"> </span>mydata:data
+<a id="__codelineno-46-21" name="__codelineno-46-21" href="#__codelineno-46-21"></a>
+<a id="__codelineno-46-22" name="__codelineno-46-22" href="#__codelineno-46-22"></a><span class="c1"># Recursively add user execute to a collection tree</span>
+<a id="__codelineno-46-23" name="__codelineno-46-23" href="#__codelineno-46-23"></a>exsh<span class="w"> </span>chmod<span class="w"> </span>-R<span class="w"> </span>u+x<span class="w"> </span>mydata:scripts
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.share", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
