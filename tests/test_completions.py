@@ -1,5 +1,7 @@
 """Tests for the shell completion helpers in completions.py."""
 
+import shutil
+import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -597,3 +599,42 @@ def test_bash_template_patch_swallows_import_error(monkeypatch):
     """
     monkeypatch.setitem(sys.modules, "typer._completion_classes", None)
     completions_module.patch_bash_completion_template()
+
+
+# ---------------------------------------------------------------------------
+# Generated bash script behaviour — runs the real script under bash with a
+# stub "exsh" and a stub compopt, to check when the trailing space is dropped.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("candidates", "expect_nospace"),
+    [
+        (["apps:"], True),
+        (["apps:/sub/"], True),
+        (["apps:/doc.xml"], False),
+        (["apps:", "dlp:"], False),
+    ],
+)
+def test_bash_script_nospace_only_for_single_prefix_candidate(tmp_path, candidates, expect_nospace):
+    """A lone ``nick:`` or ``dir/`` candidate must not get bash's trailing space."""
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash not available")
+    stub = tmp_path / "exsh"
+    stub.write_text("#!/bin/sh\n" + "".join(f"echo '{c}'\n" for c in candidates))
+    stub.chmod(0o755)
+    script = completions_module._FIXED_COMPLETION_SCRIPT_BASH % {
+        "complete_func": "_exsh_test", "autocomplete_var": "_EXSH_COMPLETE", "prog_name": "exsh",
+    }
+    harness = (
+        'compopt() { echo "compopt $1 $2"; }\n'
+        f"{script}\n"
+        'COMP_LINE="exsh ls a"; COMP_POINT=${#COMP_LINE}; COMP_WORDBREAKS=" :"\n'
+        "_exsh_test exsh\n"
+    )
+    result = subprocess.run(
+        [bash, "--norc", "--noprofile", "-c", harness],
+        capture_output=True, text=True, check=True, env={"PATH": f"{tmp_path}:/usr/bin:/bin"},
+    )
+    assert ("compopt -o nospace" in result.stdout) is expect_nospace

@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 
 from exist_shell.client import ExistClient
+from exist_shell.completions import collection_target_completer
 from exist_shell.utils import handle_exist_errors, parse_target, resolve_collection
 from exist_shell.xquery import list_validators, preprocess, validate_locally
 
@@ -33,9 +34,13 @@ def exec(
     target: str | None = typer.Argument(
         default=None,
         help="Collection context for the query: <nick>[:<path>].",
+        autocompletion=collection_target_completer("collection"),
     ),
     resource: str | None = typer.Option(
-        None, "--resource", help="Execute a stored resource in place instead of local code: <nick>:<path.xql>."
+        None,
+        "--resource",
+        help="Execute a stored resource in place instead of local code: <nick>:<path.xql>.",
+        autocompletion=collection_target_completer("any"),
     ),
     param: list[str] = typer.Option(
         [], "-p", "--param", help="Query-string parameter to forward with --resource, as name=value (repeatable)."

@@ -1,11 +1,15 @@
 """Tests for the exec command."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+import typer
+import typer.main
 
+import exist_shell.completions as completions_module
 from exist_shell.exceptions import ExistAuthError, ExistConnectionError, ExistNotFoundError, ExistQueryError
 from exist_shell.main import app
+from exist_shell.models import CollectionEntry, ResourceEntry
 from exist_shell.xquery import ValidatorResult
 
 
@@ -274,3 +278,39 @@ def test_exec_resource_does_not_read_stdin(config_with_collection, client_mock, 
     result = runner.invoke(app, ["exec", "--resource", "myapp:/report.xql"], input="should be ignored")
     assert result.exit_code == 0
     client_mock.execute_query.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Shell completion
+# ---------------------------------------------------------------------------
+
+def _complete(param_name: str, incomplete: str) -> list[str]:
+    """Run the shell completion wired to an exec parameter and return its values."""
+    exec_cmd = typer.main.get_group(app).commands["exec"]
+    param = next(p for p in exec_cmd.params if p.name == param_name)
+    with typer.Context(exec_cmd) as ctx:
+        return [item.value for item in param.shell_complete(ctx, incomplete)]
+
+
+@pytest.fixture
+def listing():
+    """One collection entry and one resource entry, as returned by the completion cache."""
+    return [CollectionEntry(name="subdir"), ResourceEntry(name="report.xql")]
+
+
+@pytest.mark.parametrize("param_name", ["target", "resource"])
+def test_exec_completes_collection_nicks(config_with_collection, param_name):
+    """Both TARGET and --resource offer configured nicks before a colon is typed."""
+    assert _complete(param_name, "my") == ["myapp:"]
+
+
+def test_exec_target_completes_collections_only(config_with_collection, listing):
+    """TARGET is a collection context, so only subcollections are offered."""
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=listing):
+        assert _complete("target", "myapp:/") == ["myapp:/subdir/"]
+
+
+def test_exec_resource_completes_collections_and_documents(config_with_collection, listing):
+    """--resource offers subcollections too, so tab can descend to a stored query."""
+    with patch.object(completions_module, "get_cached_prefix_match", return_value=listing):
+        assert _complete("resource", "myapp:/") == ["myapp:/subdir/", "myapp:/report.xql"]
