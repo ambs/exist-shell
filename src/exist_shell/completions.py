@@ -78,10 +78,10 @@ _FIXED_COMPLETION_SCRIPT_BASH = """
         COMPREPLY+=( "${__exsh_c:__exsh_strip}" )
     done
 
-    # A single collection candidate ends in "/" and will be inserted in
-    # full; suppress bash's default trailing space so the next tab press
-    # can continue straight into the subcollection.
-    if (( ${#COMPREPLY[@]} == 1 )) && [[ ${COMPREPLY[0]} == */ ]]; then
+    # A single collection ("/") or nick (":") candidate is a prefix of the
+    # real argument, not a finished word; suppress bash's default trailing
+    # space so the next tab press can continue straight into it.
+    if (( ${#COMPREPLY[@]} == 1 )) && [[ ${COMPREPLY[0]} == */ || ${COMPREPLY[0]} == *: ]]; then
         compopt -o nospace
     fi
     return 0

@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+### Fixes
+
+- Bash tab-completion appended a space after a lone `nick:` candidate (e.g. `exsh ls a<Tab>` → `apps: `), forcing a backspace before continuing into the path. The trailing space is now suppressed for `nick:` as it already was for `dir/`. Re-run `exsh --install-completion bash` to pick up the updated script (#181)
+
 ### Enhancements
 
+- **`exec` shell completion**: `exsh exec TARGET` and `exsh exec --resource` now tab-complete `nick:path` candidates (collections for `TARGET`; collections and documents for `--resource`, so tab can descend into subcollections), like every other remote-target command (#181)
 - **`exsh ping [nick]` / `exsh server status [nick]`**: check connectivity to a configured server, reporting its URL, version, and round-trip latency. Without a nick, every configured server is checked, one row each. Exits 1 on connection or auth failure (or when any server in the sweep fails), so scripts and CI can gate on it (#38)
 
 ## 0.2.0 - 2026-07-28
